@@ -226,6 +226,11 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
 /* DIVIDER */
 .dv{height:1px;background:var(--bc);margin:13px 0}
 
+/* CATEGORIA FILTRO */
+.cat-fb{padding:5px 11px;border-radius:5px;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;font-weight:500;transition:all .15s;white-space:nowrap}
+.cat-fb:hover{color:var(--text);background:var(--hov)}
+.cat-fb.active{background:var(--gold);color:#000;font-weight:700}
+
 /* SEARCH */
 .si{background:var(--inp);border:var(--brd);border-radius:var(--r2);padding:8px 12px;color:var(--text);font-size:13px;outline:none;width:220px;transition:all .15s}
 .si:focus{border-color:var(--gold);width:260px}
@@ -257,55 +262,119 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
 #ls{position:fixed;inset:0;background:#000;display:flex;align-items:center;justify-content:center;z-index:9990}
 .lc{background:#111;border:1px solid #2a2a2a;border-radius:16px;padding:36px;width:340px;animation:mIn .3s ease}
 
+/* TABLE WRAP — scroll horizontal em telas pequenas */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tw table{min-width:560px}
+
+/* RESPONSIVO — DESKTOP MENOR / TABLETS GRANDES */
+@media(max-width:1200px){
+  #sb{width:200px}
+  .si{width:180px}
+  .si:focus{width:220px}
+}
+
 /* RESPONSIVO — TABLETS */
 @media(max-width:1024px){
-  #sb{width:200px}
+  #sb{width:190px}
   .cr{grid-template-columns:repeat(2,1fr)}
   .fg3{grid-template-columns:repeat(2,1fr)}
   #ct{padding:14px}
   .md.w{max-width:92vw}
+  .ag-w{max-height:calc(100vh - 240px)}
+  .tb-h1{font-size:17px}
+  .si{width:160px}
 }
-/* RESPONSIVO — MOBILE GRANDE */
+
+/* RESPONSIVO — MOBILE GRANDE / TABLETS PEQUENOS */
 @media(max-width:768px){
-  #sb{position:fixed;z-index:800;height:100%;transform:translateX(-100%);width:240px;box-shadow:0 0 30px rgba(0,0,0,.5)}
+  #sb{position:fixed;z-index:800;height:100%;transform:translateX(-100%);width:260px;box-shadow:0 6px 40px rgba(0,0,0,.6)}
   #sb.mo{transform:translateX(0)}
-  #main{width:100%}
-  #tb{height:48px;padding:0 12px;gap:6px;flex-wrap:wrap}
+  #main{width:100%;min-width:0}
+  #tb{height:54px;padding:0 12px;gap:8px;position:sticky;top:0;z-index:50}
   #tb .tb-sp{flex:1}
-  .tb-btn{padding:6px 10px;font-size:11px}
+  .tb-h1{font-size:15px;letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;max-width:50vw}
+  .tb-btn{padding:7px 11px;font-size:12px}
+  .tb-btn .tb-t{display:none}
+  .th-btn{width:32px;height:32px;font-size:13px}
+  #fbar{padding:2px}
+  .fb{padding:5px 8px;font-size:11px}
   .cr{grid-template-columns:1fr 1fr;gap:8px}
   .fg2,.fg3{grid-template-columns:1fr}
-  .c-grid{grid-template-columns:1fr}
+  .c-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .pk-grid{grid-template-columns:1fr;gap:10px}
   #ct{padding:10px}
-  .sv-sel{grid-template-columns:1fr}
-  .md{max-width:96vw;max-height:94vh;border-radius:12px}
+  .sh{gap:8px;margin-bottom:12px}
+  .sv-sel{grid-template-columns:1fr;max-height:40vh}
+  .md{max-width:96vw;max-height:94vh;border-radius:14px}
   .md.w{max-width:96vw}
   .mb{padding:14px}
-  .mh{padding:14px 16px}
-  .mf{padding:12px 14px;flex-wrap:wrap;gap:6px}
-  .mf .btn{flex:1;min-width:90px;justify-content:center}
+  .mh{padding:14px 16px 10px}
+  .mt{font-size:16px}
+  .mf{padding:10px 14px;flex-wrap:wrap;gap:6px}
+  .mf .btn{flex:1;min-width:100px;justify-content:center;padding:10px 12px}
   table{font-size:12px}
-  th,td{padding:6px 4px}
-  .ag-tc{font-size:10px}
-  .ag-ap{font-size:11px}
+  th,td{padding:8px 6px;white-space:nowrap}
+  .ag-tb{gap:6px}
+  .ag-w{max-height:calc(100vh - 220px);overflow:auto}
+  .ag-tc{font-size:9px;padding:0 5px}
+  .ag-ap{font-size:10px;padding:3px 5px}
+  .si{width:100%;max-width:none}
+  .si:focus{width:100%}
+  .pg-g{grid-template-columns:repeat(2,1fr)}
   /* burger fica visível */
   .burger{display:flex !important}
 }
+
 /* RESPONSIVO — MOBILE PEQUENO */
 @media(max-width:480px){
   html,body{font-size:13px}
-  .cr{grid-template-columns:1fr}
-  .sc{padding:10px}
-  .sc-v{font-size:18px !important}
-  #tb .tb-t{display:none}
-  .ag-grid{overflow-x:auto}
-  .pk-card{padding:12px}
-  .c-av{width:36px;height:36px;font-size:13px}
+  #ct{padding:8px}
+  #tb{padding:0 8px;gap:6px;height:50px}
+  .tb-h1{font-size:14px;max-width:42vw}
+  .tb-btn{padding:6px 9px;font-size:11px}
+  .tb-btn span:not(.tb-t){font-size:14px}
+  .cr{grid-template-columns:1fr 1fr;gap:7px}
+  .c-grid{grid-template-columns:1fr}
+  .sc{padding:11px}
+  .sc-v{font-size:17px !important}
+  .sc-l{font-size:9px}
+  .ag-tb{gap:5px}
+  .ag-nav button{padding:5px 7px;font-size:13px}
+  .ag-dl{font-size:11px;min-width:auto;flex:1;text-align:center}
+  .iv-b{padding:4px 7px;font-size:10px}
+  .pk-card{padding:13px}
+  .pk-nm{font-size:16px}
+  .c-av{width:36px;height:36px;font-size:12px}
+  .lc{padding:24px;width:92vw}
+  .mh{padding:12px 14px 8px}
+  .mt{font-size:15px}
+  .mb{padding:12px}
   .mf .btn{width:100%;flex:none}
+  #tw{left:8px;right:8px;bottom:8px}
+  .tos{min-width:0;width:100%}
+  .pg-b{padding:10px 4px;font-size:11px}
+  .empty{padding:36px 16px}
+  .empty-ic{font-size:32px}
+  .ag-w{max-height:calc(100vh - 200px)}
+  .conf-md{max-width:94vw}
 }
+
+/* MUITO PEQUENO — phones antigos */
+@media(max-width:360px){
+  .cr{grid-template-columns:1fr}
+  .tb-h1{display:none}
+  #tb{gap:5px}
+}
+
 /* botão hambúrguer (escondido por padrão) */
-.burger{display:none;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:var(--bg3);border:var(--brd);color:var(--text);cursor:pointer;font-size:18px}
-.burger:hover{background:var(--bg4)}
+.burger{display:none;align-items:center;justify-content:center;width:38px;height:38px;border-radius:9px;background:var(--bg3);border:var(--brd);color:var(--text);cursor:pointer;font-size:18px;flex-shrink:0}
+.burger:hover{background:var(--bg4);border-color:var(--gold)}
+
+/* ORIENTAÇÃO PAISAGEM em phones — agenda mais alta */
+@media(max-height:500px) and (orientation:landscape){
+  .ag-w{max-height:calc(100vh - 160px)}
+  #tb{height:46px}
+}
 </style>
 </head>
 <body>
@@ -469,9 +538,18 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
 
       <!-- SERVIÇOS -->
       <div id="sec-servicos" class="sec">
+        <div class="sh" style="margin-bottom:12px">
+          <input id="svc-search" class="si" placeholder="🔍 Buscar serviço..." oninput="renderSvc()" style="flex:1;max-width:320px">
+          <div id="svc-cat-bar" style="display:flex;gap:4px;background:var(--bg3);border-radius:var(--r2);padding:3px;border:var(--brd);flex-wrap:wrap">
+            <button class="cat-fb active" data-cat="" onclick="filterSvcCat('',this)">Todos</button>
+            <button class="cat-fb" data-cat="LASER" onclick="filterSvcCat('LASER',this)">⚡ Laser</button>
+            <button class="cat-fb" data-cat="DEPILACAO" onclick="filterSvcCat('DEPILACAO',this)">🪒 Depilação</button>
+            <button class="cat-fb" data-cat="ESTETICA" onclick="filterSvcCat('ESTETICA',this)">✨ Estética</button>
+          </div>
+        </div>
         <div id="svc-empty" class="empty" style="display:none"><div class="empty-ic">✂️</div><div class="empty-t">Nenhum serviço cadastrado</div><div class="empty-s">Clique em "+ Serviço" para adicionar</div></div>
-        <div class="tw" id="svc-tw"><div class="th2"><span class="th2-t">SERVIÇOS</span></div>
-          <table><thead><tr><th>SERVIÇO</th><th>PROFISSIONAL</th><th>DURAÇÃO</th><th>VALOR</th><th>COMISSÃO</th><th>AÇÕES</th></tr></thead><tbody id="tb-svc"></tbody></table>
+        <div class="tw" id="svc-tw"><div class="th2"><span class="th2-t">SERVIÇOS</span><div class="tb-sp" style="flex:1"></div><span id="svc-count" style="font-size:11px;color:var(--text3)"></span></div>
+          <table><thead><tr><th>SERVIÇO</th><th>CATEGORIA</th><th>PROFISSIONAL</th><th>DURAÇÃO</th><th>VALOR</th><th>COMISSÃO</th><th>AÇÕES</th></tr></thead><tbody id="tb-svc"></tbody></table>
         </div>
       </div>
 
@@ -594,6 +672,13 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
       <input type="hidden" id="svc-eid">
       <div class="fg">
         <div class="fgr"><label>NOME *</label><input id="svc-nm" placeholder="Ex: Corte feminino"></div>
+        <div class="fgr"><label>CATEGORIA *</label>
+          <select id="svc-ct">
+            <option value="LASER">⚡ Laser</option>
+            <option value="DEPILACAO">🪒 Depilação</option>
+            <option value="ESTETICA" selected>✨ Estética</option>
+          </select>
+        </div>
         <div class="fg fg2">
           <div class="fgr"><label>VALOR (R$) *</label><input type="number" id="svc-vl" placeholder="0.00" step="0.01" min="0"></div>
           <div class="fgr"><label>DURAÇÃO (min) *</label><input type="number" id="svc-dr" placeholder="60" min="5"></div>
@@ -618,7 +703,16 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
         <div class="fgr"><label>NOME DO PACOTE *</label><input id="pkg-nm" placeholder="Ex: Pacote Noiva"></div>
         <div class="fgr">
           <label>SERVIÇOS INCLUÍDOS * (clique para selecionar)</label>
-          <div class="sv-sel" id="pkg-svs" style="margin-top:5px"></div>
+          <div style="display:flex;gap:6px;margin:5px 0;flex-wrap:wrap">
+            <input id="pkg-search" class="si" placeholder="🔍 Buscar serviço..." oninput="filterPkgSvs()" style="flex:1;min-width:140px;width:auto;padding:6px 10px;font-size:12px">
+            <div style="display:flex;gap:3px;background:var(--bg3);border-radius:var(--r2);padding:2px;border:var(--brd);flex-wrap:wrap">
+              <button type="button" class="cat-fb active" data-pcat="" onclick="filterPkgCat('',this)" style="padding:4px 8px;font-size:11px">Tudo</button>
+              <button type="button" class="cat-fb" data-pcat="LASER" onclick="filterPkgCat('LASER',this)" style="padding:4px 8px;font-size:11px">⚡</button>
+              <button type="button" class="cat-fb" data-pcat="DEPILACAO" onclick="filterPkgCat('DEPILACAO',this)" style="padding:4px 8px;font-size:11px">🪒</button>
+              <button type="button" class="cat-fb" data-pcat="ESTETICA" onclick="filterPkgCat('ESTETICA',this)" style="padding:4px 8px;font-size:11px">✨</button>
+            </div>
+          </div>
+          <div class="sv-sel" id="pkg-svs"></div>
         </div>
         <div class="fg fg2">
           <div class="fgr"><label>NÚMERO DE SESSÕES</label><input type="number" id="pkg-ss" value="1" min="1"></div>
@@ -1569,25 +1663,37 @@ function abrirSvc(id){
     document.getElementById('m-svc-t').textContent='EDITAR SERVIÇO';
     document.getElementById('svc-nm').value=s.nome; document.getElementById('svc-vl').value=s.valor;
     document.getElementById('svc-dr').value=s.duracao_min||s.dur; document.getElementById('svc-cm').value=s.comissao||s.com||'';
+    document.getElementById('svc-ct').value=normCat(s.categoria)||'ESTETICA';
     const ps=document.getElementById('svc-pf'); for(const o of ps.options) if(o.value===(s.profissional_id||s.profId||'')){o.selected=true;break}
   } else {
     document.getElementById('m-svc-t').textContent='NOVO SERVIÇO';
     ['svc-nm','svc-vl','svc-dr','svc-cm'].forEach(id=>{ document.getElementById(id).value=''; });
-    document.getElementById('svc-pf').value='';
+    document.getElementById('svc-pf').value=''; document.getElementById('svc-ct').value='ESTETICA';
   }
   openModal('m-svc');
 }
+// Normaliza categoria (sem acentos, maiúscula) — categorias livres viram ESTETICA por padrão
+function normCat(c){ if(!c)return 'ESTETICA'; const u=String(c).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim(); if(u.includes('LASER'))return'LASER'; if(u.includes('DEPIL')||u.includes('CERA'))return'DEPILACAO'; return'ESTETICA'; }
+const CAT_META={LASER:{lbl:'⚡ Laser',cor:'#3b82f6',bg:'#05102a'},DEPILACAO:{lbl:'🪒 Depilação',cor:'#ef4444',bg:'#200505'},ESTETICA:{lbl:'✨ Estética',cor:'#FFD700',bg:'#2a2000'}};
+let SVC_FILTER_CAT='';
+function filterSvcCat(c,btn){ SVC_FILTER_CAT=c; document.querySelectorAll('.cat-fb').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderSvc(); }
 function renderSvc(){
+  const q=(document.getElementById('svc-search')?.value||'').toLowerCase().trim();
+  let lst=D.servicos.slice();
+  if(SVC_FILTER_CAT) lst=lst.filter(s=>normCat(s.categoria)===SVC_FILTER_CAT);
+  if(q) lst=lst.filter(s=>s.nome.toLowerCase().includes(q));
   document.getElementById('svc-empty').style.display=D.servicos.length?'none':'block';
   document.getElementById('svc-tw').style.display=D.servicos.length?'block':'none';
-  document.getElementById('tb-svc').innerHTML=D.servicos.map(s=>`<tr>
+  document.getElementById('svc-count').textContent=`${lst.length} de ${D.servicos.length}`;
+  document.getElementById('tb-svc').innerHTML=lst.map(s=>{ const cm=CAT_META[normCat(s.categoria)]; return `<tr>
     <td><strong>${s.nome}</strong></td>
+    <td><span class="bd" style="background:${cm.bg};color:${cm.cor}">${cm.lbl}</span></td>
     <td>${s.profissional_id?gPNm(s.profissional_id):'Qualquer'}</td>
     <td>${s.duracao_min||s.dur||0} min</td>
     <td style="font-family:var(--fm);color:var(--gold)">${Rf(s.valor)}</td>
     <td>${s.comissao||s.com||0}%</td>
-    <td style="display:flex;gap:4px"><button class="btn ol xs" onclick="abrirSvc('${s.id}')">✏ Editar</button><button class="btn rd xs" onclick="delSvc('${s.id}')">✕</button></td>
-  </tr>`).join('');
+    <td style="display:flex;gap:4px"><button class="btn ol xs" onclick="abrirSvc('${s.id}')">✏</button><button class="btn rd xs" onclick="delSvc('${s.id}')">✕</button></td>
+  </tr>`; }).join('') || `<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text3)">Nenhum serviço encontrado</td></tr>`;
 }
 async function salvarSvc(){
   const nm=document.getElementById('svc-nm').value.trim();
@@ -1596,7 +1702,7 @@ async function salvarSvc(){
   const eid=document.getElementById('svc-eid').value;
   if(!nm||!val||!dur){ toast('Nome, valor e duração obrigatórios','e'); return; }
   showLoad('Salvando...');
-  const payload={nome:nm, valor:val, duracao_min:dur, comissao:parseFloat(document.getElementById('svc-cm').value)||0, profissional_id:document.getElementById('svc-pf').value||null};
+  const payload={nome:nm, valor:val, duracao_min:dur, categoria:document.getElementById('svc-ct').value, comissao:parseFloat(document.getElementById('svc-cm').value)||0, profissional_id:document.getElementById('svc-pf').value||null};
   if(eid){ await sb.from('servicos').update(payload).eq('id',eid); toast('Serviço atualizado!'); }
   else { await sb.from('servicos').insert(payload); toast('Serviço cadastrado!'); }
   await reloadSection('servicos'); hideLoad(); closeModal('m-svc'); renderSvc(); popProfs();
@@ -1606,20 +1712,14 @@ function delSvc(id){ confirm2('✂️','EXCLUIR SERVIÇO','Esta ação não pode
 // ============================================================
 // PACOTES
 // ============================================================
+let PKG_SEL=new Set(); let PKG_FILTER_CAT='';
 function abrirPkg(id){
   document.getElementById('pkg-eid').value=id||'';
   if(!D.servicos.length){ toast('Cadastre serviços antes de criar pacotes','w'); return; }
-  const presvcs=id?(D.pacotes.find(x=>x.id===id)?.svcs||[]):[];
-  const sel=document.getElementById('pkg-svs'); sel.innerHTML='';
-  D.servicos.forEach(s=>{
-    const item=document.createElement('div'); item.className='sv-item'+(presvcs.includes(s.id)?' sel':'');
-    const chk=document.createElement('input'); chk.type='checkbox'; chk.checked=presvcs.includes(s.id);
-    chk.onchange=()=>{ item.classList.toggle('sel',chk.checked); calcPkgDesc(); };
-    item.onclick=e=>{ if(e.target!==chk){ chk.checked=!chk.checked; chk.onchange(); } };
-    const lbl=document.createElement('div'); lbl.style.cssText='flex:1;min-width:0';
-    lbl.innerHTML=`<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.nome}</div><div style="font-size:11px;color:var(--text3)">${s.duracao_min||s.dur}min · ${Rf(s.valor)}</div>`;
-    item.appendChild(chk); item.appendChild(lbl); sel.appendChild(item);
-  });
+  PKG_SEL=new Set(id?(D.pacotes.find(x=>x.id===id)?.svcs||[]):[]);
+  PKG_FILTER_CAT=''; document.getElementById('pkg-search').value='';
+  document.querySelectorAll('#m-pkg .cat-fb').forEach((b,i)=>b.classList.toggle('active',i===0));
+  renderPkgSvs();
   if(id){
     const pk=D.pacotes.find(x=>x.id===id); if(!pk)return;
     document.getElementById('m-pkg-t').textContent='EDITAR PACOTE';
@@ -1631,7 +1731,29 @@ function abrirPkg(id){
   }
   calcPkgDesc(); openModal('m-pkg');
 }
-function getPkgSvcs(){ const svcs=[]; document.querySelectorAll('#pkg-svs input[type=checkbox]:checked').forEach(chk=>{ const lbl=chk.parentElement.querySelector('div div:first-child'); const s=D.servicos.find(x=>x.nome===lbl?.textContent); if(s) svcs.push(s.id); }); return svcs; }
+function renderPkgSvs(){
+  const q=(document.getElementById('pkg-search')?.value||'').toLowerCase().trim();
+  const sel=document.getElementById('pkg-svs'); sel.innerHTML='';
+  const lst=D.servicos.filter(s=>{
+    if(PKG_FILTER_CAT && normCat(s.categoria)!==PKG_FILTER_CAT) return false;
+    if(q && !s.nome.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  if(!lst.length){ sel.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:18px;color:var(--text3);font-size:12px">Nenhum serviço</div>'; return; }
+  lst.forEach(s=>{
+    const item=document.createElement('div'); item.className='sv-item'+(PKG_SEL.has(s.id)?' sel':''); item.dataset.sid=s.id;
+    const chk=document.createElement('input'); chk.type='checkbox'; chk.checked=PKG_SEL.has(s.id);
+    chk.onchange=()=>{ if(chk.checked) PKG_SEL.add(s.id); else PKG_SEL.delete(s.id); item.classList.toggle('sel',chk.checked); calcPkgDesc(); };
+    item.onclick=e=>{ if(e.target!==chk){ chk.checked=!chk.checked; chk.onchange(); } };
+    const cm=CAT_META[normCat(s.categoria)];
+    const lbl=document.createElement('div'); lbl.style.cssText='flex:1;min-width:0';
+    lbl.innerHTML=`<div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.nome}</div><div style="font-size:10px;color:var(--text3);display:flex;gap:6px;align-items:center"><span style="color:${cm.cor}">●</span> ${s.duracao_min||s.dur}min · ${Rf(s.valor)}</div>`;
+    item.appendChild(chk); item.appendChild(lbl); sel.appendChild(item);
+  });
+}
+function filterPkgSvs(){ renderPkgSvs(); }
+function filterPkgCat(c,btn){ PKG_FILTER_CAT=c; document.querySelectorAll('#m-pkg .cat-fb').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderPkgSvs(); }
+function getPkgSvcs(){ return Array.from(PKG_SEL); }
 function calcPkgDesc(){
   const svcs=getPkgSvcs(); const orig=svcs.reduce((t,id)=>t+gSVal(id),0); const pkval=parseFloat(document.getElementById('pkg-vl').value)||0; const el=document.getElementById('pkg-desc');
   if(orig>0&&pkval>0){ const desc=orig-pkval,perc=((desc/orig)*100).toFixed(1); el.style.display='block'; el.innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap"><div><div style="font-size:10px;color:var(--text3);margin-bottom:2px">ORIGINAL</div><div style="font-family:var(--fm);text-decoration:line-through;color:var(--text3)">${Rf(orig)}</div></div><div><div style="font-size:10px;color:var(--text3);margin-bottom:2px">PACOTE</div><div style="font-family:var(--fm);font-weight:700;color:var(--gold)">${Rf(pkval)}</div></div><div><div style="font-size:10px;color:var(--text3);margin-bottom:2px">DESCONTO</div><div style="font-family:var(--fm);font-weight:700;color:var(--green)">${desc>0?Rf(desc)+' ('+perc+'%)':'+'+Rf(Math.abs(desc))}</div></div></div>`; }
