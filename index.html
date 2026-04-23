@@ -285,95 +285,108 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
   .si{width:160px}
 }
 
-/* RESPONSIVO — MOBILE GRANDE / TABLETS PEQUENOS */
+/* RESPONSIVO — MOBILE GRANDE / TABLETS PEQUENOS (≤768px) */
 @media(max-width:768px){
-  #sb{position:fixed;z-index:800;height:100%;transform:translateX(-100%);width:260px;box-shadow:0 6px 40px rgba(0,0,0,.6)}
+  #sb{position:fixed;z-index:800;height:100%;transform:translateX(-100%);width:270px;box-shadow:0 6px 40px rgba(0,0,0,.6)}
   #sb.mo{transform:translateX(0)}
   #main{width:100%;min-width:0}
-  #tb{height:54px;padding:0 12px;gap:8px;position:sticky;top:0;z-index:50}
+  #tb{height:58px;padding:0 14px;gap:10px;position:sticky;top:0;z-index:50}
   #tb .tb-sp{flex:1}
-  .tb-h1{font-size:15px;letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;max-width:50vw}
-  .tb-btn{padding:7px 11px;font-size:12px}
-  .tb-btn .tb-t{display:none}
-  .th-btn{width:32px;height:32px;font-size:13px}
-  #fbar{padding:2px}
-  .fb{padding:5px 8px;font-size:11px}
-  .cr{grid-template-columns:1fr 1fr;gap:8px}
+  .tb-h1{font-size:16px;letter-spacing:1px;overflow:hidden;text-overflow:ellipsis;max-width:55vw}
+  .tb-btn{padding:9px 14px;font-size:13px;border-radius:10px}
+  .tb-btn .tb-t{display:inline}
+  .th-btn{width:38px;height:38px;font-size:16px}
+  #fbar{padding:3px}
+  .fb{padding:6px 10px;font-size:12px}
+  .cr{grid-template-columns:repeat(2,1fr);gap:10px}
   .fg2,.fg3{grid-template-columns:1fr}
-  .c-grid{grid-template-columns:1fr 1fr;gap:8px}
-  .pk-grid{grid-template-columns:1fr;gap:10px}
-  #ct{padding:10px}
-  .sh{gap:8px;margin-bottom:12px}
+  .c-grid{grid-template-columns:1fr;gap:10px}
+  .pk-grid{grid-template-columns:1fr;gap:12px}
+  #ct{padding:14px}
+  .sh{gap:10px;margin-bottom:14px}
   .sv-sel{grid-template-columns:1fr;max-height:40vh}
   .md{max-width:96vw;max-height:94vh;border-radius:14px}
   .md.w{max-width:96vw}
-  .mb{padding:14px}
-  .mh{padding:14px 16px 10px}
+  .mb{padding:16px}
+  .mh{padding:16px 18px 12px}
   .mt{font-size:16px}
-  .mf{padding:10px 14px;flex-wrap:wrap;gap:6px}
-  .mf .btn{flex:1;min-width:100px;justify-content:center;padding:10px 12px}
-  table{font-size:12px}
-  th,td{padding:8px 6px;white-space:nowrap}
-  .ag-tb{gap:6px}
+  .mf{padding:12px 16px;flex-wrap:wrap;gap:8px}
+  .mf .btn{flex:1;min-width:110px;justify-content:center;padding:11px 14px}
+  table{font-size:13px}
+  th,td{padding:9px 8px;white-space:nowrap}
+  .ag-tb{gap:8px}
   .ag-w{max-height:calc(100vh - 220px);overflow:auto}
-  .ag-tc{font-size:9px;padding:0 5px}
-  .ag-ap{font-size:10px;padding:3px 5px}
-  .si{width:100%;max-width:none}
+  .ag-tc{font-size:10px;padding:0 6px}
+  .ag-ap{font-size:11px;padding:4px 6px}
+  .si{width:100%;max-width:none;padding:11px 14px;font-size:14px}
   .si:focus{width:100%}
   .pg-g{grid-template-columns:repeat(2,1fr)}
+  /* cards de cliente: mais respiro e tipografia maior no mobile */
+  .c-card{padding:16px}
+  .c-av{width:44px;height:44px;font-size:15px}
   /* burger fica visível */
   .burger{display:flex !important}
 }
 
-/* RESPONSIVO — MOBILE PEQUENO */
+/* RESPONSIVO — MOBILE MÉDIO (≤640px) */
+@media(max-width:640px){
+  .tb-btn .tb-t{display:none}
+  .tb-h1{max-width:40vw}
+  #ct{padding:12px}
+}
+
+/* RESPONSIVO — MOBILE PEQUENO (≤480px) */
 @media(max-width:480px){
-  html,body{font-size:13px}
-  #ct{padding:8px}
-  #tb{padding:0 8px;gap:6px;height:50px}
-  .tb-h1{font-size:14px;max-width:42vw}
-  .tb-btn{padding:6px 9px;font-size:11px}
-  .tb-btn span:not(.tb-t){font-size:14px}
-  .cr{grid-template-columns:1fr 1fr;gap:7px}
-  .c-grid{grid-template-columns:1fr}
-  .sc{padding:11px}
-  .sc-v{font-size:17px !important}
-  .sc-l{font-size:9px}
-  .ag-tb{gap:5px}
-  .ag-nav button{padding:5px 7px;font-size:13px}
-  .ag-dl{font-size:11px;min-width:auto;flex:1;text-align:center}
-  .iv-b{padding:4px 7px;font-size:10px}
-  .pk-card{padding:13px}
+  html,body{font-size:14px}
+  #ct{padding:10px}
+  #tb{padding:0 10px;gap:8px;height:54px}
+  .tb-h1{font-size:15px;max-width:38vw}
+  .tb-btn{padding:8px 11px;font-size:12px}
+  .tb-btn span:not(.tb-t){font-size:15px}
+  .cr{grid-template-columns:repeat(2,1fr);gap:8px}
+  .c-grid{grid-template-columns:1fr;gap:9px}
+  .c-card{padding:14px}
+  .c-av{width:42px;height:42px;font-size:14px}
+  .sc{padding:13px}
+  .sc-v{font-size:18px !important}
+  .sc-l{font-size:10px}
+  .ag-tb{gap:6px}
+  .ag-nav button{padding:6px 9px;font-size:14px}
+  .ag-dl{font-size:12px;min-width:auto;flex:1;text-align:center}
+  .iv-b{padding:5px 9px;font-size:11px}
+  .pk-card{padding:14px}
   .pk-nm{font-size:16px}
-  .c-av{width:36px;height:36px;font-size:12px}
   .lc{padding:24px;width:92vw}
-  .mh{padding:12px 14px 8px}
+  .mh{padding:14px 16px 10px}
   .mt{font-size:15px}
-  .mb{padding:12px}
+  .mb{padding:14px}
   .mf .btn{width:100%;flex:none}
-  #tw{left:8px;right:8px;bottom:8px}
+  #tw{left:10px;right:10px;bottom:10px}
   .tos{min-width:0;width:100%}
-  .pg-b{padding:10px 4px;font-size:11px}
-  .empty{padding:36px 16px}
-  .empty-ic{font-size:32px}
+  .pg-b{padding:11px 4px;font-size:12px}
+  .empty{padding:40px 16px}
+  .empty-ic{font-size:34px}
   .ag-w{max-height:calc(100vh - 200px)}
   .conf-md{max-width:94vw}
 }
 
-/* MUITO PEQUENO — phones antigos */
+/* MUITO PEQUENO — phones antigos (≤360px) */
 @media(max-width:360px){
   .cr{grid-template-columns:1fr}
   .tb-h1{display:none}
-  #tb{gap:5px}
+  #tb{gap:6px;padding:0 8px}
+  .tb-btn{padding:7px 10px}
 }
 
 /* botão hambúrguer (escondido por padrão) */
-.burger{display:none;align-items:center;justify-content:center;width:38px;height:38px;border-radius:9px;background:var(--bg3);border:var(--brd);color:var(--text);cursor:pointer;font-size:18px;flex-shrink:0}
+.burger{display:none;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:var(--bg3);border:var(--brd);color:var(--text);cursor:pointer;font-size:20px;flex-shrink:0;transition:all .15s}
 .burger:hover{background:var(--bg4);border-color:var(--gold)}
+.burger:active{transform:scale(.94)}
 
 /* ORIENTAÇÃO PAISAGEM em phones — agenda mais alta */
 @media(max-height:500px) and (orientation:landscape){
   .ag-w{max-height:calc(100vh - 160px)}
-  #tb{height:46px}
+  #tb{height:48px}
 }
 </style>
 </head>
@@ -1003,7 +1016,7 @@ async function loadAll(){
       sb.from('profissionais').select('*').eq('ativo',true).order('nome'),
       sb.from('clientes').select('*').order('nome'),
       sb.from('servicos').select('*').order('nome'),
-      sb.from('pacotes').select('*').order('nome'),
+      sb.from('pacotes').select('*, pacote_servicos(servico_id)').order('nome'),
       sb.from('agendamentos').select('*, agendamento_servicos(servico_id)').order('data').order('hora'),
       sb.from('bloqueios').select('*'),
       sb.from('despesas').select('*').order('data',{ascending:false}),
@@ -1014,7 +1027,13 @@ async function loadAll(){
     D.profs      = profs.data      || [];
     D.clientes   = clientes.data   || [];
     D.servicos   = servicos.data   || [];
-    D.pacotes    = pacotes.data    || [];
+    // Pacotes: prioriza svcs (jsonb) e faz fallback p/ tabela relacional pacote_servicos
+    D.pacotes = (pacotes.data||[]).map(p=>{
+      let s = Array.isArray(p.svcs) ? p.svcs.map(String) : [];
+      const rel = (p.pacote_servicos||[]).map(x=>String(x.servico_id));
+      if(rel.length) s = Array.from(new Set([...s, ...rel]));
+      return {...p, svcs: s};
+    });
     D.bloqueios  = blqs.data       || [];
     D.despesas   = desps.data      || [];
     D.caixa      = cx.data         || [];
@@ -1048,7 +1067,7 @@ async function reloadSection(sec){
     profs:      ()=>sb.from('profissionais').select('*').eq('ativo',true).order('nome'),
     clientes:   ()=>sb.from('clientes').select('*').order('nome'),
     servicos:   ()=>sb.from('servicos').select('*').order('nome'),
-    pacotes:    ()=>sb.from('pacotes').select('*').order('nome'),
+    pacotes:    ()=>sb.from('pacotes').select('*, pacote_servicos(servico_id)').order('nome'),
     agendamentos:()=>sb.from('agendamentos').select('*, agendamento_servicos(servico_id)').order('data').order('hora'),
     bloqueios:  ()=>sb.from('bloqueios').select('*'),
     historico:  ()=>sb.from('historico_cliente').select('*').order('data',{ascending:false}),
@@ -1059,6 +1078,13 @@ async function reloadSection(sec){
     const {data}=await loaders[sec]();
     if(sec==='agendamentos'){
       D.agendamentos=(data||[]).map(a=>({...a,svcs:(a.agendamento_servicos||[]).map(x=>x.servico_id),hora:a.hora?.substring(0,5)||'00:00'}));
+    } else if(sec==='pacotes'){
+      D.pacotes=(data||[]).map(p=>{
+        let s = Array.isArray(p.svcs) ? p.svcs.map(String) : [];
+        const rel = (p.pacote_servicos||[]).map(x=>String(x.servico_id));
+        if(rel.length) s = Array.from(new Set([...s, ...rel]));
+        return {...p, svcs: s};
+      });
     } else {
       D[sec]=data||[];
     }
@@ -1716,7 +1742,7 @@ let PKG_SEL=new Set(); let PKG_FILTER_CAT='';
 function abrirPkg(id){
   document.getElementById('pkg-eid').value=id||'';
   if(!D.servicos.length){ toast('Cadastre serviços antes de criar pacotes','w'); return; }
-  PKG_SEL=new Set(id?(D.pacotes.find(x=>x.id===id)?.svcs||[]):[]);
+  PKG_SEL=new Set(id?((D.pacotes.find(x=>x.id===id)?.svcs||[]).map(String)):[]);
   PKG_FILTER_CAT=''; document.getElementById('pkg-search').value='';
   document.querySelectorAll('#m-pkg .cat-fb').forEach((b,i)=>b.classList.toggle('active',i===0));
   renderPkgSvs();
@@ -1767,12 +1793,43 @@ function renderPkg(){
   }).join('');
 }
 async function salvarPkg(){
-  const nm=document.getElementById('pkg-nm').value.trim(); const val=parseFloat(document.getElementById('pkg-vl').value); const sess=parseInt(document.getElementById('pkg-ss').value)||1; const eid=document.getElementById('pkg-eid').value; const svcs=getPkgSvcs();
+  const nm=document.getElementById('pkg-nm').value.trim();
+  const val=parseFloat(document.getElementById('pkg-vl').value);
+  const sess=parseInt(document.getElementById('pkg-ss').value)||1;
+  const eid=document.getElementById('pkg-eid').value;
+  const svcs=getPkgSvcs().map(String);
   if(!nm||svcs.length===0||!val){ toast('Preencha nome, selecione serviços e valor','e'); return; }
   showLoad('Salvando...');
-  if(eid){ await sb.from('pacotes').update({nome:nm,valor:val,sessoes:sess,svcs}).eq('id',eid); toast('Pacote atualizado!'); }
-  else { await sb.from('pacotes').insert({nome:nm,valor:val,sessoes:sess,svcs}); toast('Pacote criado!'); }
-  await reloadSection('pacotes'); hideLoad(); closeModal('m-pkg'); renderPkg();
+  try{
+    let pkgId = eid;
+    if(eid){
+      const {error} = await sb.from('pacotes').update({nome:nm,valor:val,sessoes:sess,svcs}).eq('id',eid);
+      if(error) throw error;
+    } else {
+      const {data,error} = await sb.from('pacotes').insert({nome:nm,valor:val,sessoes:sess,svcs}).select().single();
+      if(error) throw error;
+      pkgId = data?.id;
+    }
+    // Espelha em pacote_servicos (relacional) — ignora se a tabela não existir
+    if(pkgId){
+      try{
+        await sb.from('pacote_servicos').delete().eq('pacote_id', pkgId);
+        if(svcs.length){
+          const rows = svcs.map(sid=>({pacote_id: pkgId, servico_id: sid}));
+          await sb.from('pacote_servicos').insert(rows);
+        }
+      }catch(_){ /* tabela relacional opcional */ }
+    }
+    toast(eid?'Pacote atualizado!':'Pacote criado!');
+    await reloadSection('pacotes');
+    closeModal('m-pkg');
+    renderPkg();
+  } catch(e){
+    console.error('Erro salvarPkg:', e);
+    toast('Erro ao salvar pacote: '+(e.message||'verifique a coluna svcs'),'e');
+  } finally {
+    hideLoad();
+  }
 }
 function delPkg(id){ confirm2('📦','EXCLUIR PACOTE','Esta ação não pode ser desfeita.',async()=>{ showLoad(); await sb.from('pacotes').delete().eq('id',id); await reloadSection('pacotes'); hideLoad(); renderPkg(); toast('Excluído','w'); }); }
 
