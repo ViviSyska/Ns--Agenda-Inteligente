@@ -257,16 +257,55 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
 #ls{position:fixed;inset:0;background:#000;display:flex;align-items:center;justify-content:center;z-index:9990}
 .lc{background:#111;border:1px solid #2a2a2a;border-radius:16px;padding:36px;width:340px;animation:mIn .3s ease}
 
+/* RESPONSIVO — TABLETS */
+@media(max-width:1024px){
+  #sb{width:200px}
+  .cr{grid-template-columns:repeat(2,1fr)}
+  .fg3{grid-template-columns:repeat(2,1fr)}
+  #ct{padding:14px}
+  .md.w{max-width:92vw}
+}
+/* RESPONSIVO — MOBILE GRANDE */
 @media(max-width:768px){
-  #sb{position:fixed;z-index:800;height:100%;transform:translateX(-100%)}
+  #sb{position:fixed;z-index:800;height:100%;transform:translateX(-100%);width:240px;box-shadow:0 0 30px rgba(0,0,0,.5)}
   #sb.mo{transform:translateX(0)}
   #main{width:100%}
-  .cr{grid-template-columns:1fr 1fr}
+  #tb{height:48px;padding:0 12px;gap:6px;flex-wrap:wrap}
+  #tb .tb-sp{flex:1}
+  .tb-btn{padding:6px 10px;font-size:11px}
+  .cr{grid-template-columns:1fr 1fr;gap:8px}
   .fg2,.fg3{grid-template-columns:1fr}
   .c-grid{grid-template-columns:1fr}
-  #ct{padding:12px}
+  #ct{padding:10px}
   .sv-sel{grid-template-columns:1fr}
+  .md{max-width:96vw;max-height:94vh;border-radius:12px}
+  .md.w{max-width:96vw}
+  .mb{padding:14px}
+  .mh{padding:14px 16px}
+  .mf{padding:12px 14px;flex-wrap:wrap;gap:6px}
+  .mf .btn{flex:1;min-width:90px;justify-content:center}
+  table{font-size:12px}
+  th,td{padding:6px 4px}
+  .ag-tc{font-size:10px}
+  .ag-ap{font-size:11px}
+  /* burger fica visível */
+  .burger{display:flex !important}
 }
+/* RESPONSIVO — MOBILE PEQUENO */
+@media(max-width:480px){
+  html,body{font-size:13px}
+  .cr{grid-template-columns:1fr}
+  .sc{padding:10px}
+  .sc-v{font-size:18px !important}
+  #tb .tb-t{display:none}
+  .ag-grid{overflow-x:auto}
+  .pk-card{padding:12px}
+  .c-av{width:36px;height:36px;font-size:13px}
+  .mf .btn{width:100%;flex:none}
+}
+/* botão hambúrguer (escondido por padrão) */
+.burger{display:none;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:var(--bg3);border:var(--brd);color:var(--text);cursor:pointer;font-size:18px}
+.burger:hover{background:var(--bg4)}
 </style>
 </head>
 <body>
@@ -290,6 +329,7 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
 
 <!-- APP -->
 <div id="app" style="display:none">
+  <div id="sb-ovl" onclick="document.getElementById('sb').classList.remove('mo');this.style.display='none'" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:799"></div>
   <div id="sb">
     <div class="sb-logo">
       <div class="sb-ns">NS AGENDA INTELIGENTE</div>
@@ -325,7 +365,7 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
 
   <div id="main">
     <div id="tb">
-      <button class="tb-btn gh" id="mob-b" onclick="document.getElementById('sb').classList.toggle('mo')" style="display:none">☰</button>
+      <button class="burger" id="mob-b" onclick="var s=document.getElementById('sb'),o=document.getElementById('sb-ovl');s.classList.toggle('mo');o.style.display=s.classList.contains('mo')?'block':'none'">☰</button>
       <h1 class="tb-h1" id="pg-t">DASHBOARD</h1>
       <div id="fbar">
         <button class="fb active" onclick="setF('hoje',this)">Hoje</button>
@@ -494,6 +534,13 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
         <div class="fg fg2">
           <div class="fgr"><label>DATA *</label><input type="date" id="ag-dt"></div>
           <div class="fgr"><label>HORÁRIO *</label><input type="time" id="ag-hr" onchange="calcSeq()"></div>
+        </div>
+        <div class="fgr">
+          <label>📦 PACOTE (opcional — preenche serviços e tempo)</label>
+          <select id="ag-pkg" onchange="aplicarPacoteAg()" style="background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px;outline:none;width:100%">
+            <option value="">— Sem pacote (montar manualmente) —</option>
+          </select>
+          <div id="ag-pkg-info" style="display:none;margin-top:6px;font-size:11px;color:var(--gold)"></div>
         </div>
         <div class="fgr">
           <label>SERVIÇOS</label>
@@ -1165,10 +1212,35 @@ async function updateAgStatus(id,status){
 // ============================================================
 // AGENDAMENTO — NOVO / EDITAR
 // ============================================================
+function popPkgSelect(selId){
+  const sel=document.getElementById('ag-pkg'); if(!sel)return;
+  sel.innerHTML='<option value="">— Sem pacote (montar manualmente) —</option>'+
+    D.pacotes.map(p=>`<option value="${p.id}">${p.nome} · ${Rf(p.valor)}${(p.svcs&&p.svcs.length)?' ('+p.svcs.length+' serv.)':''}</option>`).join('');
+  if(selId){ for(const o of sel.options) if(o.value===selId){o.selected=true;break} }
+  document.getElementById('ag-pkg-info').style.display='none';
+}
+function aplicarPacoteAg(){
+  const pid=document.getElementById('ag-pkg').value;
+  const info=document.getElementById('ag-pkg-info');
+  if(!pid){ info.style.display='none'; return; }
+  const pk=D.pacotes.find(x=>x.id===pid); if(!pk||!pk.svcs||!pk.svcs.length){
+    info.style.display='block'; info.style.color='var(--red)';
+    info.textContent='⚠️ Esse pacote ainda não tem serviços cadastrados. Edite o pacote em Pacotes.';
+    return;
+  }
+  // limpa e injeta serviços do pacote
+  document.getElementById('ag-svl').innerHTML='';
+  pk.svcs.forEach(sid=>addAgSvc(sid));
+  const dur=pk.svcs.reduce((t,id)=>t+(gSDur(id)||0),0);
+  const orig=pk.svcs.reduce((t,id)=>t+gSVal(id),0);
+  info.style.display='block'; info.style.color='var(--gold)';
+  info.innerHTML=`📦 <b>${pk.nome}</b> aplicado · ${pk.svcs.length} serviço(s) · ${dur}min · ${Rf(pk.valor)}${orig>pk.valor?' <span style="color:var(--green)">(economia '+Rf(orig-pk.valor)+')</span>':''}`;
+  calcSeq();
+}
 function abrirAg(data,hora,profId){
   S.editAgId=null;
   document.getElementById('m-ag-t').textContent='NOVO AGENDAMENTO';
-  popCliSelect(); popProfsModal();
+  popCliSelect(); popProfsModal(); popPkgSelect();
   document.getElementById('ag-dt').value=data||dStr(S.agDate);
   document.getElementById('ag-hr').value=hora||'09:00';
   document.getElementById('ag-ob').value=''; document.getElementById('ag-st').value='pendente'; document.getElementById('ag-fc').checked=false;
@@ -1180,7 +1252,7 @@ function editAg(id){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
   S.editAgId=id;
   document.getElementById('m-ag-t').textContent='EDITAR AGENDAMENTO';
-  popCliSelect(); popProfsModal();
+  popCliSelect(); popProfsModal(); popPkgSelect(ag.pacote_id||'');
   document.getElementById('ag-dt').value=(ag.data||'').substring(0,10);
   document.getElementById('ag-hr').value=ag.hora;
   document.getElementById('ag-ob').value=ag.observacoes||ag.obs||'';
@@ -1576,8 +1648,8 @@ async function salvarPkg(){
   const nm=document.getElementById('pkg-nm').value.trim(); const val=parseFloat(document.getElementById('pkg-vl').value); const sess=parseInt(document.getElementById('pkg-ss').value)||1; const eid=document.getElementById('pkg-eid').value; const svcs=getPkgSvcs();
   if(!nm||svcs.length===0||!val){ toast('Preencha nome, selecione serviços e valor','e'); return; }
   showLoad('Salvando...');
-  if(eid){ await sb.from('pacotes').update({nome:nm,valor:val,sessoes:sess}).eq('id',eid); toast('Pacote atualizado!'); }
-  else { await sb.from('pacotes').insert({nome:nm,valor:val,sessoes:sess}); toast('Pacote criado!'); }
+  if(eid){ await sb.from('pacotes').update({nome:nm,valor:val,sessoes:sess,svcs}).eq('id',eid); toast('Pacote atualizado!'); }
+  else { await sb.from('pacotes').insert({nome:nm,valor:val,sessoes:sess,svcs}); toast('Pacote criado!'); }
   await reloadSection('pacotes'); hideLoad(); closeModal('m-pkg'); renderPkg();
 }
 function delPkg(id){ confirm2('📦','EXCLUIR PACOTE','Esta ação não pode ser desfeita.',async()=>{ showLoad(); await sb.from('pacotes').delete().eq('id',id); await reloadSection('pacotes'); hideLoad(); renderPkg(); toast('Excluído','w'); }); }
