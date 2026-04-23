@@ -333,6 +333,21 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
   .tb-btn .tb-t{display:none}
   .tb-h1{max-width:40vw}
   #ct{padding:12px}
+  /* Cards do início: 1 coluna p/ não ficar apertado */
+  .cr{grid-template-columns:1fr;gap:10px}
+  .sc{padding:16px}
+  .sc-v{font-size:22px}
+  .sc-l{font-size:11px}
+  /* Pacotes em coluna única com mais respiro */
+  .pk-grid{grid-template-columns:1fr;gap:12px}
+  .pk-card{padding:18px}
+  .pk-nm{font-size:17px}
+  /* Modal de pacote: seletor de serviços em 1 coluna */
+  .sv-sel{grid-template-columns:1fr;max-height:45vh}
+  .sv-item{padding:11px 12px;font-size:13px}
+  /* Pagamento: 2 cols */
+  .pg-g{grid-template-columns:repeat(2,1fr);gap:8px}
+  .pg-b{padding:12px 6px;font-size:12px}
 }
 
 /* RESPONSIVO — MOBILE PEQUENO (≤480px) */
@@ -343,12 +358,12 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
   .tb-h1{font-size:15px;max-width:38vw}
   .tb-btn{padding:8px 11px;font-size:12px}
   .tb-btn span:not(.tb-t){font-size:15px}
-  .cr{grid-template-columns:repeat(2,1fr);gap:8px}
+  .cr{grid-template-columns:1fr;gap:9px}
   .c-grid{grid-template-columns:1fr;gap:9px}
   .c-card{padding:14px}
   .c-av{width:42px;height:42px;font-size:14px}
-  .sc{padding:13px}
-  .sc-v{font-size:18px !important}
+  .sc{padding:14px}
+  .sc-v{font-size:20px !important}
   .sc-l{font-size:10px}
   .ag-tb{gap:6px}
   .ag-nav button{padding:6px 9px;font-size:14px}
@@ -372,7 +387,6 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
 
 /* MUITO PEQUENO — phones antigos (≤360px) */
 @media(max-width:360px){
-  .cr{grid-template-columns:1fr}
   .tb-h1{display:none}
   #tb{gap:6px;padding:0 8px}
   .tb-btn{padding:7px 10px}
@@ -949,7 +963,12 @@ const gCNm  = id => { const c=D.clientes.find(x=>x.id===id); return c?c.nome:'�
 const gSNm  = id => { const s=D.servicos.find(x=>x.id===id); return s?s.nome:'—'; };
 const gSDur = id => { const s=D.servicos.find(x=>x.id===id); return s?s.duracao_min:0; };
 const gSVal = id => { const s=D.servicos.find(x=>x.id===id); return s?s.valor:0; };
-const gAgtot= ag => (ag.svcs||[]).reduce((t,id)=>t+gSVal(id),0);
+const gAgtot= ag => {
+  // Se o agendamento veio de um pacote, usa o valor do pacote (com desconto)
+  const pid = ag.pacote_id || ag.pkgId;
+  if(pid){ const pk=D.pacotes.find(x=>x.id===pid); if(pk) return Number(pk.valor)||0; }
+  return (ag.svcs||[]).reduce((t,id)=>t+gSVal(id),0);
+};
 const TODAY = dStr(new Date());
 const CURYR = new Date().getFullYear().toString();
 const CURMTH= TODAY.substring(0,7);
@@ -1270,15 +1289,28 @@ function renderAgenda(){
       const sl=document.createElement('div'); sl.className='ag-sl';
       const blk=D.bloqueios.find(b=>(b.profissional_id||b.profId)===prof.id && (b.data||'').substring(0,10)===ds && (b.tipo==='dia'||(toMin(b.inicio||'00:00')<=t&&toMin(b.fim||'23:59')>t)));
       if(blk){ sl.classList.add('bl'); sl.title='Bloqueado'+(blk.motivo?': '+blk.motivo:''); g.appendChild(sl); return; }
-      D.agendamentos.filter(a=>(a.profissional_id||a.profId)===prof.id && (a.data||'').substring(0,10)===ds && a.status!=='cancelado').forEach(ag=>{
-        const st=toMin(ag.hora), en=st+(ag.duracao_total||ag.durTotal||30);
-        if(st===t){
-          const div=document.createElement('div'); div.className='ag-ap '+ag.status;
-          const slotH=42, dur=ag.duracao_total||ag.durTotal||30;
-          div.style.top='2px'; div.style.height=(Math.max(dur/S.agIv,1)*slotH-4)+'px';
-          div.innerHTML=`<div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${gCNm2(ag)}</div><div style="opacity:.75;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(ag.svcs||[]).map(gSNm).join(', ')}</div><div style="opacity:.6;font-size:10px">${ag.hora}–${frMin(en)}</div>`;
-          div.onclick=e=>{ e.stopPropagation(); verAg(ag.id); }; sl.appendChild(div);
-        }
+      // Agendamentos do profissional/dia
+      const profAgs=D.agendamentos.filter(a=>(a.profissional_id||a.profId)===prof.id && (a.data||'').substring(0,10)===ds && a.status!=='cancelado');
+      // Os que iniciam neste slot
+      const startsHere=profAgs.filter(a=>toMin(a.hora)===t);
+      startsHere.forEach(ag=>{
+        const st=toMin(ag.hora), dur=(ag.duracao_total||ag.durTotal||30), en=st+dur;
+        // Detecta sobreposição: agendamentos que ocupam o mesmo intervalo
+        const overlap=profAgs.filter(a=>{ const s=toMin(a.hora),e=s+(a.duracao_total||a.durTotal||30); return s<en && e>st; });
+        // Ordena por hora+id para coluna estável
+        overlap.sort((a,b)=>(toMin(a.hora)-toMin(b.hora))||String(a.id).localeCompare(String(b.id)));
+        const cols=overlap.length;
+        const idx=overlap.findIndex(x=>x.id===ag.id);
+        const div=document.createElement('div'); div.className='ag-ap '+ag.status;
+        const slotH=42;
+        const w=cols>1 ? (100/cols) : 100;
+        div.style.top='2px';
+        div.style.height=(Math.max(dur/S.agIv,1)*slotH-4)+'px';
+        div.style.left='calc('+(idx*w)+'% + 2px)';
+        div.style.width='calc('+w+'% - 4px)';
+        div.style.right='auto';
+        div.innerHTML=`<div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${gCNm2(ag)}</div><div style="opacity:.75;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(ag.svcs||[]).map(gSNm).join(', ')}</div><div style="opacity:.6;font-size:10px">${ag.hora}–${frMin(en)}</div>`;
+        div.onclick=e=>{ e.stopPropagation(); verAg(ag.id); }; sl.appendChild(div);
       });
       sl.onclick=e=>{ if(e.target===sl) abrirAg(ds,frMin(t),prof.id); };
       g.appendChild(sl);
@@ -1417,7 +1449,8 @@ async function salvarAg(){
     if(conf){ toast('Conflito de horário. Marque "Forçar" para continuar.','e'); return; }
   }
   showLoad('Salvando agendamento...');
-  const agData={ cliente_id:cliId2, profissional_id:profId2, data, hora, duracao_total:durTotal, status:document.getElementById('ag-st').value, observacoes:document.getElementById('ag-ob').value, forcar:document.getElementById('ag-fc').checked };
+  const pkgSel=document.getElementById('ag-pkg'); const pacote_id=pkgSel?(pkgSel.value||null):null;
+  const agData={ cliente_id:cliId2, profissional_id:profId2, data, hora, duracao_total:durTotal, status:document.getElementById('ag-st').value, observacoes:document.getElementById('ag-ob').value, forcar:document.getElementById('ag-fc').checked, pacote_id };
   let agId=S.editAgId;
   if(S.editAgId){
     await sb.from('agendamentos').update(agData).eq('id',S.editAgId);
