@@ -116,6 +116,12 @@ tr:hover td{background:rgba(255,215,0,.025)}
 /* Badge neutro — Agendado (sem cor forte) */
 [data-theme="dark"] .bd.nt{background:#1e1e1e;color:#999;border:1px solid #333}
 [data-theme="light"] .bd.nt{background:#f4f4f5;color:#71717a;border:1px solid #e4e4e7}
+/* WA recusou — cinza escuro */
+[data-theme="dark"] .ag-ap.recusou{background:#111;border-color:#333;color:#555;opacity:.5}
+[data-theme="light"] .ag-ap.recusou{background:#e5e7eb;border-color:#9ca3af;color:#6b7280;opacity:.65}
+.bd.wa-ag{background:#075e54;color:#fff}
+.bd.wa-ok{background:#25d366;color:#fff}
+.bd.wa-no{background:#6b7280;color:#fff}
 
 /* FORMS */
 .fg{display:grid;gap:13px}
@@ -604,8 +610,8 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
 
       <!-- COMANDAS -->
       <div id="sec-comandas" class="sec">
-        <div class="sh" style="margin-bottom:12px;gap:8px;flex-wrap:wrap">
-          <input class="si" placeholder="🔍 Buscar cliente, serviço..." id="cmd-search" oninput="renderComandas()" style="flex:1;min-width:180px">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center">
+          <input class="si" placeholder="🔍 Buscar cliente, serviço..." id="cmd-search" oninput="renderComandas()" style="flex:1;min-width:160px">
           <select id="cmd-f" onchange="renderComandas()" style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:12px;outline:none">
             <option value="">Todos os status</option>
             <option value="pendente">— Agendado</option>
@@ -614,6 +620,10 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
             <option value="concluido">🟢 Pago</option>
             <option value="cancelado">⬜ Cancelado</option>
           </select>
+          <input type="date" id="cmd-dt-ini" onchange="renderComandas()" style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:7px 9px;color:var(--text);font-size:12px;outline:none" title="Data início">
+          <span style="color:var(--text3);font-size:12px">até</span>
+          <input type="date" id="cmd-dt-fim" onchange="renderComandas()" style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:7px 9px;color:var(--text);font-size:12px;outline:none" title="Data fim">
+          <button class="btn gh xs" onclick="document.getElementById('cmd-dt-ini').value='';document.getElementById('cmd-dt-fim').value='';renderComandas()" title="Limpar datas">✕</button>
         </div>
         <div class="tw">
           <table><thead><tr><th>CLIENTE</th><th>SERVIÇOS</th><th>PROFISSIONAL</th><th>DATA/HORA</th><th>TOTAL</th><th>STATUS</th><th>AÇÕES</th></tr></thead><tbody id="tb-cmd"></tbody></table>
@@ -644,6 +654,10 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
             <button class="cat-fb" data-cat="LASER" onclick="filterSvcCat('LASER',this)">⚡ Laser</button>
             <button class="cat-fb" data-cat="DEPILACAO" onclick="filterSvcCat('DEPILACAO',this)">🪒 Depilação</button>
             <button class="cat-fb" data-cat="ESTETICA" onclick="filterSvcCat('ESTETICA',this)">✨ Estética</button>
+            <button class="cat-fb" data-cat="UNHAS" onclick="filterSvcCat('UNHAS',this)">💅 Unhas</button>
+            <button class="cat-fb" data-cat="CABELO" onclick="filterSvcCat('CABELO',this)">💇 Cabelo</button>
+            <button class="cat-fb" data-cat="MAQUIAGEM" onclick="filterSvcCat('MAQUIAGEM',this)">💄 Maquiagem</button>
+            <button class="cat-fb" data-cat="SOBRANCELHA" onclick="filterSvcCat('SOBRANCELHA',this)">👁 Sobrancelha</button>
           </div>
         </div>
         <div id="svc-empty" class="empty" style="display:none"><div class="empty-ic">✂️</div><div class="empty-t">Nenhum serviço cadastrado</div><div class="empty-s">Clique em "+ Serviço" para adicionar</div></div>
@@ -722,8 +736,40 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
             </div>
             <div style="margin-top:14px"><button class="btn gd sm" onclick="saveConfig()">SALVAR</button></div>
           </div>
+          <div class="tw" style="padding:16px">
+            <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:14px">📱 WHATSAPP API (Evolution API)</div>
+            <div class="fg">
+              <div class="fgr"><label>URL DA API</label><input id="cfg-wa-url" placeholder="http://localhost:8080" style="background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:13px;outline:none;width:100%"></div>
+              <div class="fg fg2">
+                <div class="fgr"><label>INSTÂNCIA</label><input id="cfg-wa-inst" placeholder="NS_Salao" style="background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:13px;outline:none;width:100%"></div>
+                <div class="fgr"><label>API KEY</label><input id="cfg-wa-key" type="password" placeholder="••••••••" style="background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:13px;outline:none;width:100%"></div>
+              </div>
+              <div style="font-size:11px;color:var(--text3);margin-top:4px">Webhook para respostas: configure no Evolution API para chamar seu Supabase Edge Function e atualizar o campo <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">wa_status</code> nos agendamentos.</div>
+              <div style="margin-top:10px"><button class="btn gd sm" onclick="saveConfigWA()">SALVAR API WA</button><button class="btn gh sm" style="margin-left:8px" onclick="testarWA()">Testar conexão</button></div>
+            </div>
+          </div>
+        </div>
+        <!-- CATEGORIAS -->
+        <div class="tw" style="padding:16px;margin-top:14px">
+          <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:12px">🏷 CATEGORIAS DE SERVIÇOS</div>
+          <div id="cat-list" style="margin-bottom:14px;max-height:280px;overflow-y:auto;border:var(--brd);border-radius:var(--r2)"></div>
+          <div style="font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.5px;margin-bottom:8px">NOVA CATEGORIA</div>
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+            <div style="width:60px">
+              <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:3px">EMOJI</label>
+              <input id="cat-emoji" maxlength="4" placeholder="🏷" style="width:100%;background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px;font-size:20px;text-align:center;outline:none;color:var(--text)">
+            </div>
+            <div style="flex:1;min-width:140px">
+              <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:3px">NOME *</label>
+              <input id="cat-nome" placeholder="Ex: Massagem, Spa..." style="width:100%;background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:9px 11px;color:var(--text);font-size:13px;outline:none">
+            </div>
+            <button class="btn gd sm" onclick="adicionarCat()" style="white-space:nowrap">+ Adicionar</button>
+          </div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
     </div>
   </div>
 </div>
@@ -767,8 +813,12 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
         </div>
         <div class="fgr">
           <label>SERVIÇOS</label>
-          <div id="ag-svl"></div>
-          <button class="btn gh xs" style="margin-top:6px" onclick="addAgSvc()">+ Adicionar serviço</button>
+          <div id="ag-svc-chips" style="display:flex;flex-wrap:wrap;gap:5px;min-height:28px;margin-bottom:6px"></div>
+          <div class="ac-wrap">
+            <input type="text" class="ac-inp" id="ag-svc-search" placeholder="🔍 Buscar e adicionar serviço..." autocomplete="off"
+              oninput="filtrarSvcsAg()" onfocus="filtrarSvcsAg()">
+            <div class="ac-dd" id="ag-svc-dd"></div>
+          </div>
         </div>
         <div id="ag-seq" style="display:none" class="info-box"></div>
         <div class="fgr"><label>STATUS</label>
@@ -822,6 +872,10 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
             <option value="LASER">⚡ Laser</option>
             <option value="DEPILACAO">🪒 Depilação</option>
             <option value="ESTETICA" selected>✨ Estética</option>
+            <option value="UNHAS">💅 Unhas</option>
+            <option value="CABELO">💇 Cabelo</option>
+            <option value="MAQUIAGEM">💄 Maquiagem</option>
+            <option value="SOBRANCELHA">👁 Sobrancelha</option>
           </select>
         </div>
         <div class="fg fg2">
@@ -855,6 +909,10 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
               <button type="button" class="cat-fb" data-pcat="LASER" onclick="filterPkgCat('LASER',this)" style="padding:4px 8px;font-size:11px">⚡</button>
               <button type="button" class="cat-fb" data-pcat="DEPILACAO" onclick="filterPkgCat('DEPILACAO',this)" style="padding:4px 8px;font-size:11px">🪒</button>
               <button type="button" class="cat-fb" data-pcat="ESTETICA" onclick="filterPkgCat('ESTETICA',this)" style="padding:4px 8px;font-size:11px">✨</button>
+              <button type="button" class="cat-fb" data-pcat="UNHAS" onclick="filterPkgCat('UNHAS',this)" style="padding:4px 8px;font-size:11px">💅</button>
+              <button type="button" class="cat-fb" data-pcat="CABELO" onclick="filterPkgCat('CABELO',this)" style="padding:4px 8px;font-size:11px">💇</button>
+              <button type="button" class="cat-fb" data-pcat="MAQUIAGEM" onclick="filterPkgCat('MAQUIAGEM',this)" style="padding:4px 8px;font-size:11px">💄</button>
+              <button type="button" class="cat-fb" data-pcat="SOBRANCELHA" onclick="filterPkgCat('SOBRANCELHA',this)" style="padding:4px 8px;font-size:11px">👁</button>
             </div>
           </div>
           <div class="sv-sel" id="pkg-svs"></div>
@@ -926,8 +984,22 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
       <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:8px">COMANDAS DO CLIENTE (selecione as que deseja pagar)</div>
       <div id="fat-list"></div>
       <div class="dv"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-size:12px;color:var(--text3)">SUBTOTAL</div>
+        <div style="font-family:var(--fm);font-size:18px;font-weight:700;color:var(--gold)" id="fat-sub">R$ 0,00</div>
+      </div>
+      <div class="fg fg2" style="margin-bottom:10px;gap:8px">
+        <div class="fgr">
+          <label>DESCONTO (R$)</label>
+          <input type="number" id="fat-desc" placeholder="0.00" step="0.01" min="0" oninput="calcFatTotal()" style="background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:13px;outline:none;width:100%">
+        </div>
+        <div class="fgr">
+          <label>DATA DO PAGAMENTO</label>
+          <input type="date" id="fat-dt" style="background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:13px;outline:none;width:100%">
+        </div>
+      </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <div style="font-size:12px;color:var(--text3)">TOTAL SELECIONADO</div>
+        <div style="font-size:12px;color:var(--text3)">TOTAL A PAGAR</div>
         <div style="font-family:var(--fm);font-size:22px;font-weight:700;color:var(--gold)" id="fat-tot">R$ 0,00</div>
       </div>
       <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:6px">FORMA DE PAGAMENTO</div>
@@ -1076,6 +1148,7 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
       <button class="btn gh sm" onclick="waSelecionarTodos(true)">☑ Todos</button>
       <button class="btn gh sm" onclick="waSelecionarTodos(false)">☐ Nenhum</button>
       <button class="btn sm" style="background:#25d366;color:#fff;border:none" onclick="abrirSelecionadosWA()">📤 Enviar Selecionados</button>
+      <button class="btn gh sm" onclick="waRelatorio()">📊 Relatório</button>
     </div>
   </div>
 </div>
@@ -1097,14 +1170,14 @@ const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
 const S = {
   filter:'hoje', agDate:new Date(), relDate:new Date(), agIv:30,
   user:null, fatIds:[], pgtos:[], selPgTipo:null,
-  dCliId:null, editAgId:null,
+  dCliId:null, editAgId:null, agSvcs:[],
 };
 
 // Cache local (evita chamadas repetidas)
 const D = {
   profs:[], clientes:[], servicos:[], pacotes:[],
   agendamentos:[], bloqueios:[], despesas:[], caixa:[],
-  historico:[],
+  historico:[], categorias:[],
   cfg:{taxaCred:3.5, taxaDeb:1.5, abertura:'08:00', fechamento:'20:00'},
 };
 
@@ -1124,10 +1197,12 @@ const gSNm  = id => { const s=D.servicos.find(x=>x.id===id); return s?s.nome:'�
 const gSDur = id => { const s=D.servicos.find(x=>x.id===id); return s?s.duracao_min:0; };
 const gSVal = id => { const s=D.servicos.find(x=>x.id===id); return s?s.valor:0; };
 const gAgtot= ag => {
-  // Se o agendamento veio de um pacote, usa o valor do pacote (com desconto)
   const pid = ag.pacote_id || ag.pkgId;
-  if(pid){ const pk=D.pacotes.find(x=>x.id===pid); if(pk) return Number(pk.valor)||0; }
-  return (ag.svcs||[]).reduce((t,id)=>t+gSVal(id),0);
+  let base=0;
+  if(pid){ const pk=D.pacotes.find(x=>x.id===pid); if(pk) base=Number(pk.valor)||0; }
+  else base=(ag.svcs||[]).reduce((t,id)=>t+gSVal(id),0);
+  const desc=Number(ag.desconto)||0;
+  return Math.max(0,base-desc);
 };
 const TODAY = dStr(new Date());
 const CURYR = new Date().getFullYear().toString();
@@ -1135,11 +1210,14 @@ const CURMTH= TODAY.substring(0,7);
 const WEEK  = (()=>{ const d=new Date(),dow=d.getDay(),s=new Date(d),e=new Date(d); s.setDate(d.getDate()-dow); e.setDate(d.getDate()+(6-dow)); return[dStr(s),dStr(e)]; })();
 // Mapa de status → classe CSS de badge
 // pendente=neutro | confirmado=amarelo | atendimento=roxo | concluido=verde(pago) | cancelado=cinza
-const SC = {pendente:'nt', confirmado:'gd', atendimento:'pr', concluido:'gr', cancelado:'gy'};
+const SC = {pendente:'nt', confirmado:'gd', atendimento:'pr', concluido:'gr', cancelado:'gy', recusou:'gy'};
 
 // Status visual efetivo:
 // confirmado + hoje + hora passada → 'atendimento' (automático)
 const efStatus = ag => {
+  // wa_status sobrescreve status visual em certas condições
+  if(ag.wa_status==='recusou') return 'recusou';
+  if(ag.wa_status==='confirmou'&&ag.status==='pendente') return 'confirmado';
   if(ag.status==='confirmado'){
     const agDate=(ag.data||'').substring(0,10);
     if(agDate===TODAY){
@@ -1152,7 +1230,7 @@ const efStatus = ag => {
 };
 const efLabel = ag => ({
   pendente:'Agendado', confirmado:'Confirmado', atendimento:'Em Atendimento',
-  concluido:'Pago', cancelado:'Cancelado'
+  concluido:'Pago', cancelado:'Cancelado', recusou:'Recusou'
 }[efStatus(ag)] || ag.status);
 
 // ============================================================
@@ -1243,6 +1321,7 @@ async function loadAll(){
       hora: a.hora?.substring(0,5)||'00:00',
     }));
     D.historico = hist.data || [];
+    loadCats();
     if(cfg.data){
       D.cfg = {
         taxaCred: parseFloat(cfg.data.taxa_credito)||3.5,
@@ -1321,6 +1400,17 @@ async function doLogin(){
   }
   if(window.innerWidth<768) document.getElementById('mob-b').style.display='flex';
   goTo('dashboard', document.querySelector('.ni.active'));
+  // Realtime para wa_status
+  sb.channel('wa-updates')
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'agendamentos'},payload=>{
+      const idx=D.agendamentos.findIndex(a=>a.id===payload.new.id);
+      if(idx>=0){ D.agendamentos[idx]={...D.agendamentos[idx],...payload.new}; }
+      else D.agendamentos.push(payload.new);
+      renderAgenda(); renderComandas();
+      const row=document.getElementById('wa-row-'+payload.new.id);
+      if(row){ const ws=payload.new.wa_status; if(ws) toast(`${gCNm(payload.new.cliente_id||'')} respondeu: ${ws==='confirmou'?'✅ SIM':'❌ NÃO'}`, ws==='confirmou'?'ok':'w'); }
+    })
+    .subscribe();
 }
 
 function doLogout(){
@@ -1333,7 +1423,7 @@ function doLogout(){
 // NAV
 // ============================================================
 const PGT={dashboard:'DASHBOARD',agenda:'AGENDA INTELIGENTE',clientes:'CLIENTES',comandas:'COMANDAS',caixa:'FLUXO DE CAIXA',despesas:'DESPESAS',servicos:'SERVIÇOS',pacotes:'PACOTES',relatorios:'RELATÓRIOS',config:'CONFIGURAÇÕES'};
-const FLT_SECS=['dashboard','caixa','despesas','relatorios','comandas'];
+const FLT_SECS=['dashboard','caixa','despesas','relatorios'];
 
 function goTo(sec,el){
   document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'));
@@ -1598,8 +1688,7 @@ function aplicarPacoteAg(){
     return;
   }
   // limpa e injeta serviços do pacote
-  document.getElementById('ag-svl').innerHTML='';
-  pk.svcs.forEach(sid=>addAgSvc(sid));
+  S.agSvcs=[]; pk.svcs.forEach(sid=>{ if(!S.agSvcs.includes(sid))S.agSvcs.push(sid); }); renderAgSvcChips();
   const dur=pk.svcs.reduce((t,id)=>t+(gSDur(id)||0),0);
   const orig=pk.svcs.reduce((t,id)=>t+gSVal(id),0);
   info.style.display='block'; info.style.color='var(--gold)';
@@ -1610,15 +1699,19 @@ function abrirAg(data,hora,profId){
   S.editAgId=null;
   document.getElementById('m-ag-t').textContent='NOVO AGENDAMENTO';
   popCliSelect(); popProfsModal(); popPkgSelect();
+  const pkgSel=document.getElementById('ag-pkg'); if(pkgSel)pkgSel.value='';
+  const pkgSearch=document.getElementById('ag-pkg-search'); if(pkgSearch)pkgSearch.value='';
+  const pkgInfo=document.getElementById('ag-pkg-info'); if(pkgInfo){pkgInfo.style.display='none';pkgInfo.textContent='';}
   document.getElementById('ag-dt').value=data||dStr(S.agDate);
   document.getElementById('ag-hr').value=hora||'09:00';
   document.getElementById('ag-ob').value=''; document.getElementById('ag-st').value='pendente'; document.getElementById('ag-fc').checked=false;
-  document.getElementById('ag-svl').innerHTML=''; document.getElementById('ag-seq').style.display='none';
+  S.agSvcs=[]; renderAgSvcChips(); document.getElementById('ag-seq').style.display='none';
+  document.getElementById('ag-svc-search').value=''; document.getElementById('ag-svc-dd').classList.remove('open');
   // Auto-seleciona profissional: usa o passado ou o primeiro da lista
   const ps=document.getElementById('ag-prf');
   if(profId){ for(const o of ps.options) if(o.value===profId){o.selected=true;break} }
   else if(D.profs.length && !ps.value) ps.value=D.profs[0].id;
-  addAgSvc(); openModal('m-ag');
+  openModal('m-ag');
 }
 function editAg(id){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
@@ -1632,37 +1725,52 @@ function editAg(id){
   const ps=document.getElementById('ag-prf'); for(const o of ps.options) if(o.value===(ag.profissional_id||ag.profId)){o.selected=true;break}
   // Se nenhum profissional, seleciona o primeiro
   if(!ps.value && D.profs.length) ps.value=D.profs[0].id;
-  document.getElementById('ag-svl').innerHTML='';
-  (ag.svcs||[]).forEach(sid=>addAgSvc(sid));
+  S.agSvcs=[...(ag.svcs||[])]; renderAgSvcChips();
+  document.getElementById('ag-svc-search').value=''; document.getElementById('ag-svc-dd').classList.remove('open');
   calcSeq(); openModal('m-ag');
 }
-function addAgSvc(presel){
-  const list=document.getElementById('ag-svl');
-  const wrap=document.createElement('div'); wrap.style.cssText='margin-bottom:8px;background:var(--bg3);border:1px solid var(--bc);border-radius:var(--r2);padding:8px';
-  // Linha de busca + botão remover
-  const top=document.createElement('div'); top.style.cssText='display:flex;gap:6px;align-items:center;margin-bottom:6px';
-  const srch=document.createElement('input'); srch.type='text'; srch.placeholder='🔍 Buscar serviço...';
-  srch.style.cssText='flex:1;background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:6px 10px;color:var(--text);font-size:12px;outline:none';
-  const rm=document.createElement('button'); rm.className='btn gh xs'; rm.textContent='✕'; rm.title='Remover';
-  top.appendChild(srch); top.appendChild(rm); wrap.appendChild(top);
-  // Select de serviços
-  const sel=document.createElement('select');
-  sel.style.cssText='width:100%;background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px;outline:none';
-  const buildOpts=(q='')=>{
-    const lst=D.servicos.filter(s=>!q||s.nome.toLowerCase().includes(q.toLowerCase()));
-    sel.innerHTML='<option value="">— Selecione serviço —</option>'+lst.map(s=>`<option value="${s.id}">${s.nome} (${s.duracao_min||s.dur||0}min · ${Rf(s.valor)})</option>`).join('');
-    if(presel){ for(const o of sel.options) if(o.value===presel){o.selected=true;break} }
-  };
-  buildOpts();
-  srch.oninput=()=>{ const v=sel.value; buildOpts(srch.value); if(v){ for(const o of sel.options) if(o.value===v){o.selected=true;break} } };
-  sel.onchange=calcSeq;
-  rm.onclick=()=>{ wrap.remove(); calcSeq(); };
-  wrap.appendChild(sel); list.appendChild(wrap); calcSeq();
+// ── Chips de serviço no modal de agendamento ─────────────────
+function filtrarSvcsAg(){
+  const q=(document.getElementById('ag-svc-search')?.value||'').toLowerCase().trim();
+  const already=S.agSvcs||[];
+  const lst=D.servicos.filter(s=>(!q||s.nome.toLowerCase().includes(q))&&!already.includes(s.id));
+  const dd=document.getElementById('ag-svc-dd'); if(!dd)return;
+  dd.innerHTML=lst.slice(0,20).map(s=>{
+    const cat=normCat(s.categoria); const cm=CAT_META[cat]||{};
+    return`<div class="ac-it" onclick="selAgSvc('${s.id}')">
+      <span style="font-weight:600">${s.nome}</span>
+      <span style="color:var(--text3);font-size:11px;margin-left:6px">${s.duracao_min||s.dur||0}min · ${Rf(s.valor)}</span>
+    </div>`;
+  }).join('') || '<div class="ac-it" style="color:var(--text3);cursor:default">Nenhum serviço encontrado</div>';
+  dd.classList.add('open');
 }
+function selAgSvc(id){
+  if(!(S.agSvcs||[]).includes(id)){ S.agSvcs=(S.agSvcs||[]); S.agSvcs.push(id); }
+  document.getElementById('ag-svc-search').value='';
+  document.getElementById('ag-svc-dd').classList.remove('open');
+  renderAgSvcChips(); calcSeq();
+}
+function remAgSvc(id){
+  S.agSvcs=(S.agSvcs||[]).filter(x=>x!==id);
+  renderAgSvcChips(); calcSeq();
+}
+function renderAgSvcChips(){
+  const chips=document.getElementById('ag-svc-chips'); if(!chips)return;
+  chips.innerHTML=(S.agSvcs||[]).map(id=>{
+    const s=D.servicos.find(x=>x.id===id);
+    if(!s)return'';
+    return`<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(255,215,0,.12);border:1px solid var(--gold3);border-radius:20px;padding:4px 10px;font-size:12px;font-weight:600;color:var(--text)">
+      ${s.nome}
+      <span style="font-size:10px;color:var(--text3)">${Rf(s.valor)}</span>
+      <button type="button" onclick="remAgSvc('${id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;line-height:1;padding:0 0 0 2px" title="Remover">×</button>
+    </span>`;
+  }).join('');
+}
+function addAgSvc(presel){ if(presel) selAgSvc(presel); }
 function calcSeq(){
   const hora=document.getElementById('ag-hr').value; if(!hora)return;
   let t=toMin(hora); const seqs=[];
-  document.querySelectorAll('#ag-svl select').forEach(sel=>{ const id=sel.value; if(!id)return; const s=D.servicos.find(x=>x.id===id); if(!s)return; seqs.push({nm:s.nome,ini:frMin(t),fim:frMin(t+(s.duracao_min||s.dur||30))}); t+=s.duracao_min||s.dur||30; });
+  (S.agSvcs||[]).forEach(id=>{ const s=D.servicos.find(x=>x.id===id); if(!s)return; seqs.push({nm:s.nome,ini:frMin(t),fim:frMin(t+(s.duracao_min||s.dur||30))}); t+=s.duracao_min||s.dur||30; });
   const box=document.getElementById('ag-seq');
   if(seqs.length>0){ box.style.display='block'; box.innerHTML='<div style="font-size:10px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:7px">SEQUÊNCIA</div>'+seqs.map(s=>`<div style="display:flex;gap:10px;margin-bottom:4px"><span style="font-family:var(--fm);color:var(--gold);min-width:110px">${s.ini} – ${s.fim}</span><span>${s.nm}</span></div>`).join(''); }
   else box.style.display='none';
@@ -1675,7 +1783,7 @@ async function salvarAg(){
   const hora=document.getElementById('ag-hr').value;
   if(!cliId2||!profId2||!data||!hora){ toast('Preencha todos os campos obrigatórios','e'); return; }
   const svcs=[]; let durTotal=0;
-  document.querySelectorAll('#ag-svl select').forEach(sel=>{ const id=sel.value; if(id){ const s=D.servicos.find(x=>x.id===id); if(s){svcs.push(id); durTotal+=s.duracao_min||s.dur||30;} } });
+  (S.agSvcs||[]).forEach(id=>{ const s=D.servicos.find(x=>x.id===id); if(s){svcs.push(id); durTotal+=s.duracao_min||s.dur||30;} });
   if(svcs.length===0){ toast('Adicione pelo menos um serviço','e'); return; }
   if(!document.getElementById('ag-fc').checked){
     const ni=toMin(hora), nf=ni+durTotal;
@@ -1843,12 +1951,14 @@ function renderComandas(){
   const q=(document.getElementById('cmd-search')?.value||'').toLowerCase().trim();
   let ags=D.agendamentos;
   if(S.user?.role==='prof') ags=ags.filter(a=>profId(a)===S.user.profId);
-  // Filtro de período (Hoje/Semana/Mês/Ano)
-  ags=ags.filter(x=>{ const dt=(x.data||'').substring(0,10);
-    if(S.filter==='hoje')   return dt===TODAY;
-    if(S.filter==='semana') return dt>=WEEK[0]&&dt<=WEEK[1];
-    if(S.filter==='mes')    return dt?.startsWith(CURMTH);
-    return dt?.startsWith(CURYR);
+  // Filtro de data local (campo cmd-dt-ini / cmd-dt-fim)
+  const dtIni=(document.getElementById('cmd-dt-ini')?.value||'');
+  const dtFim=(document.getElementById('cmd-dt-fim')?.value||'');
+  if(dtIni||dtFim) ags=ags.filter(x=>{ 
+    const dt=(x.data||'').substring(0,10); 
+    if(dtIni&&dt<dtIni)return false; 
+    if(dtFim&&dt>dtFim)return false; 
+    return true;
   });
   // Filtro por status (inclui 'atendimento' como virtual)
   if(f==='atendimento') ags=ags.filter(a=>efStatus(a)==='atendimento');
@@ -1914,9 +2024,18 @@ function abrirFat(agId){
     saldoBtn.style.display='none'; saldoInfo.style.display='none';
   }
   S._fatCliId=cid;
+  const descEl=document.getElementById('fat-desc'); if(descEl)descEl.value='';
+  const dtEl=document.getElementById('fat-dt'); if(dtEl)dtEl.value=TODAY;
   calcFatTotal(); openModal('m-fat');
 }
-function calcFatTotal(){ const tot=S.fatIds.reduce((t,id)=>{ const a=D.agendamentos.find(x=>x.id===id); return t+(a?gAgtot(a):0); },0); document.getElementById('fat-tot').textContent=Rf(tot); }
+function calcFatTotal(){ 
+  const sub=S.fatIds.reduce((t,id)=>{ const a=D.agendamentos.find(x=>x.id===id); return t+(a?gAgtot(a):0); },0); 
+  const desc=parseFloat(document.getElementById('fat-desc')?.value)||0;
+  const tot=Math.max(0,sub-desc);
+  const subEl=document.getElementById('fat-sub'); if(subEl)subEl.textContent=Rf(sub);
+  document.getElementById('fat-tot').textContent=Rf(tot); 
+  S._fatTotal=tot;
+}
 function selPg(el,tipo){
   document.querySelectorAll('.pg-b').forEach(b=>b.classList.remove('sel')); el.classList.add('sel'); S.selPgTipo=tipo;
   const tot=S.fatIds.reduce((t,id)=>{ const a=D.agendamentos.find(x=>x.id===id); return t+(a?gAgtot(a):0); },0);
@@ -2015,13 +2134,15 @@ async function confirmarFat(){
   if(S.fatIds.length===0){ toast('Selecione pelo menos uma comanda','e'); return; }
   if(S.pgtos.length===0){ toast('Adicione pelo menos um pagamento','e'); return; }
   showLoad('Faturando...');
-  const hoje=(S.pgtos[0] && S.fatIds[0]) ? (D.agendamentos.find(a=>a.id===S.fatIds[0])?.data||TODAY).substring(0,10) : TODAY;
+  const hoje=document.getElementById('fat-dt')?.value || TODAY;
   for(const id of S.fatIds){
     const ag=D.agendamentos.find(a=>a.id===id); if(!ag)continue;
     await sb.from('agendamentos').update({status:'concluido'}).eq('id',id);
-    const tot=gAgtot(ag);
+    const tot=S._fatTotal||gAgtot(ag);
+    const desc=parseFloat(document.getElementById('fat-desc')?.value)||0;
     const pgTipo=S.pgtos[0]?.tipo||'pix';
-    await sb.from('caixa').insert({tipo:'entrada', descricao:'Comanda - '+gCNm2(ag), valor:tot, data:(ag.data||'').substring(0,10), forma_pagamento:pgTipo, agendamento_id:id});
+    if(desc>0) await sb.from('agendamentos').update({desconto:desc}).eq('id',id);
+    await sb.from('caixa').insert({tipo:'entrada', descricao:'Comanda - '+gCNm2(ag)+(desc>0? (desc. +Rf(desc)+):`), valor:tot, data:hoje, forma_pagamento:pgTipo, agendamento_id:id});
   }
   // Taxa do cartão → despesa automática
   for(const pg of S.pgtos){
@@ -2154,10 +2275,98 @@ function abrirSvc(id){
   openModal('m-svc');
 }
 // Normaliza categoria (sem acentos, maiúscula) — categorias livres viram ESTETICA por padrão
-function normCat(c){ if(!c)return 'ESTETICA'; const u=String(c).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim(); if(u.includes('LASER'))return'LASER'; if(u.includes('DEPIL')||u.includes('CERA'))return'DEPILACAO'; return'ESTETICA'; }
-const CAT_META_DARK={LASER:{lbl:'⚡ Laser',cor:'#93c5fd',bg:'#05102a'},DEPILACAO:{lbl:'🪒 Depilação',cor:'#fca5a5',bg:'#200505'},ESTETICA:{lbl:'✨ Estética',cor:'#fef08a',bg:'#2a2000'}};
-const CAT_META_LIGHT={LASER:{lbl:'⚡ Laser',cor:'#1d4ed8',bg:'#dbeafe'},DEPILACAO:{lbl:'🪒 Depilação',cor:'#b91c1c',bg:'#fee2e2'},ESTETICA:{lbl:'✨ Estética',cor:'#92400e',bg:'#fef9c3'}};
-const CAT_META=new Proxy({},{get:(_,k)=>(document.documentElement.getAttribute('data-theme')==='dark'?CAT_META_DARK:CAT_META_LIGHT)[k]});
+function normCat(c){
+  if(!c)return 'ESTETICA';
+  const u=String(c).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  if(u.includes('LASER'))return'LASER';
+  if(u.includes('DEPIL')||u.includes('CERA'))return'DEPILACAO';
+  if(u.includes('UNHA')||u.includes('GEL')||u.includes('ACRIL'))return'UNHAS';
+  if(u.includes('CABELO')||u.includes('CORTE')||u.includes('TINTURA')||u.includes('ESCOVA'))return'CABELO';
+  if(u.includes('MAQUI'))return'MAQUIAGEM';
+  if(u.includes('SOBRANH')||u.includes('DESIGN')||u.includes('DEPIL.*SOBR'))return'SOBRANCELHA';
+  return'ESTETICA';
+}
+// ── Categorias dinâmicas ─────────────────────────────────────
+const CAT_DEFAULTS=[
+  {id:'LASER',     emoji:'⚡',lbl:'Laser',       corD:'#93c5fd',bgD:'#05102a',corL:'#1d4ed8',bgL:'#dbeafe'},
+  {id:'DEPILACAO', emoji:'🪒',lbl:'Depilação',   corD:'#fca5a5',bgD:'#200505',corL:'#b91c1c',bgL:'#fee2e2'},
+  {id:'ESTETICA',  emoji:'✨',lbl:'Estética',    corD:'#fef08a',bgD:'#2a2000',corL:'#92400e',bgL:'#fef9c3'},
+  {id:'UNHAS',     emoji:'💅',lbl:'Unhas',       corD:'#f9a8d4',bgD:'#2d0a1f',corL:'#be185d',bgL:'#fce7f3'},
+  {id:'CABELO',    emoji:'💇',lbl:'Cabelo',      corD:'#86efac',bgD:'#042010',corL:'#166534',bgL:'#dcfce7'},
+  {id:'MAQUIAGEM', emoji:'💄',lbl:'Maquiagem',   corD:'#fbd38d',bgD:'#271600',corL:'#92400e',bgL:'#fef3c7'},
+  {id:'SOBRANCELHA',emoji:'👁',lbl:'Sobrancelha',corD:'#c4b5fd',bgD:'#1a0a2e',corL:'#6d28d9',bgL:'#f5f3ff'},
+];
+function loadCats(){
+  const custom=JSON.parse(localStorage.getItem('ns_cats')||'[]');
+  D.categorias=[...CAT_DEFAULTS,...custom];
+}
+function saveCats(){
+  const custom=D.categorias.filter(c=>!CAT_DEFAULTS.find(d=>d.id===c.id));
+  localStorage.setItem('ns_cats',JSON.stringify(custom));
+}
+function getCatMeta(id){
+  const c=D.categorias.find(x=>x.id===id)||D.categorias[2];
+  const dark=document.documentElement.getAttribute('data-theme')==='dark';
+  return{lbl:c.emoji+' '+c.lbl, cor:dark?c.corD:c.corL, bg:dark?c.bgD:c.bgL};
+}
+const CAT_META=new Proxy({},{get:(_,k)=>getCatMeta(k)});
+function normCat(c){
+  if(!c)return D.categorias[2]?.id||'ESTETICA';
+  const u=String(c).toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+  // Tenta match exato primeiro
+  const exact=D.categorias.find(x=>x.id===u||u.includes(x.id));
+  if(exact)return exact.id;
+  // Fallbacks para mapeamento por palavra-chave
+  if(u.includes('LASER'))return'LASER';
+  if(u.includes('DEPIL')||u.includes('CERA'))return'DEPILACAO';
+  if(u.includes('UNHA')||u.includes('GEL')||u.includes('ACRIL'))return'UNHAS';
+  if(u.includes('CABELO')||u.includes('CORTE')||u.includes('TINTURA')||u.includes('ESCOVA'))return'CABELO';
+  if(u.includes('MAQUI'))return'MAQUIAGEM';
+  if(u.includes('SOBRANC')||u.includes('DESIGN'))return'SOBRANCELHA';
+  return D.categorias[2]?.id||'ESTETICA';
+}
+function renderCatConfig(){
+  const el=document.getElementById('cat-list'); if(!el)return;
+  el.innerHTML=D.categorias.map(c=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--bc)">
+      <span style="font-size:18px">${c.emoji}</span>
+      <span style="flex:1;font-size:13px;font-weight:600">${c.lbl}</span>
+      <span style="font-size:10px;color:var(--text3);font-family:var(--fm)">${c.id}</span>
+      ${!CAT_DEFAULTS.find(d=>d.id===c.id)?`<button class="btn gh xs" onclick="delCat('${c.id}')">✕</button>`:'<span style="font-size:10px;color:var(--text3)">padrão</span>'}
+    </div>`).join('');
+  // Atualiza filtros de serviços e de pacotes
+  updateCatBars();
+}
+function updateCatBars(){
+  const bar=document.getElementById('svc-cat-bar'); if(bar){
+    bar.innerHTML=`<button class="cat-fb ${SVC_FILTER_CAT===''?'active':''}" data-cat="" onclick="filterSvcCat('',this)">Todos</button>`
+      +D.categorias.map(c=>`<button class="cat-fb ${SVC_FILTER_CAT===c.id?'active':''}" data-cat="${c.id}" onclick="filterSvcCat('${c.id}',this)">${c.emoji} ${c.lbl}</button>`).join('');
+  }
+  // Select do modal de serviço
+  const sel=document.getElementById('svc-ct'); if(sel){
+    const cur=sel.value;
+    sel.innerHTML=D.categorias.map(c=>`<option value="${c.id}">${c.emoji} ${c.lbl}</option>`).join('');
+    if(cur)sel.value=cur;
+  }
+}
+function adicionarCat(){
+  const emoji=document.getElementById('cat-emoji').value.trim()||'🏷';
+  const lbl=document.getElementById('cat-nome').value.trim();
+  if(!lbl){toast('Informe o nome da categoria','e');return;}
+  const id=lbl.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,'_').replace(/[^A-Z0-9_]/g,'');
+  if(D.categorias.find(c=>c.id===id)){toast('Categoria já existe','w');return;}
+  const cores=['#e2e8f0','#fef08a','#bbf7d0','#fca5a5','#c4b5fd','#93c5fd','#fbd38d','#f9a8d4'];
+  const idx=D.categorias.length%cores.length;
+  D.categorias.push({id,emoji,lbl,corD:cores[idx],bgD:'#1a1a1a',corL:'#374151',bgL:'#f3f4f6'});
+  saveCats(); renderCatConfig(); updateCatBars();
+  document.getElementById('cat-emoji').value=''; document.getElementById('cat-nome').value='';
+  toast('Categoria "'+lbl+'" criada!');
+}
+function delCat(id){
+  D.categorias=D.categorias.filter(c=>c.id!==id);
+  saveCats(); renderCatConfig(); updateCatBars();
+  toast('Categoria removida','w');
+}
 let SVC_FILTER_CAT='';
 function filterSvcCat(c,btn){ SVC_FILTER_CAT=c; document.querySelectorAll('.cat-fb').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderSvc(); }
 function renderSvc(){
@@ -2592,6 +2801,8 @@ function exportCSV(){
 function renderConfig(){
   document.getElementById('cfg-cr').value=D.cfg.taxaCred; document.getElementById('cfg-db').value=D.cfg.taxaDeb;
   document.getElementById('cfg-ab').value=D.cfg.abertura; document.getElementById('cfg-fe').value=D.cfg.fechamento;
+  renderConfigWA();
+  renderCatConfig();
   document.getElementById('tb-prof').innerHTML=D.profs.length?D.profs.map(p=>`<tr>
     <td><div style="font-weight:600">${p.nome}</div><div style="font-size:11px;color:var(--text3)">${p.email}</div></td>
     <td>${p.comissao||p.com||0}%</td>
@@ -2656,13 +2867,62 @@ async function salvarBlk(){
 // ============================================================
 // WHATSAPP DO DIA
 // ============================================================
+// ── WhatsApp API Config ──────────────────────────────────────
+const WA_CFG = {
+  url: localStorage.getItem('wa_url')||'',
+  inst: localStorage.getItem('wa_inst')||'',
+  key: localStorage.getItem('wa_key')||''
+};
+function saveConfigWA(){
+  WA_CFG.url=(document.getElementById('cfg-wa-url')?.value||'').replace(/\/$/,'');
+  WA_CFG.inst=document.getElementById('cfg-wa-inst')?.value||'';
+  WA_CFG.key=document.getElementById('cfg-wa-key')?.value||'';
+  localStorage.setItem('wa_url',WA_CFG.url);
+  localStorage.setItem('wa_inst',WA_CFG.inst);
+  localStorage.setItem('wa_key',WA_CFG.key);
+  toast('Config WA salva!');
+}
+function renderConfigWA(){
+  const u=document.getElementById('cfg-wa-url'); if(u)u.value=WA_CFG.url;
+  const i=document.getElementById('cfg-wa-inst'); if(i)i.value=WA_CFG.inst;
+  const k=document.getElementById('cfg-wa-key'); if(k)k.value=WA_CFG.key;
+}
+async function testarWA(){
+  if(!WA_CFG.url||!WA_CFG.inst||!WA_CFG.key){toast('Configure URL, instância e chave primeiro','e');return;}
+  showLoad('Testando conexão WA...');
+  try{
+    const r=await fetch(${WA_CFG.url}/instance/connectionState/,{headers:{'apikey':WA_CFG.key}});
+    const j=await r.json();
+    hideLoad();
+    const estado=j?.instance?.state||j?.state||'desconhecido';
+    toast(estado==='open'?'✅ Conectado: '+estado:'⚠️ Estado: '+estado, estado==='open'?'ok':'w');
+  }catch(e){hideLoad();toast('❌ Erro: '+e.message,'e');}
+}
+async function waEnviarAPI(phone, message){
+  if(!WA_CFG.url||!WA_CFG.inst||!WA_CFG.key) return false;
+  const wp=phone.replace(/\D/g,'');
+  const num=wp.length<=11?'55'+wp:wp;
+  try{
+    const r=await fetch(${WA_CFG.url}/message/sendText/,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':WA_CFG.key},
+      body:JSON.stringify({number:num,text:message})
+    });
+    return r.ok;
+  }catch(e){return false;}
+}
+async function waSetStatus(agId, status){
+  await sb.from('agendamentos').update({wa_status:status}).eq('id',agId);
+  const ag=D.agendamentos.find(a=>a.id===agId);
+  if(ag){ ag.wa_status=status; }
+}
 function enviarWhatsAppDia(){
   const ds=dStr(S.agDate);
   const dias=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
   const mss=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   const d=S.agDate;
   document.getElementById('wa-data-lbl').textContent=`${dias[d.getDay()]}, ${d.getDate()} de ${mss[d.getMonth()]} de ${d.getFullYear()}`;
-  const ags=D.agendamentos.filter(a=>(a.data||'').substring(0,10)===ds&&a.status!=='cancelado').sort((a,b)=>a.hora.localeCompare(b.hora));
+  const ags=D.agendamentos.filter(a=>(a.data||'').substring(0,10)===ds&&a.status!=='cancelado').sort((a,b)=>(a.hora||'').localeCompare(b.hora||''));
   const list=document.getElementById('wa-list'); const empty=document.getElementById('wa-empty');
   list.innerHTML='';
   if(!ags.length){ empty.style.display='block'; list.style.display='none'; }
@@ -2673,48 +2933,82 @@ function enviarWhatsAppDia(){
       const wp=(cli?.whatsapp||'').replace(/\D/g,'');
       const hasWp=!!wp;
       const row=document.createElement('div');
+      row.id='wa-row-'+ag.id;
       row.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bc)';
-      row.dataset.agid=ag.id;
-      // Checkbox de seleção
+      // Checkbox
       const chk=document.createElement('input');
-      chk.type='checkbox'; chk.checked=hasWp; chk.disabled=!hasWp;
+      chk.type='checkbox'; chk.checked=hasWp&&!ag.wa_status; chk.disabled=!hasWp;
       chk.style.cssText='width:16px;height:16px;accent-color:#25d366;flex-shrink:0;cursor:pointer';
-      chk.dataset.agid=ag.id;
-      row.appendChild(chk);
+      chk.dataset.agid=ag.id; row.appendChild(chk);
       // Avatar
       const av=document.createElement('div');
       av.className='c-av'; av.style.cssText='width:34px;height:34px;font-size:12px;flex-shrink:0';
       av.textContent=ini(cli?cli.nome:'?'); row.appendChild(av);
       // Info
       const info=document.createElement('div'); info.style.flex='1';
-      info.innerHTML=`<div style="font-weight:600;font-size:13px">${cli?cli.nome:'Desconhecido'}</div>
-        <div style="font-size:11px;color:var(--text3)">${ag.hora} · ${(ag.svcs||[]).map(gSNm).join(', ')||'—'} · ${gPNm2(ag)}</div>
-        ${!hasWp?`<div style="font-size:11px;color:var(--red);margin-top:2px">⚠ Sem WhatsApp cadastrado</div>`:''}`;
+      const waLbl=ag.wa_status==='confirmou'?'<span class="bd wa-ok">✓ Confirmou</span>':ag.wa_status==='recusou'?'<span class="bd wa-no">✗ Recusou</span>':ag.wa_status==='aguardando'?'<span class="bd wa-ag">⏳ Aguardando</span>':'';
+      info.innerHTML=`<div style="font-weight:600;font-size:13px">${cli?cli.nome:'Desconhecido'} ${waLbl}</div>
+        <div style="font-size:11px;color:var(--text3)">${ag.hora} · ${(ag.svcs||[]).map(gSNm).join(', ')||'—'}</div>
+        ${!hasWp?'<div style="font-size:11px;color:var(--red);margin-top:2px">⚠ Sem WhatsApp</div>':''}`;
       row.appendChild(info);
-      // Badge status
-      const badge=document.createElement('span');
-      badge.className=`bd ${SC[efStatus(ag)]||'gy'}`; badge.textContent=efLabel(ag);
-      row.appendChild(badge);
-      // Botão individual
+      // Ações manuais de resposta
       if(hasWp){
-        const btn=document.createElement('button');
-        btn.className='btn sm'; btn.style.cssText='background:#25d366;color:#fff;border:none;white-space:nowrap';
-        btn.textContent='Enviar'; btn.onclick=()=>abrirWAindividual(ag.id);
-        row.appendChild(btn);
+        const acts=document.createElement('div'); acts.style.cssText='display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap';
+        const btnSim=document.createElement('button'); btnSim.className='btn xs'; btnSim.style.cssText='background:#25d366;color:#fff;border:none';
+        btnSim.textContent='✓ Sim'; btnSim.onclick=async()=>{ await waSetStatus(ag.id,'confirmou'); enviarWhatsAppDia(); renderAgenda(); };
+        const btnNao=document.createElement('button'); btnNao.className='btn gh xs'; btnNao.textContent='✗ Não'; 
+        btnNao.onclick=async()=>{ await waSetStatus(ag.id,'recusou'); enviarWhatsAppDia(); renderAgenda(); };
+        const btnWA=document.createElement('button'); btnWA.className='btn sm'; btnWA.style.cssText='background:#25d366;color:#fff;border:none';
+        btnWA.textContent='📤'; btnWA.title='Enviar mensagem'; btnWA.onclick=()=>abrirWAindividual(ag.id);
+        acts.appendChild(btnSim); acts.appendChild(btnNao); acts.appendChild(btnWA);
+        row.appendChild(acts);
       }
       list.appendChild(row);
     });
   }
   openModal('m-wa');
 }
-function montarMsgWA(agId){ const ag=D.agendamentos.find(a=>a.id===agId); if(!ag)return null; const cli=D.clientes.find(c=>c.id===cliId(ag)); if(!cli)return null; const tpl=document.getElementById('wa-msg').value||'Olá {nome}! Você tem horário hoje às {hora} para {servico}. Confirma?'; return tpl.replace(/{nome}/g,cli.nome).replace(/{hora}/g,ag.hora).replace(/{servico}/g,(ag.svcs||[]).map(gSNm).join(' + ')); }
+function montarMsgWA(agId){ const ag=D.agendamentos.find(a=>a.id===agId); if(!ag)return null; const cli=D.clientes.find(c=>c.id===cliId(ag)); if(!cli)return null; const tpl=document.getElementById('wa-msg').value||'Olá {nome}! Você tem horário hoje às {hora} para {servico}. Confirma? Responda SIM para confirmar ou NÃO para cancelar.'; return tpl.replace(/{nome}/g,cli.nome).replace(/{hora}/g,ag.hora).replace(/{servico}/g,(ag.svcs||[]).map(gSNm).join(' + ')); }
 function abrirWAindividual(agId){ const ag=D.agendamentos.find(a=>a.id===agId); if(!ag)return; const cli=D.clientes.find(c=>c.id===cliId(ag)); if(!cli?.whatsapp)return; const wp=cli.whatsapp.replace(/\D/g,''); const num=wp.length<=11?'55'+wp:wp; const msg=montarMsgWA(agId); if(msg) window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`,'_blank'); }
 function waSelecionarTodos(sel){ document.querySelectorAll('#wa-list input[type=checkbox]:not(:disabled)').forEach(c=>c.checked=sel); }
-function abrirSelecionadosWA(){
+async function abrirSelecionadosWA(){
   const sels=[...document.querySelectorAll('#wa-list input[type=checkbox]:checked')].map(c=>c.dataset.agid);
   if(!sels.length){ toast('Selecione ao menos um agendamento','w'); return; }
-  sels.forEach((id,i)=>{ setTimeout(()=>abrirWAindividual(id), i*900); });
-  toast(`Abrindo ${sels.length} conversa(s) no WhatsApp...`,'ok');
+  const temAPI=WA_CFG.url&&WA_CFG.inst&&WA_CFG.key;
+  if(temAPI){
+    // Envio via Evolution API
+    showLoad(`Enviando ${sels.length} mensagem(ns) via API...`);
+    let ok=0,fail=0;
+    for(const id of sels){
+      const ag=D.agendamentos.find(a=>a.id===id); if(!ag)continue;
+      const cli=D.clientes.find(c=>c.id===cliId(ag)); if(!cli?.whatsapp)continue;
+      const msg=montarMsgWA(id); if(!msg)continue;
+      const sent=await waEnviarAPI(cli.whatsapp,msg);
+      if(sent){ await waSetStatus(id,'aguardando'); ok++; }
+      else fail++;
+      await new Promise(r=>setTimeout(r,400));
+    }
+    hideLoad();
+    toast(`${ok} enviada(s) via API${fail>0?' | '+fail+' erro(s)':''}`, ok>0?'ok':'e');
+    enviarWhatsAppDia(); renderAgenda();
+  } else {
+    // Fallback: abre wa.me tabs
+    sels.forEach((id,i)=>{ setTimeout(()=>abrirWAindividual(id), i*900); });
+    toast(`Abrindo ${sels.length} conversa(s) no WhatsApp...`,'ok');
+  }
+}
+function waRelatorio(){
+  const ds=dStr(S.agDate);
+  const ags=D.agendamentos.filter(a=>(a.data||'').substring(0,10)===ds&&a.status!=='cancelado');
+  const confirmaram=ags.filter(a=>a.wa_status==='confirmou');
+  const recusaram=ags.filter(a=>a.wa_status==='recusou');
+  const aguardando=ags.filter(a=>a.wa_status==='aguardando');
+  const semEnvio=ags.filter(a=>!a.wa_status);
+  let msg=`📊 RELATÓRIO WA — ${fBR(ds)}\n\n`;
+  msg+=`✅ Confirmaram (${confirmaram.length}):\n`+(confirmaram.map(a=>` • ${gCNm2(a)} ${a.hora}`).join('\n')||' nenhum');
+  msg+=`\n\n❌ Recusaram (${recusaram.length}):\n`+(recusaram.map(a=>` • ${gCNm2(a)} ${a.hora}`).join('\n')||' nenhum');
+  msg+=`\n\n⏳ Sem resposta / aguardando (${aguardando.length+semEnvio.length}):\n`+([...aguardando,...semEnvio].map(a=>` • ${gCNm2(a)} ${a.hora}`).join('\n')||' nenhum');
+  alert(msg);
 }
 
 // ============================================================
@@ -2764,6 +3058,7 @@ function clearAcCli(){
 }
 document.addEventListener('click',e=>{
   if(!e.target.closest('#ag-cli-wrap')) document.getElementById('ag-cli-dd')?.classList.remove('open');
+  if(!e.target.closest('#ag-svc-search')&&!e.target.closest('#ag-svc-dd')) document.getElementById('ag-svc-dd')?.classList.remove('open');
 });
 
 // ---- AUTOCOMPLETE PACOTE ----
