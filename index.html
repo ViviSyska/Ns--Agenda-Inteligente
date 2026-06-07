@@ -2142,7 +2142,7 @@ async function confirmarFat(){
     const desc=parseFloat(document.getElementById('fat-desc')?.value)||0;
     const pgTipo=S.pgtos[0]?.tipo||'pix';
     if(desc>0) await sb.from('agendamentos').update({desconto:desc}).eq('id',id);
-    await sb.from('caixa').insert({tipo:'entrada', descricao:'Comanda - '+gCNm2(ag)+(desc>0? (desc. +Rf(desc)+):`), valor:tot, data:hoje, forma_pagamento:pgTipo, agendamento_id:id});
+    await sb.from('caixa').insert({tipo:'entrada', descricao:'Comanda - '+gCNm2(ag)+(desc>0?` (desc. ${Rf(desc)})`:''), valor:tot, data:hoje, forma_pagamento:pgTipo, agendamento_id:id});
   }
   // Taxa do cartão → despesa automática
   for(const pg of S.pgtos){
