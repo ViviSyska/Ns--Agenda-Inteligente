@@ -651,13 +651,6 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
           <input id="svc-search" class="si" placeholder="🔍 Buscar serviço..." oninput="renderSvc()" style="flex:1;max-width:320px">
           <div id="svc-cat-bar" style="display:flex;gap:4px;background:var(--bg3);border-radius:var(--r2);padding:3px;border:var(--brd);flex-wrap:wrap">
             <button class="cat-fb active" data-cat="" onclick="filterSvcCat('',this)">Todos</button>
-            <button class="cat-fb" data-cat="LASER" onclick="filterSvcCat('LASER',this)">⚡ Laser</button>
-            <button class="cat-fb" data-cat="DEPILACAO" onclick="filterSvcCat('DEPILACAO',this)">🪒 Depilação</button>
-            <button class="cat-fb" data-cat="ESTETICA" onclick="filterSvcCat('ESTETICA',this)">✨ Estética</button>
-            <button class="cat-fb" data-cat="UNHAS" onclick="filterSvcCat('UNHAS',this)">💅 Unhas</button>
-            <button class="cat-fb" data-cat="CABELO" onclick="filterSvcCat('CABELO',this)">💇 Cabelo</button>
-            <button class="cat-fb" data-cat="MAQUIAGEM" onclick="filterSvcCat('MAQUIAGEM',this)">💄 Maquiagem</button>
-            <button class="cat-fb" data-cat="SOBRANCELHA" onclick="filterSvcCat('SOBRANCELHA',this)">👁 Sobrancelha</button>
           </div>
         </div>
         <div id="svc-empty" class="empty" style="display:none"><div class="empty-ic">✂️</div><div class="empty-t">Nenhum serviço cadastrado</div><div class="empty-s">Clique em "+ Serviço" para adicionar</div></div>
@@ -869,13 +862,7 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
         <div class="fgr"><label>NOME *</label><input id="svc-nm" placeholder="Ex: Corte feminino"></div>
         <div class="fgr"><label>CATEGORIA *</label>
           <select id="svc-ct">
-            <option value="LASER">⚡ Laser</option>
-            <option value="DEPILACAO">🪒 Depilação</option>
-            <option value="ESTETICA" selected>✨ Estética</option>
-            <option value="UNHAS">💅 Unhas</option>
-            <option value="CABELO">💇 Cabelo</option>
-            <option value="MAQUIAGEM">💄 Maquiagem</option>
-            <option value="SOBRANCELHA">👁 Sobrancelha</option>
+            <option value="GERAL">🏷 Geral</option>
           </select>
         </div>
         <div class="fg fg2">
@@ -904,15 +891,8 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
           <label>SERVIÇOS INCLUÍDOS * (clique para selecionar)</label>
           <div style="display:flex;gap:6px;margin:5px 0;flex-wrap:wrap">
             <input id="pkg-search" class="si" placeholder="🔍 Buscar serviço..." oninput="filterPkgSvs()" style="flex:1;min-width:140px;width:auto;padding:6px 10px;font-size:12px">
-            <div style="display:flex;gap:3px;background:var(--bg3);border-radius:var(--r2);padding:2px;border:var(--brd);flex-wrap:wrap">
+            <div id="pkg-cat-bar" style="display:flex;gap:3px;background:var(--bg3);border-radius:var(--r2);padding:2px;border:var(--brd);flex-wrap:wrap">
               <button type="button" class="cat-fb active" data-pcat="" onclick="filterPkgCat('',this)" style="padding:4px 8px;font-size:11px">Tudo</button>
-              <button type="button" class="cat-fb" data-pcat="LASER" onclick="filterPkgCat('LASER',this)" style="padding:4px 8px;font-size:11px">⚡</button>
-              <button type="button" class="cat-fb" data-pcat="DEPILACAO" onclick="filterPkgCat('DEPILACAO',this)" style="padding:4px 8px;font-size:11px">🪒</button>
-              <button type="button" class="cat-fb" data-pcat="ESTETICA" onclick="filterPkgCat('ESTETICA',this)" style="padding:4px 8px;font-size:11px">✨</button>
-              <button type="button" class="cat-fb" data-pcat="UNHAS" onclick="filterPkgCat('UNHAS',this)" style="padding:4px 8px;font-size:11px">💅</button>
-              <button type="button" class="cat-fb" data-pcat="CABELO" onclick="filterPkgCat('CABELO',this)" style="padding:4px 8px;font-size:11px">💇</button>
-              <button type="button" class="cat-fb" data-pcat="MAQUIAGEM" onclick="filterPkgCat('MAQUIAGEM',this)" style="padding:4px 8px;font-size:11px">💄</button>
-              <button type="button" class="cat-fb" data-pcat="SOBRANCELHA" onclick="filterPkgCat('SOBRANCELHA',this)" style="padding:4px 8px;font-size:11px">👁</button>
             </div>
           </div>
           <div class="sv-sel" id="pkg-svs"></div>
@@ -1137,8 +1117,8 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
       <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:4px">DATA</div>
       <div style="font-family:var(--fm);font-size:14px;color:var(--gold);margin-bottom:14px" id="wa-data-lbl">—</div>
       <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:8px">MENSAGEM PADRÃO (editável)</div>
-      <textarea id="wa-msg" rows="3" style="width:100%;background:var(--inp);border:var(--brd);border-radius:var(--r2);padding:9px 11px;color:var(--text);font-size:13px;outline:none;resize:vertical;font-family:var(--f)">Olá {nome}! Lembrando que você tem horário marcado hoje às {hora} para {servico}. Confirma sua presença? 😊</textarea>
-      <div style="font-size:11px;color:var(--text3);margin-top:4px;margin-bottom:14px">Variáveis: <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">{nome}</code> <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">{hora}</code> <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">{servico}</code></div>
+      <textarea id="wa-msg" rows="4" style="width:100%;background:var(--inp);border:var(--brd);border-radius:var(--r2);padding:9px 11px;color:var(--text);font-size:13px;outline:none;resize:vertical;font-family:var(--f)">Olá {nome}! 😊 Lembrando que você tem horário marcado para *{diaSemana}, {data}* às *{hora}* para *{servico}*. Confirma sua presença? Responda *SIM* para confirmar ou *NÃO* para cancelar. Obrigada! 💛</textarea>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;margin-bottom:14px">Variáveis: <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">{nome}</code> <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">{hora}</code> <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">{servico}</code> <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">{data}</code> <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">{diaSemana}</code> <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">{salao}</code></div>
       <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:8px">AGENDAMENTOS DO DIA</div>
       <div id="wa-list"></div>
       <div id="wa-empty" style="display:none;padding:20px;text-align:center;color:var(--text3);font-size:13px">Nenhum agendamento para hoje</div>
@@ -1147,7 +1127,7 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
       <button class="btn gh" onclick="closeModal('m-wa')">Fechar</button>
       <button class="btn gh sm" onclick="waSelecionarTodos(true)">☑ Todos</button>
       <button class="btn gh sm" onclick="waSelecionarTodos(false)">☐ Nenhum</button>
-      <button class="btn sm" style="background:#25d366;color:#fff;border:none" onclick="abrirSelecionadosWA()">📤 Enviar Selecionados</button>
+      <button class="btn sm" style="background:#25d366;color:#fff;border:none;flex:1;min-width:160px" onclick="abrirSelecionadosWA()">📤 Enviar Lembretes (Todos Selecionados)</button>
       <button class="btn gh sm" onclick="waRelatorio()">📊 Relatório</button>
     </div>
   </div>
@@ -1400,15 +1380,20 @@ async function doLogin(){
   }
   if(window.innerWidth<768) document.getElementById('mob-b').style.display='flex';
   goTo('dashboard', document.querySelector('.ni.active'));
-  // Realtime para wa_status
+  // Realtime — wa_status e confirmação automática na agenda
   sb.channel('wa-updates')
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'agendamentos'},payload=>{
-      const idx=D.agendamentos.findIndex(a=>a.id===payload.new.id);
-      if(idx>=0){ D.agendamentos[idx]={...D.agendamentos[idx],...payload.new}; }
-      else D.agendamentos.push(payload.new);
+      const n=payload.new;
+      const idx=D.agendamentos.findIndex(a=>a.id===n.id);
+      if(idx>=0){ D.agendamentos[idx]={...D.agendamentos[idx],...n}; }
+      else D.agendamentos.push(n);
       renderAgenda(); renderComandas();
-      const row=document.getElementById('wa-row-'+payload.new.id);
-      if(row){ const ws=payload.new.wa_status; if(ws) toast(`${gCNm(payload.new.cliente_id||'')} respondeu: ${ws==='confirmou'?'✅ SIM':'❌ NÃO'}`, ws==='confirmou'?'ok':'w'); }
+      // Notificação de resposta WA
+      const ws=n.wa_status;
+      if(ws==='confirmou'||ws==='recusou'){
+        const nm=gCNm(n.cliente_id||'');
+        toast(`${nm} respondeu: ${ws==='confirmou'?'✅ SIM — confirmado na agenda':'❌ NÃO — cancelado'}`, ws==='confirmou'?'ok':'w');
+      }
     })
     .subscribe();
 }
@@ -1595,8 +1580,8 @@ function renderAgenda(){
       if(blk){ sl.classList.add('bl'); sl.title='Bloqueado'+(blk.motivo?': '+blk.motivo:''); g.appendChild(sl); return; }
       // Agendamentos do profissional/dia
       const profAgs=D.agendamentos.filter(a=>(a.profissional_id||a.profId)===prof.id && (a.data||'').substring(0,10)===ds && a.status!=='cancelado');
-      // Os que iniciam neste slot
-      const startsHere=profAgs.filter(a=>toMin(a.hora)===t);
+      // Os que iniciam neste slot (inclusive horários fora do grid, ex: 09:15 no slot 09:00)
+      const startsHere=profAgs.filter(a=>{ const am=toMin(a.hora); return am>=t && am<t+S.agIv; });
       startsHere.forEach(ag=>{
         const st=toMin(ag.hora), dur=(ag.duracao_total||ag.durTotal||30), en=st+dur;
         // Detecta sobreposição: agendamentos que ocupam o mesmo intervalo
@@ -2265,76 +2250,78 @@ function abrirSvc(id){
     document.getElementById('m-svc-t').textContent='EDITAR SERVIÇO';
     document.getElementById('svc-nm').value=s.nome; document.getElementById('svc-vl').value=s.valor;
     document.getElementById('svc-dr').value=s.duracao_min||s.dur; document.getElementById('svc-cm').value=s.comissao||s.com||'';
-    document.getElementById('svc-ct').value=normCat(s.categoria)||'ESTETICA';
+    document.getElementById('svc-ct').value=normCat(s.categoria)||D.categorias[0]?.id||'ESTETICA';
     const ps=document.getElementById('svc-pf'); for(const o of ps.options) if(o.value===(s.profissional_id||s.profId||'')){o.selected=true;break}
   } else {
     document.getElementById('m-svc-t').textContent='NOVO SERVIÇO';
     ['svc-nm','svc-vl','svc-dr','svc-cm'].forEach(id=>{ document.getElementById(id).value=''; });
-    document.getElementById('svc-pf').value=''; document.getElementById('svc-ct').value='ESTETICA';
+    document.getElementById('svc-pf').value=''; document.getElementById('svc-ct').value=D.categorias[0]?.id||'ESTETICA';
   }
   openModal('m-svc');
 }
 // ── Categorias dinâmicas ─────────────────────────────────────
 const CAT_DEFAULTS=[
-  {id:'LASER',     emoji:'⚡',lbl:'Laser',       corD:'#93c5fd',bgD:'#05102a',corL:'#1d4ed8',bgL:'#dbeafe'},
-  {id:'DEPILACAO', emoji:'🪒',lbl:'Depilação',   corD:'#fca5a5',bgD:'#200505',corL:'#b91c1c',bgL:'#fee2e2'},
-  {id:'ESTETICA',  emoji:'✨',lbl:'Estética',    corD:'#fef08a',bgD:'#2a2000',corL:'#92400e',bgL:'#fef9c3'},
-  {id:'UNHAS',     emoji:'💅',lbl:'Unhas',       corD:'#f9a8d4',bgD:'#2d0a1f',corL:'#be185d',bgL:'#fce7f3'},
-  {id:'CABELO',    emoji:'💇',lbl:'Cabelo',      corD:'#86efac',bgD:'#042010',corL:'#166534',bgL:'#dcfce7'},
-  {id:'MAQUIAGEM', emoji:'💄',lbl:'Maquiagem',   corD:'#fbd38d',bgD:'#271600',corL:'#92400e',bgL:'#fef3c7'},
-  {id:'SOBRANCELHA',emoji:'👁',lbl:'Sobrancelha',corD:'#c4b5fd',bgD:'#1a0a2e',corL:'#6d28d9',bgL:'#f5f3ff'},
+  {id:'LASER',    emoji:'⚡',lbl:'Laser',    corD:'#93c5fd',bgD:'#05102a',corL:'#1d4ed8',bgL:'#dbeafe'},
+  {id:'DEPILACAO',emoji:'🪒',lbl:'Depilação',corD:'#fca5a5',bgD:'#200505',corL:'#b91c1c',bgL:'#fee2e2'},
+  {id:'ESTETICA', emoji:'✨',lbl:'Estética', corD:'#fef08a',bgD:'#2a2000',corL:'#92400e',bgL:'#fef9c3'},
 ];
 function loadCats(){
   const custom=JSON.parse(localStorage.getItem('ns_cats')||'[]');
   D.categorias=[...CAT_DEFAULTS,...custom];
 }
 function saveCats(){
-  const custom=D.categorias.filter(c=>!CAT_DEFAULTS.find(d=>d.id===c.id));
+  // Salva tudo que diverge dos CAT_DEFAULTS originais (inclui novos + modificados)
+  const custom=D.categorias.filter(c=>!CAT_DEFAULTS.find(d=>d.id===c.id&&d.lbl===c.lbl));
   localStorage.setItem('ns_cats',JSON.stringify(custom));
 }
 function getCatMeta(id){
-  const c=D.categorias.find(x=>x.id===id)||D.categorias[2];
+  const c=D.categorias.find(x=>x.id===id)||D.categorias[0];
+  if(!c) return{lbl:'✨ Estética',cor:'#92400e',bg:'#fef9c3'};
   const dark=document.documentElement.getAttribute('data-theme')==='dark';
   return{lbl:c.emoji+' '+c.lbl, cor:dark?c.corD:c.corL, bg:dark?c.bgD:c.bgL};
 }
 const CAT_META=new Proxy({},{get:(_,k)=>getCatMeta(k)});
 function normCat(c){
-  if(!c)return D.categorias[2]?.id||'ESTETICA';
+  if(!c)return D.categorias[0]?.id||'ESTETICA';
   const u=String(c).toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
-  // Tenta match exato primeiro
-  const exact=D.categorias.find(x=>x.id===u||u.includes(x.id));
+  // Match exato por id
+  const exact=D.categorias.find(x=>x.id===u);
   if(exact)return exact.id;
-  // Fallbacks para mapeamento por palavra-chave
-  if(u.includes('LASER'))return'LASER';
-  if(u.includes('DEPIL')||u.includes('CERA'))return'DEPILACAO';
-  if(u.includes('UNHA')||u.includes('GEL')||u.includes('ACRIL'))return'UNHAS';
-  if(u.includes('CABELO')||u.includes('CORTE')||u.includes('TINTURA')||u.includes('ESCOVA'))return'CABELO';
-  if(u.includes('MAQUI'))return'MAQUIAGEM';
-  if(u.includes('SOBRANC')||u.includes('DESIGN'))return'SOBRANCELHA';
-  return D.categorias[2]?.id||'ESTETICA';
+  // Match parcial (id contido no texto)
+  const partial=D.categorias.find(x=>u.includes(x.id)||x.id.includes(u));
+  if(partial)return partial.id;
+  return D.categorias[0]?.id||'ESTETICA';
 }
 function renderCatConfig(){
   const el=document.getElementById('cat-list'); if(!el)return;
-  el.innerHTML=D.categorias.map(c=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--bc)">
+  el.innerHTML=D.categorias.map(c=>{
+    const isLast=D.categorias.length===1;
+    const canDel=!isLast; // só impede deletar a última categoria
+    return`<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--bc)">
       <span style="font-size:18px">${c.emoji}</span>
       <span style="flex:1;font-size:13px;font-weight:600">${c.lbl}</span>
       <span style="font-size:10px;color:var(--text3);font-family:var(--fm)">${c.id}</span>
-      ${!CAT_DEFAULTS.find(d=>d.id===c.id)?`<button class="btn gh xs" onclick="delCat('${c.id}')">✕</button>`:'<span style="font-size:10px;color:var(--text3)">padrão</span>'}
-    </div>`).join('');
-  // Atualiza filtros de serviços e de pacotes
+      ${canDel?`<button class="btn gh xs" onclick="delCat('${c.id}')" title="Remover categoria">✕</button>`:'<span style="font-size:10px;color:var(--text3)">única</span>'}
+    </div>`;
+  }).join('');
   updateCatBars();
 }
 function updateCatBars(){
+  // Barra de filtros de serviços
   const bar=document.getElementById('svc-cat-bar'); if(bar){
     bar.innerHTML=`<button class="cat-fb ${SVC_FILTER_CAT===''?'active':''}" data-cat="" onclick="filterSvcCat('',this)">Todos</button>`
       +D.categorias.map(c=>`<button class="cat-fb ${SVC_FILTER_CAT===c.id?'active':''}" data-cat="${c.id}" onclick="filterSvcCat('${c.id}',this)">${c.emoji} ${c.lbl}</button>`).join('');
+  }
+  // Barra de filtros de pacotes
+  const pbar=document.getElementById('pkg-cat-bar'); if(pbar){
+    pbar.innerHTML=`<button type="button" class="cat-fb active" data-pcat="" onclick="filterPkgCat('',this)" style="padding:4px 8px;font-size:11px">Tudo</button>`
+      +D.categorias.map(c=>`<button type="button" class="cat-fb" data-pcat="${c.id}" onclick="filterPkgCat('${c.id}',this)" style="padding:4px 8px;font-size:11px">${c.emoji}</button>`).join('');
   }
   // Select do modal de serviço
   const sel=document.getElementById('svc-ct'); if(sel){
     const cur=sel.value;
     sel.innerHTML=D.categorias.map(c=>`<option value="${c.id}">${c.emoji} ${c.lbl}</option>`).join('');
-    if(cur)sel.value=cur;
+    sel.value=cur||D.categorias[0]?.id||'ESTETICA';
   }
 }
 function adicionarCat(){
@@ -2351,6 +2338,7 @@ function adicionarCat(){
   toast('Categoria "'+lbl+'" criada!');
 }
 function delCat(id){
+  if(D.categorias.length<=1){toast('Precisa ter ao menos 1 categoria','w');return;}
   D.categorias=D.categorias.filter(c=>c.id!==id);
   saveCats(); renderCatConfig(); updateCatBars();
   toast('Categoria removida','w');
@@ -2900,9 +2888,14 @@ async function waEnviarAPI(phone, message){
   }catch(e){return false;}
 }
 async function waSetStatus(agId, status){
-  await sb.from('agendamentos').update({wa_status:status}).eq('id',agId);
+  // Se cliente confirmou → também confirma o agendamento na agenda
+  const updates={wa_status:status};
+  if(status==='confirmou') updates.status='confirmado';
+  if(status==='recusou')   updates.status='cancelado';
+  await sb.from('agendamentos').update(updates).eq('id',agId);
   const ag=D.agendamentos.find(a=>a.id===agId);
-  if(ag){ ag.wa_status=status; }
+  if(ag){ Object.assign(ag, updates); }
+  renderAgenda(); renderComandas();
 }
 function enviarWhatsAppDia(){
   const ds=dStr(S.agDate);
@@ -2956,7 +2949,23 @@ function enviarWhatsAppDia(){
   }
   openModal('m-wa');
 }
-function montarMsgWA(agId){ const ag=D.agendamentos.find(a=>a.id===agId); if(!ag)return null; const cli=D.clientes.find(c=>c.id===cliId(ag)); if(!cli)return null; const tpl=document.getElementById('wa-msg').value||'Olá {nome}! Você tem horário hoje às {hora} para {servico}. Confirma? Responda SIM para confirmar ou NÃO para cancelar.'; return tpl.replace(/{nome}/g,cli.nome).replace(/{hora}/g,ag.hora).replace(/{servico}/g,(ag.svcs||[]).map(gSNm).join(' + ')); }
+function montarMsgWA(agId){
+  const ag=D.agendamentos.find(a=>a.id===agId); if(!ag)return null;
+  const cli=D.clientes.find(c=>c.id===cliId(ag)); if(!cli)return null;
+  const tpl=document.getElementById('wa-msg')?.value||'Olá {nome}! Você tem horário em {data} às {hora} para {servico}. Confirma?';
+  const dias=['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+  const dtAg=ag.data?new Date(ag.data+'T12:00:00'):new Date();
+  const diaSemana=dias[dtAg.getDay()];
+  const dataBR=fBR((ag.data||'').substring(0,10));
+  const salaoNm=document.getElementById('sb-name')?.textContent||document.querySelector('.sb-nm')?.value||'Salão';
+  return tpl
+    .replace(/{nome}/g,cli.nome)
+    .replace(/{hora}/g,ag.hora)
+    .replace(/{servico}/g,(ag.svcs||[]).map(gSNm).join(' + ')||'—')
+    .replace(/{data}/g,dataBR)
+    .replace(/{diaSemana}/g,diaSemana)
+    .replace(/{salao}/g,salaoNm);
+}
 function abrirWAindividual(agId){ const ag=D.agendamentos.find(a=>a.id===agId); if(!ag)return; const cli=D.clientes.find(c=>c.id===cliId(ag)); if(!cli?.whatsapp)return; const wp=cli.whatsapp.replace(/\D/g,''); const num=wp.length<=11?'55'+wp:wp; const msg=montarMsgWA(agId); if(msg) window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`,'_blank'); }
 function waSelecionarTodos(sel){ document.querySelectorAll('#wa-list input[type=checkbox]:not(:disabled)').forEach(c=>c.checked=sel); }
 async function abrirSelecionadosWA(){
