@@ -2274,18 +2274,6 @@ function abrirSvc(id){
   }
   openModal('m-svc');
 }
-// Normaliza categoria (sem acentos, maiúscula) — categorias livres viram ESTETICA por padrão
-function normCat(c){
-  if(!c)return 'ESTETICA';
-  const u=String(c).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
-  if(u.includes('LASER'))return'LASER';
-  if(u.includes('DEPIL')||u.includes('CERA'))return'DEPILACAO';
-  if(u.includes('UNHA')||u.includes('GEL')||u.includes('ACRIL'))return'UNHAS';
-  if(u.includes('CABELO')||u.includes('CORTE')||u.includes('TINTURA')||u.includes('ESCOVA'))return'CABELO';
-  if(u.includes('MAQUI'))return'MAQUIAGEM';
-  if(u.includes('SOBRANH')||u.includes('DESIGN')||u.includes('DEPIL.*SOBR'))return'SOBRANCELHA';
-  return'ESTETICA';
-}
 // ── Categorias dinâmicas ─────────────────────────────────────
 const CAT_DEFAULTS=[
   {id:'LASER',     emoji:'⚡',lbl:'Laser',       corD:'#93c5fd',bgD:'#05102a',corL:'#1d4ed8',bgL:'#dbeafe'},
@@ -2891,7 +2879,7 @@ async function testarWA(){
   if(!WA_CFG.url||!WA_CFG.inst||!WA_CFG.key){toast('Configure URL, instância e chave primeiro','e');return;}
   showLoad('Testando conexão WA...');
   try{
-    const r=await fetch(${WA_CFG.url}/instance/connectionState/,{headers:{'apikey':WA_CFG.key}});
+    const r=await fetch(`${WA_CFG.url}/instance/connectionState/${WA_CFG.inst}`,{headers:{'apikey':WA_CFG.key}});
     const j=await r.json();
     hideLoad();
     const estado=j?.instance?.state||j?.state||'desconhecido';
@@ -2903,7 +2891,7 @@ async function waEnviarAPI(phone, message){
   const wp=phone.replace(/\D/g,'');
   const num=wp.length<=11?'55'+wp:wp;
   try{
-    const r=await fetch(${WA_CFG.url}/message/sendText/,{
+    const r=await fetch(`${WA_CFG.url}/message/sendText/${WA_CFG.inst}`,{
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':WA_CFG.key},
       body:JSON.stringify({number:num,text:message})
