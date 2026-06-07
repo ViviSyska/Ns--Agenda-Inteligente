@@ -2346,6 +2346,7 @@ function delCat(id){
 let SVC_FILTER_CAT='';
 function filterSvcCat(c,btn){ SVC_FILTER_CAT=c; document.querySelectorAll('.cat-fb').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderSvc(); }
 function renderSvc(){
+  updateCatBars(); // garante botões de categoria sempre atualizados
   const q=(document.getElementById('svc-search')?.value||'').toLowerCase().trim();
   let lst=D.servicos.slice();
   if(SVC_FILTER_CAT) lst=lst.filter(s=>normCat(s.categoria)===SVC_FILTER_CAT);
@@ -2455,6 +2456,7 @@ function calcPkgDesc(){
   else el.style.display='none';
 }
 function renderPkg(){
+  updateCatBars();
   document.getElementById('pkg-empty').style.display=D.pacotes.length?'none':'block';
   document.getElementById('pkg-grid').innerHTML=D.pacotes.map(p=>{
     const orig=(p.svcs||[]).reduce((t,id)=>t+gSVal(id),0); const desc=orig>0?((1-p.valor/orig)*100).toFixed(0):0;
