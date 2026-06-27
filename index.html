@@ -1364,33 +1364,39 @@ async function loadAll(){
 
 async function reloadSection(sec){
   showLoad('Atualizando...');
-  const loaders = {
-    profs:      ()=>sb.from('profissionais').select('*').eq('ativo',true).order('nome'),
-    clientes:   ()=>sb.from('clientes').select('*').order('nome'),
-    servicos:   ()=>sb.from('servicos').select('*').order('nome'),
-    pacotes:    ()=>sb.from('pacotes').select('*, pacote_servicos(servico_id)').order('nome'),
-    agendamentos:()=>sb.from('agendamentos').select('*, agendamento_servicos(servico_id)').order('data').order('hora'),
-    bloqueios:  ()=>sb.from('bloqueios').select('*'),
-    historico:  ()=>sb.from('historico_cliente').select('*').order('data',{ascending:false}),
-    despesas:  ()=>sb.from('despesas').select('*').order('data',{ascending:false}),
-    caixa:     ()=>sb.from('caixa').select('*').order('data',{ascending:false}),
-  };
-  if(loaders[sec]){
-    const {data}=await loaders[sec]();
-    if(sec==='agendamentos'){
-      D.agendamentos=(data||[]).map(a=>({...a,svcs:(a.agendamento_servicos||[]).map(x=>x.servico_id),hora:a.hora?.substring(0,5)||'00:00'}));
-    } else if(sec==='pacotes'){
-      D.pacotes=(data||[]).map(p=>{
-        let s = Array.isArray(p.svcs) ? p.svcs.map(String) : [];
-        const rel = (p.pacote_servicos||[]).map(x=>String(x.servico_id));
-        if(rel.length) s = Array.from(new Set([...s, ...rel]));
-        return {...p, svcs: s};
-      });
-    } else {
-      D[sec]=data||[];
+  try {
+    const loaders = {
+      profs:      ()=>sb.from('profissionais').select('*').eq('ativo',true).order('nome'),
+      clientes:   ()=>sb.from('clientes').select('*').order('nome'),
+      servicos:   ()=>sb.from('servicos').select('*').order('nome'),
+      pacotes:    ()=>sb.from('pacotes').select('*, pacote_servicos(servico_id)').order('nome'),
+      agendamentos:()=>sb.from('agendamentos').select('*, agendamento_servicos(servico_id)').order('data').order('hora'),
+      bloqueios:  ()=>sb.from('bloqueios').select('*'),
+      historico:  ()=>sb.from('historico_cliente').select('*').order('data',{ascending:false}),
+      despesas:  ()=>sb.from('despesas').select('*').order('data',{ascending:false}),
+      caixa:     ()=>sb.from('caixa').select('*').order('data',{ascending:false}),
+    };
+    if(loaders[sec]){
+      const {data,error}=await loaders[sec]();
+      if(error) throw error;
+      if(sec==='agendamentos'){
+        D.agendamentos=(data||[]).map(a=>({...a,svcs:(a.agendamento_servicos||[]).map(x=>x.servico_id),hora:a.hora?.substring(0,5)||'00:00'}));
+      } else if(sec==='pacotes'){
+        D.pacotes=(data||[]).map(p=>{
+          let s = Array.isArray(p.svcs) ? p.svcs.map(String) : [];
+          const rel = (p.pacote_servicos||[]).map(x=>String(x.servico_id));
+          if(rel.length) s = Array.from(new Set([...s, ...rel]));
+          return {...p, svcs: s};
+        });
+      } else {
+        D[sec]=data||[];
+      }
     }
+  } catch(e){
+    toast('Erro ao atualizar: '+e.message,'e');
+  } finally {
+    hideLoad();
   }
-  hideLoad();
 }
 
 // ============================================================
@@ -1575,7 +1581,7 @@ function renderDash(){
   document.getElementById('d-prox').innerHTML=prox.length?prox.map(a=>{
     const st=efStatus(a); const cls={pendente:'nt',confirmado:'gd',atendimento:'pr'}[st]||'nt';
     const lbl={pendente:'Agendado',confirmado:'Confirmado',atendimento:'Em Atendimento'}[st]||'';
-    return`<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--bc)" onclick="navTo('agenda')" style="cursor:pointer">
+    return`<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--bc)" onclick="goTo('agenda',document.querySelector('.ni[onclick*=agenda]'))" style="cursor:pointer">
       <div style="width:38px;height:38px;border-radius:var(--r2);background:var(--bg3);display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0">
         <div style="font-size:16px;font-weight:700;color:var(--text);line-height:1">${(a.data||'').substring(8,10)}</div>
         <div style="font-size:8px;color:var(--text3);letter-spacing:.5px">${['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'][parseInt((a.data||'').substring(5,7))-1]||''}</div>
@@ -2408,7 +2414,14 @@ const CAT_DEFAULTS=[
 ];
 function loadCats(){
   const custom=JSON.parse(localStorage.getItem('ns_cats')||'[]');
-  D.categorias=[...CAT_DEFAULTS,...custom];
+  // Remove duplicatas do localStorage que sombreiam as defaults
+  const norm=s=>String(s).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  const defaultIds=CAT_DEFAULTS.map(c=>norm(c.id));
+  const customLimpo=custom.filter(c=>!defaultIds.includes(norm(c.id)));
+  if(customLimpo.length!==custom.length){
+    localStorage.setItem('ns_cats',JSON.stringify(customLimpo));
+  }
+  D.categorias=[...CAT_DEFAULTS,...customLimpo];
 }
 function saveCats(){
   // Salva tudo que diverge dos CAT_DEFAULTS originais (inclui novos + modificados)
@@ -2424,26 +2437,23 @@ function getCatMeta(id){
 const CAT_META=new Proxy({},{get:(_,k)=>getCatMeta(k)});
 function normCat(c){
   if(!c) return D.categorias[0]?.id||'ESTETICA';
-  const u=String(c).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
-  // 1. Match exato por id
-  const exact=D.categorias.find(x=>x.id===u);
-  if(exact) return exact.id;
-  // 2. Match parcial — id contido no texto ou vice-versa
-  const partial=D.categorias.find(x=>u.includes(x.id)||x.id.includes(u));
-  if(partial) return partial.id;
-  // 3. Match por label (nome amigável)
-  const byLbl=D.categorias.find(x=>
-    u.includes(x.lbl.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim())
-  );
+  // Normaliza: maiúscula, sem acento, sem espaço extra
+  const norm=s=>String(s).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  const u=norm(c);
+  // 1. Match exato por ID
+  const byId=D.categorias.find(x=>x.id===u);
+  if(byId) return byId.id;
+  // 2. Match por ID sem acento
+  const byIdNorm=D.categorias.find(x=>norm(x.id)===u);
+  if(byIdNorm) return byIdNorm.id;
+  // 3. Match por label normalizado
+  const byLbl=D.categorias.find(x=>norm(x.lbl)===u);
   if(byLbl) return byLbl.id;
-  // 4. Não encontrou — cria a categoria automaticamente para não perder o serviço
-  const newId=u.replace(/\s+/g,'_').replace(/[^A-Z0-9_]/g,'');
-  if(newId && !D.categorias.find(x=>x.id===newId)){
-    D.categorias.push({id:newId, emoji:'🏷', lbl:String(c).trim(),
-      corD:'#e2e8f0', bgD:'#1a1a1a', corL:'#374151', bgL:'#f3f4f6'});
-    saveCats(); updateCatBars();
-  }
-  return newId || D.categorias[0]?.id||'ESTETICA';
+  // 4. Match parcial (contém)
+  const byPart=D.categorias.find(x=>u.includes(norm(x.id))||norm(x.id).includes(u)||u.includes(norm(x.lbl))||norm(x.lbl).includes(u));
+  if(byPart) return byPart.id;
+  // 5. Não encontrou — retorna a primeira sem criar duplicata
+  return D.categorias[0]?.id||'ESTETICA';
 }
 function renderCatConfig(){
   const el=document.getElementById('cat-list'); if(!el)return;
