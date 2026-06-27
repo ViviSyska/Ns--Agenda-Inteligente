@@ -1844,15 +1844,28 @@ function editAg(id){
 function filtrarSvcsAg(){
   const q=(document.getElementById('ag-svc-search')?.value||'').toLowerCase().trim();
   const already=S.agSvcs||[];
-  const lst=D.servicos.filter(s=>(!q||s.nome.toLowerCase().includes(q))&&!already.includes(s.id));
+  const lst=D.servicos.filter(s=>(!q||s.nome.toLowerCase().includes(q)||normCat(s.categoria).toLowerCase().includes(q))&&!already.includes(s.id));
   const dd=document.getElementById('ag-svc-dd'); if(!dd)return;
-  dd.innerHTML=lst.slice(0,20).map(s=>{
-    const cat=normCat(s.categoria); const cm=CAT_META[cat]||{};
-    return`<div class="ac-it" onclick="selAgSvc('${s.id}')">
+  if(!lst.length){
+    dd.innerHTML='<div class="ac-it" style="color:var(--text3);cursor:default;text-align:center">Nenhum serviço encontrado</div>';
+    dd.classList.add('open'); return;
+  }
+  // Agrupa por categoria para facilitar achar
+  const grupos={};
+  lst.forEach(s=>{
+    const cat=normCat(s.categoria);
+    const cm=CAT_META[cat]||{lbl:s.categoria||'Outros',emoji:'🏷'};
+    const key=cm.emoji+' '+cm.lbl;
+    if(!grupos[key]) grupos[key]=[];
+    grupos[key].push(s);
+  });
+  dd.innerHTML=Object.entries(grupos).map(([grp,svcs])=>`
+    <div style="padding:5px 10px;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.7px;background:var(--bg3);position:sticky;top:0">${grp}</div>
+    ${svcs.map(s=>`<div class="ac-it" onclick="selAgSvc('${s.id}')">
       <span style="font-weight:600">${s.nome}</span>
-      <span style="color:var(--text3);font-size:11px;margin-left:6px">${s.duracao_min||s.dur||0}min · ${Rf(s.valor)}</span>
-    </div>`;
-  }).join('') || '<div class="ac-it" style="color:var(--text3);cursor:default">Nenhum serviço encontrado</div>';
+      <span style="color:var(--text3);font-size:11px;margin-left:auto">${s.duracao_min||s.dur||0}min · ${Rf(s.valor)}</span>
+    </div>`).join('')}
+  `).join('');
   dd.classList.add('open');
 }
 function selAgSvc(id){
