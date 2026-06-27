@@ -1215,8 +1215,22 @@ const gSVal = id => { const s=D.servicos.find(x=>x.id===id); return s?s.valor:0;
 const gAgtot= ag => {
   const pid = ag.pacote_id || ag.pkgId;
   let base=0;
-  if(pid){ const pk=D.pacotes.find(x=>x.id===pid); if(pk) base=Number(pk.valor)||0; }
-  else base=(ag.svcs||[]).reduce((t,id)=>t+gSVal(id),0);
+  if(pid){
+    const pk=D.pacotes.find(x=>x.id===pid);
+    if(pk){
+      // Valor do pacote...
+      base=Number(pk.valor)||0;
+      // ...mais serviços avulsos que NÃO fazem parte do pacote
+      const svcsNoPacote=(ag.svcs||[]).filter(sid=>!(pk.svcs||[]).includes(sid));
+      base+=svcsNoPacote.reduce((t,sid)=>t+gSVal(sid),0);
+    } else {
+      // Pacote não encontrado — soma tudo
+      base=(ag.svcs||[]).reduce((t,id)=>t+gSVal(id),0);
+    }
+  } else {
+    // Sem pacote — soma todos os serviços
+    base=(ag.svcs||[]).reduce((t,id)=>t+gSVal(id),0);
+  }
   const desc=Number(ag.desconto)||0;
   return Math.max(0,base-desc);
 };
