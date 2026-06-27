@@ -586,6 +586,7 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
           </div>
           <button class="btn ol sm" onclick="openModal('m-block')">🚫 Bloquear</button>
           <button class="btn sm" style="background:#25d366;color:#fff;border:none" onclick="enviarWhatsAppDia()">📱 WhatsApp do Dia</button>
+          <button class="btn ol sm" onclick="abrirReplicarDia()">📋 Replicar Dia</button>
           <div class="tb-sp"></div>
           <select id="ag-pf" onchange="renderAgenda()" style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:6px 10px;color:var(--text);font-size:12px;outline:none">
             <option value="">Todos profissionais</option>
@@ -1109,6 +1110,41 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
   </div>
 </div>
 
+<!-- REPLICAR DIA -->
+<div class="ov" id="m-replicar">
+  <div class="md w">
+    <div class="mh"><div class="mt">📋 REPLICAR DIA</div><button class="xb" onclick="closeModal('m-replicar')">×</button></div>
+    <div class="mb">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px">Copia os agendamentos de um dia para outro. Você escolhe quais trazer e para qual data.</div>
+      <div class="fg fg2" style="margin-bottom:14px">
+        <div class="fgr">
+          <label>📅 DIA DE ORIGEM (copiar de)</label>
+          <input type="date" id="rep-origem" style="background:var(--inp);border:var(--brd);border-radius:var(--r2);padding:9px 11px;color:var(--text);font-size:13px;outline:none;width:100%" onchange="carregarAgReplicar()">
+        </div>
+        <div class="fgr">
+          <label>📅 DIA DE DESTINO (copiar para)</label>
+          <input type="date" id="rep-destino" style="background:var(--inp);border:var(--brd);border-radius:var(--r2);padding:9px 11px;color:var(--text);font-size:13px;outline:none;width:100%">
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.7px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+        <span>AGENDAMENTOS DA ORIGEM</span>
+        <div style="display:flex;gap:6px">
+          <button class="btn gh xs" onclick="repSelAll(true)">Todos</button>
+          <button class="btn gh xs" onclick="repSelAll(false)">Nenhum</button>
+        </div>
+      </div>
+      <div id="rep-lista" style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
+        <div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Selecione o dia de origem</div>
+      </div>
+      <div id="rep-aviso" style="display:none;margin-top:10px;padding:8px 12px;background:var(--bg3);border-radius:var(--r2);font-size:11px;color:var(--text3)"></div>
+    </div>
+    <div class="mf">
+      <button class="btn gh" onclick="closeModal('m-replicar')">Cancelar</button>
+      <button class="btn gd" onclick="confirmarReplicar()">📋 REPLICAR SELECIONADOS</button>
+    </div>
+  </div>
+</div>
+
 <!-- WHATSAPP DO DIA -->
 <div class="ov" id="m-wa">
   <div class="md w">
@@ -1192,20 +1228,11 @@ const WEEK  = (()=>{ const d=new Date(),dow=d.getDay(),s=new Date(d),e=new Date(
 // pendente=neutro | confirmado=amarelo | atendimento=roxo | concluido=verde(pago) | cancelado=cinza
 const SC = {pendente:'nt', confirmado:'gd', atendimento:'pr', concluido:'gr', cancelado:'gy', recusou:'gy'};
 
-// Status visual efetivo:
-// confirmado + hoje + hora passada → 'atendimento' (automático)
+// Status visual efetivo — SEM promoção automática para atendimento
+// O status atendimento é definido MANUALMENTE pelo operador
 const efStatus = ag => {
-  // wa_status sobrescreve status visual em certas condições
   if(ag.wa_status==='recusou') return 'recusou';
   if(ag.wa_status==='confirmou'&&ag.status==='pendente') return 'confirmado';
-  if(ag.status==='confirmado'){
-    const agDate=(ag.data||'').substring(0,10);
-    if(agDate===TODAY){
-      const now=new Date();
-      const nowMin=now.getHours()*60+now.getMinutes();
-      if(nowMin >= toMin(ag.hora||'00:00')) return 'atendimento';
-    }
-  }
   return ag.status;
 };
 const efLabel = ag => ({
@@ -1618,12 +1645,36 @@ function syncDatePicker(){ const p=document.getElementById('ag-date-pick'); if(p
 function verAg(id){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
   const tot=gAgtot(ag);
+  const ef=efStatus(ag);
+
+  // Botões de mudança de status — aparecem como linha de chips no topo do modal
+  const statusFlow = [
+    {k:'pendente',   lbl:'Agendado',        ic:'📋', cls:'nt'},
+    {k:'confirmado', lbl:'Confirmado',       ic:'✅', cls:'gd'},
+    {k:'atendimento',lbl:'Em Atendimento',   ic:'🟣', cls:'pr'},
+    {k:'concluido',  lbl:'Pago/Concluído',   ic:'💰', cls:'gr'},
+    {k:'cancelado',  lbl:'Cancelado',        ic:'❌', cls:'rd'},
+  ];
+
   document.getElementById('ver-body').innerHTML=`
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
       <div class="c-av">${ini(gCNm2(ag))}</div>
       <div style="flex:1"><div style="font-size:15px;font-weight:600">${gCNm2(ag)}</div><div style="font-size:12px;color:var(--text3)">${gPNm2(ag)}</div></div>
-      <span class="bd ${SC[efStatus(ag)]||'gy'}">${efLabel(ag)}</span>
+      <span class="bd ${SC[ef]||'gy'}" id="ver-status-badge">${efLabel(ag)}</span>
     </div>
+
+    <div style="margin-bottom:14px">
+      <div style="font-size:10px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:8px">MUDAR STATUS</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${statusFlow.map(s=>`
+          <button onclick="mudarStatusAg('${id}','${s.k}',this)"
+            style="display:flex;align-items:center;gap:4px;padding:6px 11px;border-radius:20px;border:2px solid ${ag.status===s.k?'var(--gold)':'var(--bc)'};background:${ag.status===s.k?'var(--gold)':'var(--bg3)'};color:${ag.status===s.k?'#000':'var(--text2)'};font-size:11px;font-weight:600;cursor:pointer;transition:all .15s"
+            id="ver-st-btn-${s.k}">
+            ${s.ic} ${s.lbl}
+          </button>`).join('')}
+      </div>
+    </div>
+
     <div class="dv"></div>
     <div class="fg" style="gap:10px">
       <div style="display:flex;justify-content:space-between"><span style="color:var(--text3);font-size:12px">DATA</span><span style="font-family:var(--fm)">${fBR((ag.data||'').substring(0,10))}</span></div>
@@ -1632,20 +1683,48 @@ function verAg(id){
       <div style="display:flex;justify-content:space-between"><span style="color:var(--text3);font-size:12px">TOTAL</span><span style="font-family:var(--fm);font-size:20px;font-weight:700;color:var(--gold)">${Rf(tot)}</span></div>
       ${ag.observacoes||ag.obs?`<div style="font-size:12px;color:var(--text3)">OBS: ${ag.observacoes||ag.obs}</div>`:''}
     </div>`;
+
   const foot=document.getElementById('ver-foot'); foot.innerHTML='';
   const addB=(lbl,cls,fn)=>{ const b=document.createElement('button'); b.className=`btn ${cls}`; b.textContent=lbl; b.onclick=fn; foot.appendChild(b); };
   addB('Fechar','gh',()=>closeModal('m-ver'));
   addB('✏ Editar','ol',()=>{ closeModal('m-ver'); editAg(id); });
-  const ef=efStatus(ag);
-  if(['pendente','confirmado','atendimento'].includes(ef)){
-    if(ag.status==='pendente') addB('Confirmar','ol sm',()=>{ updateAgStatus(id,'confirmado'); closeModal('m-ver'); });
-    addB('✓ Faturar','gr',()=>{ closeModal('m-ver'); abrirFat(id); });
-    addB('Cancelar','rd sm',()=>{ closeModal('m-ver'); confirm2('⚠️','CANCELAR','Cancelar agendamento de '+gCNm2(ag)+'?',()=>updateAgStatus(id,'cancelado')); });
+  if(ef!=='cancelado'&&ef!=='concluido'){
+    addB('💰 Faturar','gr',()=>{ closeModal('m-ver'); abrirFat(id); });
   }
   if(ag.status==='concluido'){
     addB('↩ Reabrir','ol',()=>{ closeModal('m-ver'); reabrirComanda(id); });
   }
   openModal('m-ver');
+}
+
+async function mudarStatusAg(id, novoStatus, btnEl){
+  const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
+  if(ag.status===novoStatus) return; // já está nesse status
+
+  // Se for concluído, vai pelo fluxo de faturamento
+  if(novoStatus==='concluido'){
+    closeModal('m-ver');
+    abrirFat(id);
+    return;
+  }
+
+  // Atualiza visualmente imediato (feedback rápido)
+  document.querySelectorAll('[id^="ver-st-btn-"]').forEach(b=>{
+    b.style.borderColor='var(--bc)';b.style.background='var(--bg3)';b.style.color='var(--text2)';
+  });
+  if(btnEl){btnEl.style.borderColor='var(--gold)';btnEl.style.background='var(--gold)';btnEl.style.color='#000';}
+
+  // Atualiza no banco
+  await sb.from('agendamentos').update({status:novoStatus}).eq('id',id);
+  await reloadSection('agendamentos');
+
+  // Atualiza badge do modal
+  const labels={pendente:'Agendado',confirmado:'Confirmado',atendimento:'Em Atendimento',concluido:'Pago',cancelado:'Cancelado'};
+  const badge=document.getElementById('ver-status-badge');
+  if(badge){badge.textContent=labels[novoStatus]||novoStatus;badge.className='bd '+(SC[novoStatus]||'gy');}
+
+  renderAgenda(); renderComandas();
+  toast(`Status → ${labels[novoStatus]||novoStatus}`);
 }
 
 async function updateAgStatus(id,status){
@@ -3008,6 +3087,109 @@ function waRelatorio(){
   msg+=`\n\n❌ Recusaram (${recusaram.length}):\n`+(recusaram.map(a=>` • ${gCNm2(a)} ${a.hora}`).join('\n')||' nenhum');
   msg+=`\n\n⏳ Sem resposta / aguardando (${aguardando.length+semEnvio.length}):\n`+([...aguardando,...semEnvio].map(a=>` • ${gCNm2(a)} ${a.hora}`).join('\n')||' nenhum');
   alert(msg);
+}
+
+// ============================================================
+// REPLICAR DIA
+// ============================================================
+function abrirReplicarDia(){
+  const origem=dStr(S.agDate);
+  document.getElementById('rep-origem').value=origem;
+  // destino padrão = próximo dia
+  const prox=new Date(S.agDate); prox.setDate(prox.getDate()+1);
+  document.getElementById('rep-destino').value=dStr(prox);
+  document.getElementById('rep-aviso').style.display='none';
+  carregarAgReplicar();
+  openModal('m-replicar');
+}
+
+function carregarAgReplicar(){
+  const origem=document.getElementById('rep-origem').value;
+  const lista=document.getElementById('rep-lista');
+  if(!origem){lista.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Selecione o dia de origem</div>';return;}
+  const ags=D.agendamentos
+    .filter(a=>(a.data||'').substring(0,10)===origem && a.status!=='cancelado')
+    .sort((a,b)=>a.hora.localeCompare(b.hora));
+  if(!ags.length){
+    lista.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Nenhum agendamento neste dia</div>';
+    return;
+  }
+  const SC2={pendente:'gd',confirmado:'gd',atendimento:'pr',concluido:'gr',cancelado:'gy'};
+  lista.innerHTML=ags.map(ag=>{
+    const svcsNm=(ag.svcs||[]).map(gSNm).join(', ')||'—';
+    return`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:var(--r2);cursor:pointer;border:var(--brd);transition:border-color .15s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--bc)'">
+      <input type="checkbox" checked data-agid="${ag.id}" style="accent-color:var(--gold);width:15px;height:15px;flex-shrink:0;cursor:pointer">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px">${gCNm2(ag)}</div>
+        <div style="font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ag.hora} · ${svcsNm} · ${gPNm2(ag)}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-family:var(--fm);font-size:12px;color:var(--gold)">${Rf(gAgtot(ag))}</div>
+        <span class="bd ${SC2[ag.status]||'gy'}" style="font-size:9px">${ag.status}</span>
+      </div>
+    </label>`;
+  }).join('');
+}
+
+function repSelAll(v){
+  document.querySelectorAll('#rep-lista input[type=checkbox]').forEach(c=>c.checked=v);
+}
+
+async function confirmarReplicar(){
+  const origem=document.getElementById('rep-origem').value;
+  const destino=document.getElementById('rep-destino').value;
+  const aviso=document.getElementById('rep-aviso');
+  if(!origem||!destino){toast('Selecione origem e destino','e');return;}
+  if(origem===destino){toast('Origem e destino não podem ser iguais','e');return;}
+  const selecionados=[...document.querySelectorAll('#rep-lista input[type=checkbox]:checked')].map(c=>c.dataset.agid);
+  if(!selecionados.length){toast('Selecione ao menos um agendamento','e');return;}
+
+  showLoad(`Replicando ${selecionados.length} agendamento(s)...`);
+  let ok=0;let erros=[];
+  for(const agId of selecionados){
+    const ag=D.agendamentos.find(a=>a.id===agId); if(!ag)continue;
+    // Verifica conflito no destino
+    const ni=toMin(ag.hora), nf=ni+(ag.duracao_total||30);
+    const conf=D.agendamentos.find(a=>
+      (a.profissional_id||a.profId)===(ag.profissional_id||ag.profId) &&
+      (a.data||'').substring(0,10)===destino &&
+      a.status!=='cancelado' &&
+      toMin(a.hora)<nf && toMin(a.hora)+(a.duracao_total||30)>ni
+    );
+    if(conf){erros.push(ag.hora+' '+gCNm2(ag)+' (conflito)');continue;}
+    // Insere novo agendamento
+    const novoAg={
+      cliente_id: ag.cliente_id||ag.clienteId,
+      profissional_id: ag.profissional_id||ag.profId,
+      data: destino,
+      hora: ag.hora,
+      duracao_total: ag.duracao_total||ag.durTotal||30,
+      status: 'pendente',
+      observacoes: ag.observacoes||ag.obs||null,
+      forcar: false,
+    };
+    const{data:ins,error}=await sb.from('agendamentos').insert(novoAg).select().single();
+    if(error||!ins){erros.push(ag.hora+' '+gCNm2(ag)+' (erro)');continue;}
+    // Copia serviços
+    if((ag.svcs||[]).length>0){
+      await sb.from('agendamento_servicos').insert((ag.svcs||[]).map(sid=>({agendamento_id:ins.id,servico_id:sid})));
+    }
+    ok++;
+  }
+  await reloadSection('agendamentos');
+  hideLoad();
+  closeModal('m-replicar');
+  // Navega para o dia destino
+  const[y,m,d]=destino.split('-').map(Number);
+  S.agDate=new Date(y,m-1,d);
+  renderAgenda();
+  if(erros.length){
+    aviso.style.display='block';
+    aviso.innerHTML='⚠️ Não replicados: '+erros.join(' | ');
+    toast(`${ok} replicado(s) · ${erros.length} com conflito`,'w');
+  }else{
+    toast(`✅ ${ok} agendamento(s) replicado(s) para ${fBR(destino)}`);
+  }
 }
 
 // ============================================================
