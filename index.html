@@ -1699,32 +1699,63 @@ function verAg(id){
 
 async function mudarStatusAg(id, novoStatus, btnEl){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
-  if(ag.status===novoStatus) return; // já está nesse status
+  if(ag.status===novoStatus) return;
 
-  // Se for concluído, vai pelo fluxo de faturamento
+  // Concluído → fluxo de faturamento
   if(novoStatus==='concluido'){
     closeModal('m-ver');
     abrirFat(id);
     return;
   }
 
-  // Atualiza visualmente imediato (feedback rápido)
+  // Cancelado → pede confirmação
+  if(novoStatus==='cancelado'){
+    confirm2('❌','CANCELAR AGENDAMENTO',
+      `Cancelar o agendamento de ${gCNm2(ag)}?\nEsta ação pode ser revertida depois.`,
+      ()=>_aplicarStatus(id, novoStatus, btnEl),
+      'SIM, CANCELAR','rd'
+    );
+    return;
+  }
+
+  _aplicarStatus(id, novoStatus, btnEl);
+}
+
+function _aplicarStatus(id, novoStatus, btnEl){
+  const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
+  const labels={pendente:'Agendado',confirmado:'Confirmado',atendimento:'Em Atendimento',concluido:'Pago',cancelado:'Cancelado'};
+
+  // ① Cache local imediato
+  ag.status = novoStatus;
+
+  // ② Botões do modal
   document.querySelectorAll('[id^="ver-st-btn-"]').forEach(b=>{
     b.style.borderColor='var(--bc)';b.style.background='var(--bg3)';b.style.color='var(--text2)';
   });
   if(btnEl){btnEl.style.borderColor='var(--gold)';btnEl.style.background='var(--gold)';btnEl.style.color='#000';}
-
-  // Atualiza no banco
-  await sb.from('agendamentos').update({status:novoStatus}).eq('id',id);
-  await reloadSection('agendamentos');
-
-  // Atualiza badge do modal
-  const labels={pendente:'Agendado',confirmado:'Confirmado',atendimento:'Em Atendimento',concluido:'Pago',cancelado:'Cancelado'};
   const badge=document.getElementById('ver-status-badge');
   if(badge){badge.textContent=labels[novoStatus]||novoStatus;badge.className='bd '+(SC[novoStatus]||'gy');}
 
+  // ③ Re-renderiza instantâneo
   renderAgenda(); renderComandas();
-  toast(`Status → ${labels[novoStatus]||novoStatus}`);
+  toast(`Status → ${labels[novoStatus]||novoStatus}`, novoStatus==='cancelado'?'w':'ok');
+
+  // ④ Persiste no banco em background
+  sb.from('agendamentos').update({status:novoStatus}).eq('id',id).then(({error})=>{
+    if(error) toast('Erro ao salvar: '+error.message,'e');
+  });
+}
+
+// Cancela sem abrir modal (usado na tabela de comandas)
+function cancelarAg(id){
+  const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
+  _aplicarStatus(id,'cancelado',null);
+}
+
+// Muda status simples sem confirmação (usado para reativar)
+function mudarStatusAgSimples(id, novoStatus){
+  const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
+  _aplicarStatus(id, novoStatus, null);
 }
 
 async function updateAgStatus(id,status){
@@ -2046,6 +2077,8 @@ function renderComandas(){
     <td style="display:flex;gap:4px;flex-wrap:wrap">
       ${['pendente','confirmado','atendimento'].includes(efStatus(a))?`<button class="btn gr xs" onclick="abrirFat('${a.id}')">✓ Faturar</button>`:''}
       ${a.status==='concluido'?`<button class="btn ol xs" style="color:var(--purple);border-color:var(--purple)" onclick="reabrirComanda('${a.id}')">↩ Reabrir</button>`:''}
+      ${a.status!=='cancelado'&&a.status!=='concluido'?`<button class="btn rd xs" onclick="confirm2('❌','CANCELAR COMANDA','Cancelar agendamento de ${gCNm2(a).replace(/'/g,"\\'")}?',()=>cancelarAg('${a.id}'))">✕ Cancelar</button>`:''}
+      ${a.status==='cancelado'?`<button class="btn gh xs" onclick="confirm2('↩','REATIVAR','Reativar este agendamento como Pendente?',()=>mudarStatusAgSimples('${a.id}','pendente'))">↩ Reativar</button>`:''}
       <button class="btn ol xs" onclick="editAg('${a.id}')">✏</button>
       <button class="btn gh xs" onclick="verAg('${a.id}')">Ver</button>
     </td>
@@ -3157,7 +3190,7 @@ async function confirmarReplicar(){
       toMin(a.hora)<nf && toMin(a.hora)+(a.duracao_total||30)>ni
     );
     if(conf){erros.push(ag.hora+' '+gCNm2(ag)+' (conflito)');continue;}
-    // Insere novo agendamento
+    // Insere novo agendamento — copia pacote_id para preservar valor do pacote
     const novoAg={
       cliente_id: ag.cliente_id||ag.clienteId,
       profissional_id: ag.profissional_id||ag.profId,
@@ -3167,6 +3200,7 @@ async function confirmarReplicar(){
       status: 'pendente',
       observacoes: ag.observacoes||ag.obs||null,
       forcar: false,
+      pacote_id: ag.pacote_id||null,  // ← preserva pacote para valor correto
     };
     const{data:ins,error}=await sb.from('agendamentos').insert(novoAg).select().single();
     if(error||!ins){erros.push(ag.hora+' '+gCNm2(ag)+' (erro)');continue;}
