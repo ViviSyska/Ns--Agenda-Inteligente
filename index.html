@@ -1325,6 +1325,8 @@ async function loadAll(){
     D.profs      = profs.data      || [];
     D.clientes   = clientes.data   || [];
     D.servicos   = servicos.data   || [];
+    // Auto-importa categorias que existem nos serviços do banco mas não no sistema
+    D.servicos.forEach(s=>{ if(s.categoria) normCat(s.categoria); });
     // Pacotes: prioriza svcs (jsonb) e faz fallback p/ tabela relacional pacote_servicos
     D.pacotes = (pacotes.data||[]).map(p=>{
       let s = Array.isArray(p.svcs) ? p.svcs.map(String) : [];
@@ -2408,15 +2410,27 @@ function getCatMeta(id){
 }
 const CAT_META=new Proxy({},{get:(_,k)=>getCatMeta(k)});
 function normCat(c){
-  if(!c)return D.categorias[0]?.id||'ESTETICA';
-  const u=String(c).toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
-  // Match exato por id
+  if(!c) return D.categorias[0]?.id||'ESTETICA';
+  const u=String(c).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  // 1. Match exato por id
   const exact=D.categorias.find(x=>x.id===u);
-  if(exact)return exact.id;
-  // Match parcial (id contido no texto)
+  if(exact) return exact.id;
+  // 2. Match parcial — id contido no texto ou vice-versa
   const partial=D.categorias.find(x=>u.includes(x.id)||x.id.includes(u));
-  if(partial)return partial.id;
-  return D.categorias[0]?.id||'ESTETICA';
+  if(partial) return partial.id;
+  // 3. Match por label (nome amigável)
+  const byLbl=D.categorias.find(x=>
+    u.includes(x.lbl.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim())
+  );
+  if(byLbl) return byLbl.id;
+  // 4. Não encontrou — cria a categoria automaticamente para não perder o serviço
+  const newId=u.replace(/\s+/g,'_').replace(/[^A-Z0-9_]/g,'');
+  if(newId && !D.categorias.find(x=>x.id===newId)){
+    D.categorias.push({id:newId, emoji:'🏷', lbl:String(c).trim(),
+      corD:'#e2e8f0', bgD:'#1a1a1a', corL:'#374151', bgL:'#f3f4f6'});
+    saveCats(); updateCatBars();
+  }
+  return newId || D.categorias[0]?.id||'ESTETICA';
 }
 function renderCatConfig(){
   const el=document.getElementById('cat-list'); if(!el)return;
