@@ -1320,7 +1320,14 @@ async function loadAll(){
       sb.from('despesas').select('*').order('data',{ascending:false}),
       sb.from('caixa').select('*').order('data',{ascending:false}),
       sb.from('configuracoes').select('*').limit(1).single(),
-      sb.from('historico_cliente').select('*').order('data',{ascending:false}),
+      sb.from('historico_cliente').select('*').order('data',{ascending:false}).then(r=>{
+        // Se tabela não existe, retorna vazio sem quebrar o login
+        if(r.error&&(r.error.code==='42P01'||r.error.message?.includes('does not exist'))){
+          console.warn('Tabela historico_cliente não existe. Rode o SQL fix-historico-cliente.sql');
+          return {data:[], error:null};
+        }
+        return r;
+      }),
     ]);
     D.profs      = profs.data      || [];
     D.clientes   = clientes.data   || [];
