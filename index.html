@@ -979,6 +979,19 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
           <input type="date" id="fat-dt" style="background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:13px;outline:none;width:100%">
         </div>
       </div>
+      <!-- VALOR PERSONALIZADO -->
+      <div style="background:var(--bg3);border:1px dashed var(--gold3);border-radius:var(--r2);padding:10px 12px;margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--text2);margin-bottom:6px">
+          <input type="checkbox" id="fat-custom-chk" style="accent-color:var(--gold)" onchange="toggleCustomVal()">
+          <span>Cobrar valor diferente do calculado</span>
+        </label>
+        <div id="fat-custom-wrap" style="display:none">
+          <input type="number" id="fat-custom-val" placeholder="Digite o valor a cobrar" step="0.01" min="0"
+            oninput="calcFatTotal()"
+            style="background:var(--inp);border:1px solid var(--gold3);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:14px;font-weight:700;outline:none;width:100%">
+          <div style="font-size:10px;color:var(--text3);margin-top:4px">Este valor será registrado no caixa e no histórico do cliente</div>
+        </div>
+      </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <div style="font-size:12px;color:var(--text3)">TOTAL A PAGAR</div>
         <div style="font-family:var(--fm);font-size:22px;font-weight:700;color:var(--gold)" id="fat-tot">R$ 0,00</div>
@@ -1213,10 +1226,25 @@ const gSNm  = id => { const s=D.servicos.find(x=>x.id===id); return s?s.nome:'�
 const gSDur = id => { const s=D.servicos.find(x=>x.id===id); return s?s.duracao_min:0; };
 const gSVal = id => { const s=D.servicos.find(x=>x.id===id); return s?s.valor:0; };
 const gAgtot= ag => {
+  // Se tem valor_cobrado salvo (faturamento com valor personalizado), usa ele
+  if(ag.valor_cobrado!=null && Number(ag.valor_cobrado)>0) return Number(ag.valor_cobrado);
   const pid = ag.pacote_id || ag.pkgId;
   let base=0;
-  if(pid){ const pk=D.pacotes.find(x=>x.id===pid); if(pk) base=Number(pk.valor)||0; }
-  else base=(ag.svcs||[]).reduce((t,id)=>t+gSVal(id),0);
+  if(pid){
+    const pk=D.pacotes.find(x=>x.id===pid);
+    if(pk){
+      base=Number(pk.valor)||0;
+      // soma serviços AVULSOS que não fazem parte do pacote
+      const svcsDoPacote=pk.svcs||[];
+      const svcsAvulsos=(ag.svcs||[]).filter(sid=>!svcsDoPacote.includes(sid));
+      base+=svcsAvulsos.reduce((t,sid)=>t+Number(gSVal(sid)),0);
+    } else {
+      // pacote não encontrado no cache — soma todos os serviços
+      base=(ag.svcs||[]).reduce((t,sid)=>t+Number(gSVal(sid)),0);
+    }
+  } else {
+    base=(ag.svcs||[]).reduce((t,sid)=>t+Number(gSVal(sid)),0);
+  }
   const desc=Number(ag.desconto)||0;
   return Math.max(0,base-desc);
 };
@@ -2070,15 +2098,35 @@ function abrirFat(agId){
   S._fatCliId=cid;
   const descEl=document.getElementById('fat-desc'); if(descEl)descEl.value='';
   const dtEl=document.getElementById('fat-dt'); if(dtEl)dtEl.value=TODAY;
+  // Reset valor personalizado
+  const chk=document.getElementById('fat-custom-chk'); if(chk)chk.checked=false;
+  const wrap=document.getElementById('fat-custom-wrap'); if(wrap)wrap.style.display='none';
+  const cv=document.getElementById('fat-custom-val'); if(cv)cv.value='';
   calcFatTotal(); openModal('m-fat');
 }
-function calcFatTotal(){ 
-  const sub=S.fatIds.reduce((t,id)=>{ const a=D.agendamentos.find(x=>x.id===id); return t+(a?gAgtot(a):0); },0); 
+function toggleCustomVal(){
+  const chk=document.getElementById('fat-custom-chk');
+  const wrap=document.getElementById('fat-custom-wrap');
+  if(!wrap)return;
+  wrap.style.display=chk.checked?'block':'none';
+  if(chk.checked){
+    // Pré-preenche com o valor calculado atual
+    document.getElementById('fat-custom-val').value=S._fatTotal?.toFixed(2)||'';
+  }
+  calcFatTotal();
+}
+function calcFatTotal(){
+  const sub=S.fatIds.reduce((t,id)=>{ const a=D.agendamentos.find(x=>x.id===id); return t+(a?gAgtot(a):0); },0);
   const desc=parseFloat(document.getElementById('fat-desc')?.value)||0;
-  const tot=Math.max(0,sub-desc);
+  const subComDesc=Math.max(0,sub-desc);
   const subEl=document.getElementById('fat-sub'); if(subEl)subEl.textContent=Rf(sub);
-  document.getElementById('fat-tot').textContent=Rf(tot); 
+  // Se valor personalizado ativo, usa ele; senão usa calculado
+  const customChk=document.getElementById('fat-custom-chk');
+  const customVal=parseFloat(document.getElementById('fat-custom-val')?.value);
+  const tot=(customChk?.checked && customVal>0) ? customVal : subComDesc;
+  document.getElementById('fat-tot').textContent=Rf(tot);
   S._fatTotal=tot;
+  S._fatSubtotal=sub;
 }
 function selPg(el,tipo){
   document.querySelectorAll('.pg-b').forEach(b=>b.classList.remove('sel')); el.classList.add('sel'); S.selPgTipo=tipo;
@@ -2179,14 +2227,30 @@ async function confirmarFat(){
   if(S.pgtos.length===0){ toast('Adicione pelo menos um pagamento','e'); return; }
   showLoad('Faturando...');
   const hoje=document.getElementById('fat-dt')?.value || TODAY;
+  const desc=parseFloat(document.getElementById('fat-desc')?.value)||0;
+  // Valor total a registrar (personalizado ou calculado)
+  const customChk=document.getElementById('fat-custom-chk');
+  const customVal=parseFloat(document.getElementById('fat-custom-val')?.value)||0;
+  const usandoCustom=customChk?.checked && customVal>0;
+  const totalFinal=S._fatTotal||0;
+
   for(const id of S.fatIds){
     const ag=D.agendamentos.find(a=>a.id===id); if(!ag)continue;
-    await sb.from('agendamentos').update({status:'concluido'}).eq('id',id);
-    const tot=S._fatTotal||gAgtot(ag);
-    const desc=parseFloat(document.getElementById('fat-desc')?.value)||0;
+    const tot=usandoCustom ? customVal/S.fatIds.length : (S._fatTotal/S.fatIds.length)||gAgtot(ag);
+    // Atualiza status + valor_cobrado no agendamento
+    const upd={status:'concluido'};
+    if(desc>0) upd.desconto=desc;
+    if(usandoCustom) upd.valor_cobrado=tot; // salva valor personalizado
+    await sb.from('agendamentos').update(upd).eq('id',id);
+    // Atualiza cache local imediatamente
+    const agLocal=D.agendamentos.find(a=>a.id===id);
+    if(agLocal){ agLocal.status='concluido'; if(upd.valor_cobrado)agLocal.valor_cobrado=tot; }
     const pgTipo=S.pgtos[0]?.tipo||'pix';
-    if(desc>0) await sb.from('agendamentos').update({desconto:desc}).eq('id',id);
-    await sb.from('caixa').insert({tipo:'entrada', descricao:'Comanda - '+gCNm2(ag)+(desc>0?` (desc. ${Rf(desc)})`:''), valor:tot, data:hoje, forma_pagamento:pgTipo, agendamento_id:id});
+    await sb.from('caixa').insert({
+      tipo:'entrada',
+      descricao:'Comanda - '+gCNm2(ag)+(desc>0?` (desc. ${Rf(desc)})`:''+(usandoCustom?' (valor ajustado)':'')),
+      valor:tot, data:hoje, forma_pagamento:pgTipo, agendamento_id:id
+    });
   }
   // Taxa do cartão → despesa automática
   for(const pg of S.pgtos){
@@ -2202,21 +2266,17 @@ async function confirmarFat(){
         valor:taxaVal, data:hoje, forma_pagamento:pg.tipo
       });
     }
-    // Saldo do cliente usado → descontar do crédito dela
     if(pg.tipo==='saldo' && S._fatCliId){
       await sb.from('historico_cliente').insert({
-        cliente_id:S._fatCliId,
-        valor:-pg.valor,
-        descricao:`[CREDITO] Saldo utilizado no faturamento`,
-        data:hoje
+        cliente_id:S._fatCliId, valor:-pg.valor,
+        descricao:`[CREDITO] Saldo utilizado no faturamento`, data:hoje
       });
     }
   }
   await Promise.all([reloadSection('agendamentos'),reloadSection('caixa'),reloadSection('despesas'),reloadSection('historico')]);
   hideLoad(); closeModal('m-fat');
   const taxTotal=S.pgtos.filter(p=>p.tipo==='credito'||p.tipo==='debito').reduce((t,p)=>t+p.valor*(p.taxa/100),0);
-  const saldoUsado=S.pgtos.filter(p=>p.tipo==='saldo').reduce((t,p)=>t+p.valor,0);
-  toast(`${S.fatIds.length} comanda(s) faturada(s)!${taxTotal>0?' Taxa '+Rf(taxTotal)+' lançada.':''}${saldoUsado>0?' Saldo '+Rf(saldoUsado)+' descontado.':''}`);
+  toast(`${S.fatIds.length} comanda(s) faturada(s) · ${Rf(totalFinal)}${taxTotal>0?' · Taxa '+Rf(taxTotal):''}`);
   renderComandas(); renderDash();
 }
 
