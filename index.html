@@ -1115,28 +1115,28 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
   <div class="md w">
     <div class="mh"><div class="mt">📋 REPLICAR DIA</div><button class="xb" onclick="closeModal('m-replicar')">×</button></div>
     <div class="mb">
-      <div style="font-size:12px;color:var(--text2);margin-bottom:14px">Copia os agendamentos de um dia para outro. Você escolhe quais trazer e para qual data.</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px">Copia os agendamentos de um dia para outro mantendo pacotes e serviços.</div>
       <div class="fg fg2" style="margin-bottom:14px">
         <div class="fgr">
-          <label>📅 DIA DE ORIGEM (copiar de)</label>
+          <label>📅 ORIGEM (copiar de)</label>
           <input type="date" id="rep-origem" style="background:var(--inp);border:var(--brd);border-radius:var(--r2);padding:9px 11px;color:var(--text);font-size:13px;outline:none;width:100%" onchange="carregarAgReplicar()">
         </div>
         <div class="fgr">
-          <label>📅 DIA DE DESTINO (copiar para)</label>
+          <label>📅 DESTINO (copiar para)</label>
           <input type="date" id="rep-destino" style="background:var(--inp);border:var(--brd);border-radius:var(--r2);padding:9px 11px;color:var(--text);font-size:13px;outline:none;width:100%">
         </div>
       </div>
       <div style="font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.7px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
-        <span>AGENDAMENTOS DA ORIGEM</span>
+        <span id="rep-count">AGENDAMENTOS DA ORIGEM</span>
         <div style="display:flex;gap:6px">
           <button class="btn gh xs" onclick="repSelAll(true)">Todos</button>
           <button class="btn gh xs" onclick="repSelAll(false)">Nenhum</button>
         </div>
       </div>
-      <div id="rep-lista" style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
+      <div id="rep-lista" style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
         <div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Selecione o dia de origem</div>
       </div>
-      <div id="rep-aviso" style="display:none;margin-top:10px;padding:8px 12px;background:var(--bg3);border-radius:var(--r2);font-size:11px;color:var(--text3)"></div>
+      <div id="rep-aviso" style="display:none;margin-top:10px;padding:8px 12px;background:var(--bg3);border-radius:var(--r2);font-size:11px;color:var(--gold)"></div>
     </div>
     <div class="mf">
       <button class="btn gh" onclick="closeModal('m-replicar')">Cancelar</button>
@@ -1215,22 +1215,8 @@ const gSVal = id => { const s=D.servicos.find(x=>x.id===id); return s?s.valor:0;
 const gAgtot= ag => {
   const pid = ag.pacote_id || ag.pkgId;
   let base=0;
-  if(pid){
-    const pk=D.pacotes.find(x=>x.id===pid);
-    if(pk){
-      // Valor do pacote...
-      base=Number(pk.valor)||0;
-      // ...mais serviços avulsos que NÃO fazem parte do pacote
-      const svcsNoPacote=(ag.svcs||[]).filter(sid=>!(pk.svcs||[]).includes(sid));
-      base+=svcsNoPacote.reduce((t,sid)=>t+gSVal(sid),0);
-    } else {
-      // Pacote não encontrado — soma tudo
-      base=(ag.svcs||[]).reduce((t,id)=>t+gSVal(id),0);
-    }
-  } else {
-    // Sem pacote — soma todos os serviços
-    base=(ag.svcs||[]).reduce((t,id)=>t+gSVal(id),0);
-  }
+  if(pid){ const pk=D.pacotes.find(x=>x.id===pid); if(pk) base=Number(pk.valor)||0; }
+  else base=(ag.svcs||[]).reduce((t,id)=>t+gSVal(id),0);
   const desc=Number(ag.desconto)||0;
   return Math.max(0,base-desc);
 };
@@ -1242,11 +1228,20 @@ const WEEK  = (()=>{ const d=new Date(),dow=d.getDay(),s=new Date(d),e=new Date(
 // pendente=neutro | confirmado=amarelo | atendimento=roxo | concluido=verde(pago) | cancelado=cinza
 const SC = {pendente:'nt', confirmado:'gd', atendimento:'pr', concluido:'gr', cancelado:'gy', recusou:'gy'};
 
-// Status visual efetivo — SEM promoção automática para atendimento
-// O status atendimento é definido MANUALMENTE pelo operador
+// Status visual efetivo:
+// confirmado + hoje + hora passada → 'atendimento' (automático)
 const efStatus = ag => {
+  // wa_status sobrescreve status visual em certas condições
   if(ag.wa_status==='recusou') return 'recusou';
   if(ag.wa_status==='confirmou'&&ag.status==='pendente') return 'confirmado';
+  if(ag.status==='confirmado'){
+    const agDate=(ag.data||'').substring(0,10);
+    if(agDate===TODAY){
+      const now=new Date();
+      const nowMin=now.getHours()*60+now.getMinutes();
+      if(nowMin >= toMin(ag.hora||'00:00')) return 'atendimento';
+    }
+  }
   return ag.status;
 };
 const efLabel = ag => ({
@@ -1320,20 +1315,11 @@ async function loadAll(){
       sb.from('despesas').select('*').order('data',{ascending:false}),
       sb.from('caixa').select('*').order('data',{ascending:false}),
       sb.from('configuracoes').select('*').limit(1).single(),
-      sb.from('historico_cliente').select('*').order('data',{ascending:false}).then(r=>{
-        // Se tabela não existe, retorna vazio sem quebrar o login
-        if(r.error&&(r.error.code==='42P01'||r.error.message?.includes('does not exist'))){
-          console.warn('Tabela historico_cliente não existe. Rode o SQL fix-historico-cliente.sql');
-          return {data:[], error:null};
-        }
-        return r;
-      }),
+      sb.from('historico_cliente').select('*').order('data',{ascending:false}),
     ]);
     D.profs      = profs.data      || [];
     D.clientes   = clientes.data   || [];
     D.servicos   = servicos.data   || [];
-    // Auto-importa categorias que existem nos serviços do banco mas não no sistema
-    D.servicos.forEach(s=>{ if(s.categoria) normCat(s.categoria); });
     // Pacotes: prioriza svcs (jsonb) e faz fallback p/ tabela relacional pacote_servicos
     D.pacotes = (pacotes.data||[]).map(p=>{
       let s = Array.isArray(p.svcs) ? p.svcs.map(String) : [];
@@ -1371,39 +1357,33 @@ async function loadAll(){
 
 async function reloadSection(sec){
   showLoad('Atualizando...');
-  try {
-    const loaders = {
-      profs:      ()=>sb.from('profissionais').select('*').eq('ativo',true).order('nome'),
-      clientes:   ()=>sb.from('clientes').select('*').order('nome'),
-      servicos:   ()=>sb.from('servicos').select('*').order('nome'),
-      pacotes:    ()=>sb.from('pacotes').select('*, pacote_servicos(servico_id)').order('nome'),
-      agendamentos:()=>sb.from('agendamentos').select('*, agendamento_servicos(servico_id)').order('data').order('hora'),
-      bloqueios:  ()=>sb.from('bloqueios').select('*'),
-      historico:  ()=>sb.from('historico_cliente').select('*').order('data',{ascending:false}),
-      despesas:  ()=>sb.from('despesas').select('*').order('data',{ascending:false}),
-      caixa:     ()=>sb.from('caixa').select('*').order('data',{ascending:false}),
-    };
-    if(loaders[sec]){
-      const {data,error}=await loaders[sec]();
-      if(error) throw error;
-      if(sec==='agendamentos'){
-        D.agendamentos=(data||[]).map(a=>({...a,svcs:(a.agendamento_servicos||[]).map(x=>x.servico_id),hora:a.hora?.substring(0,5)||'00:00'}));
-      } else if(sec==='pacotes'){
-        D.pacotes=(data||[]).map(p=>{
-          let s = Array.isArray(p.svcs) ? p.svcs.map(String) : [];
-          const rel = (p.pacote_servicos||[]).map(x=>String(x.servico_id));
-          if(rel.length) s = Array.from(new Set([...s, ...rel]));
-          return {...p, svcs: s};
-        });
-      } else {
-        D[sec]=data||[];
-      }
+  const loaders = {
+    profs:      ()=>sb.from('profissionais').select('*').eq('ativo',true).order('nome'),
+    clientes:   ()=>sb.from('clientes').select('*').order('nome'),
+    servicos:   ()=>sb.from('servicos').select('*').order('nome'),
+    pacotes:    ()=>sb.from('pacotes').select('*, pacote_servicos(servico_id)').order('nome'),
+    agendamentos:()=>sb.from('agendamentos').select('*, agendamento_servicos(servico_id)').order('data').order('hora'),
+    bloqueios:  ()=>sb.from('bloqueios').select('*'),
+    historico:  ()=>sb.from('historico_cliente').select('*').order('data',{ascending:false}),
+    despesas:  ()=>sb.from('despesas').select('*').order('data',{ascending:false}),
+    caixa:     ()=>sb.from('caixa').select('*').order('data',{ascending:false}),
+  };
+  if(loaders[sec]){
+    const {data}=await loaders[sec]();
+    if(sec==='agendamentos'){
+      D.agendamentos=(data||[]).map(a=>({...a,svcs:(a.agendamento_servicos||[]).map(x=>x.servico_id),hora:a.hora?.substring(0,5)||'00:00'}));
+    } else if(sec==='pacotes'){
+      D.pacotes=(data||[]).map(p=>{
+        let s = Array.isArray(p.svcs) ? p.svcs.map(String) : [];
+        const rel = (p.pacote_servicos||[]).map(x=>String(x.servico_id));
+        if(rel.length) s = Array.from(new Set([...s, ...rel]));
+        return {...p, svcs: s};
+      });
+    } else {
+      D[sec]=data||[];
     }
-  } catch(e){
-    toast('Erro ao atualizar: '+e.message,'e');
-  } finally {
-    hideLoad();
   }
+  hideLoad();
 }
 
 // ============================================================
@@ -1588,7 +1568,7 @@ function renderDash(){
   document.getElementById('d-prox').innerHTML=prox.length?prox.map(a=>{
     const st=efStatus(a); const cls={pendente:'nt',confirmado:'gd',atendimento:'pr'}[st]||'nt';
     const lbl={pendente:'Agendado',confirmado:'Confirmado',atendimento:'Em Atendimento'}[st]||'';
-    return`<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--bc)" onclick="goTo('agenda',document.querySelector('.ni[onclick*=agenda]'))" style="cursor:pointer">
+    return`<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--bc)" onclick="navTo('agenda')" style="cursor:pointer">
       <div style="width:38px;height:38px;border-radius:var(--r2);background:var(--bg3);display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0">
         <div style="font-size:16px;font-weight:700;color:var(--text);line-height:1">${(a.data||'').substring(8,10)}</div>
         <div style="font-size:8px;color:var(--text3);letter-spacing:.5px">${['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'][parseInt((a.data||'').substring(5,7))-1]||''}</div>
@@ -1674,36 +1654,12 @@ function syncDatePicker(){ const p=document.getElementById('ag-date-pick'); if(p
 function verAg(id){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
   const tot=gAgtot(ag);
-  const ef=efStatus(ag);
-
-  // Botões de mudança de status — aparecem como linha de chips no topo do modal
-  const statusFlow = [
-    {k:'pendente',   lbl:'Agendado',        ic:'📋', cls:'nt'},
-    {k:'confirmado', lbl:'Confirmado',       ic:'✅', cls:'gd'},
-    {k:'atendimento',lbl:'Em Atendimento',   ic:'🟣', cls:'pr'},
-    {k:'concluido',  lbl:'Pago/Concluído',   ic:'💰', cls:'gr'},
-    {k:'cancelado',  lbl:'Cancelado',        ic:'❌', cls:'rd'},
-  ];
-
   document.getElementById('ver-body').innerHTML=`
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
       <div class="c-av">${ini(gCNm2(ag))}</div>
       <div style="flex:1"><div style="font-size:15px;font-weight:600">${gCNm2(ag)}</div><div style="font-size:12px;color:var(--text3)">${gPNm2(ag)}</div></div>
-      <span class="bd ${SC[ef]||'gy'}" id="ver-status-badge">${efLabel(ag)}</span>
+      <span class="bd ${SC[efStatus(ag)]||'gy'}">${efLabel(ag)}</span>
     </div>
-
-    <div style="margin-bottom:14px">
-      <div style="font-size:10px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:8px">MUDAR STATUS</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        ${statusFlow.map(s=>`
-          <button onclick="mudarStatusAg('${id}','${s.k}',this)"
-            style="display:flex;align-items:center;gap:4px;padding:6px 11px;border-radius:20px;border:2px solid ${ag.status===s.k?'var(--gold)':'var(--bc)'};background:${ag.status===s.k?'var(--gold)':'var(--bg3)'};color:${ag.status===s.k?'#000':'var(--text2)'};font-size:11px;font-weight:600;cursor:pointer;transition:all .15s"
-            id="ver-st-btn-${s.k}">
-            ${s.ic} ${s.lbl}
-          </button>`).join('')}
-      </div>
-    </div>
-
     <div class="dv"></div>
     <div class="fg" style="gap:10px">
       <div style="display:flex;justify-content:space-between"><span style="color:var(--text3);font-size:12px">DATA</span><span style="font-family:var(--fm)">${fBR((ag.data||'').substring(0,10))}</span></div>
@@ -1712,79 +1668,20 @@ function verAg(id){
       <div style="display:flex;justify-content:space-between"><span style="color:var(--text3);font-size:12px">TOTAL</span><span style="font-family:var(--fm);font-size:20px;font-weight:700;color:var(--gold)">${Rf(tot)}</span></div>
       ${ag.observacoes||ag.obs?`<div style="font-size:12px;color:var(--text3)">OBS: ${ag.observacoes||ag.obs}</div>`:''}
     </div>`;
-
   const foot=document.getElementById('ver-foot'); foot.innerHTML='';
   const addB=(lbl,cls,fn)=>{ const b=document.createElement('button'); b.className=`btn ${cls}`; b.textContent=lbl; b.onclick=fn; foot.appendChild(b); };
   addB('Fechar','gh',()=>closeModal('m-ver'));
   addB('✏ Editar','ol',()=>{ closeModal('m-ver'); editAg(id); });
-  if(ef!=='cancelado'&&ef!=='concluido'){
-    addB('💰 Faturar','gr',()=>{ closeModal('m-ver'); abrirFat(id); });
+  const ef=efStatus(ag);
+  if(['pendente','confirmado','atendimento'].includes(ef)){
+    if(ag.status==='pendente') addB('Confirmar','ol sm',()=>{ updateAgStatus(id,'confirmado'); closeModal('m-ver'); });
+    addB('✓ Faturar','gr',()=>{ closeModal('m-ver'); abrirFat(id); });
+    addB('Cancelar','rd sm',()=>{ closeModal('m-ver'); confirm2('⚠️','CANCELAR','Cancelar agendamento de '+gCNm2(ag)+'?',()=>updateAgStatus(id,'cancelado')); });
   }
   if(ag.status==='concluido'){
     addB('↩ Reabrir','ol',()=>{ closeModal('m-ver'); reabrirComanda(id); });
   }
   openModal('m-ver');
-}
-
-async function mudarStatusAg(id, novoStatus, btnEl){
-  const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
-  if(ag.status===novoStatus) return;
-
-  // Concluído → fluxo de faturamento
-  if(novoStatus==='concluido'){
-    closeModal('m-ver');
-    abrirFat(id);
-    return;
-  }
-
-  // Cancelado → pede confirmação
-  if(novoStatus==='cancelado'){
-    confirm2('❌','CANCELAR AGENDAMENTO',
-      `Cancelar o agendamento de ${gCNm2(ag)}?\nEsta ação pode ser revertida depois.`,
-      ()=>_aplicarStatus(id, novoStatus, btnEl),
-      'SIM, CANCELAR','rd'
-    );
-    return;
-  }
-
-  _aplicarStatus(id, novoStatus, btnEl);
-}
-
-function _aplicarStatus(id, novoStatus, btnEl){
-  const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
-  const labels={pendente:'Agendado',confirmado:'Confirmado',atendimento:'Em Atendimento',concluido:'Pago',cancelado:'Cancelado'};
-
-  // ① Cache local imediato
-  ag.status = novoStatus;
-
-  // ② Botões do modal
-  document.querySelectorAll('[id^="ver-st-btn-"]').forEach(b=>{
-    b.style.borderColor='var(--bc)';b.style.background='var(--bg3)';b.style.color='var(--text2)';
-  });
-  if(btnEl){btnEl.style.borderColor='var(--gold)';btnEl.style.background='var(--gold)';btnEl.style.color='#000';}
-  const badge=document.getElementById('ver-status-badge');
-  if(badge){badge.textContent=labels[novoStatus]||novoStatus;badge.className='bd '+(SC[novoStatus]||'gy');}
-
-  // ③ Re-renderiza instantâneo
-  renderAgenda(); renderComandas();
-  toast(`Status → ${labels[novoStatus]||novoStatus}`, novoStatus==='cancelado'?'w':'ok');
-
-  // ④ Persiste no banco em background
-  sb.from('agendamentos').update({status:novoStatus}).eq('id',id).then(({error})=>{
-    if(error) toast('Erro ao salvar: '+error.message,'e');
-  });
-}
-
-// Cancela sem abrir modal (usado na tabela de comandas)
-function cancelarAg(id){
-  const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
-  _aplicarStatus(id,'cancelado',null);
-}
-
-// Muda status simples sem confirmação (usado para reativar)
-function mudarStatusAgSimples(id, novoStatus){
-  const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
-  _aplicarStatus(id, novoStatus, null);
 }
 
 async function updateAgStatus(id,status){
@@ -1856,14 +1753,14 @@ function editAg(id){
 // ── Chips de serviço no modal de agendamento ─────────────────
 function filtrarSvcsAg(){
   const q=(document.getElementById('ag-svc-search')?.value||'').toLowerCase().trim();
-  const already=S.agSvcs||[];
-  const lst=D.servicos.filter(s=>(!q||s.nome.toLowerCase().includes(q)||normCat(s.categoria).toLowerCase().includes(q))&&!already.includes(s.id));
+  // Sem filtrar serviços já adicionados — pode adicionar o mesmo serviço mais de uma vez
+  const lst=D.servicos.filter(s=>!q||s.nome.toLowerCase().includes(q)||normCat(s.categoria).toLowerCase().includes(q));
   const dd=document.getElementById('ag-svc-dd'); if(!dd)return;
   if(!lst.length){
     dd.innerHTML='<div class="ac-it" style="color:var(--text3);cursor:default;text-align:center">Nenhum serviço encontrado</div>';
     dd.classList.add('open'); return;
   }
-  // Agrupa por categoria para facilitar achar
+  // Agrupa por categoria
   const grupos={};
   lst.forEach(s=>{
     const cat=normCat(s.categoria);
@@ -1882,24 +1779,34 @@ function filtrarSvcsAg(){
   dd.classList.add('open');
 }
 function selAgSvc(id){
-  if(!(S.agSvcs||[]).includes(id)){ S.agSvcs=(S.agSvcs||[]); S.agSvcs.push(id); }
+  // Permite adicionar o mesmo serviço mais de uma vez (ex: mão + pé = 2x manicure)
+  S.agSvcs=(S.agSvcs||[]);
+  S.agSvcs.push(id);
   document.getElementById('ag-svc-search').value='';
   document.getElementById('ag-svc-dd').classList.remove('open');
   renderAgSvcChips(); calcSeq();
 }
-function remAgSvc(id){
-  S.agSvcs=(S.agSvcs||[]).filter(x=>x!==id);
+function remAgSvc(idx){
+  // Remove pelo índice — permite remover uma ocorrência específica de serviço duplicado
+  S.agSvcs=(S.agSvcs||[]);
+  S.agSvcs.splice(idx,1);
   renderAgSvcChips(); calcSeq();
 }
 function renderAgSvcChips(){
   const chips=document.getElementById('ag-svc-chips'); if(!chips)return;
-  chips.innerHTML=(S.agSvcs||[]).map(id=>{
+  // Conta ocorrências para mostrar rótulo quando duplicado
+  const count={};
+  (S.agSvcs||[]).forEach(id=>{ count[id]=(count[id]||0)+1; });
+  const seen={};
+  chips.innerHTML=(S.agSvcs||[]).map((id,idx)=>{
     const s=D.servicos.find(x=>x.id===id);
     if(!s)return'';
+    seen[id]=(seen[id]||0)+1;
+    const dup=count[id]>1?` <span style="font-size:10px;background:var(--gold);color:#000;border-radius:8px;padding:0 5px">${seen[id]}/${count[id]}</span>`:'';
     return`<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(255,215,0,.12);border:1px solid var(--gold3);border-radius:20px;padding:4px 10px;font-size:12px;font-weight:600;color:var(--text)">
-      ${s.nome}
+      ${s.nome}${dup}
       <span style="font-size:10px;color:var(--text3)">${Rf(s.valor)}</span>
-      <button type="button" onclick="remAgSvc('${id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;line-height:1;padding:0 0 0 2px" title="Remover">×</button>
+      <button type="button" onclick="remAgSvc(${idx})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;line-height:1;padding:0 0 0 2px" title="Remover">×</button>
     </span>`;
   }).join('');
 }
@@ -2119,8 +2026,6 @@ function renderComandas(){
     <td style="display:flex;gap:4px;flex-wrap:wrap">
       ${['pendente','confirmado','atendimento'].includes(efStatus(a))?`<button class="btn gr xs" onclick="abrirFat('${a.id}')">✓ Faturar</button>`:''}
       ${a.status==='concluido'?`<button class="btn ol xs" style="color:var(--purple);border-color:var(--purple)" onclick="reabrirComanda('${a.id}')">↩ Reabrir</button>`:''}
-      ${a.status!=='cancelado'&&a.status!=='concluido'?`<button class="btn rd xs" onclick="confirm2('❌','CANCELAR COMANDA','Cancelar agendamento de ${gCNm2(a).replace(/'/g,"\\'")}?',()=>cancelarAg('${a.id}'))">✕ Cancelar</button>`:''}
-      ${a.status==='cancelado'?`<button class="btn gh xs" onclick="confirm2('↩','REATIVAR','Reativar este agendamento como Pendente?',()=>mudarStatusAgSimples('${a.id}','pendente'))">↩ Reativar</button>`:''}
       <button class="btn ol xs" onclick="editAg('${a.id}')">✏</button>
       <button class="btn gh xs" onclick="verAg('${a.id}')">Ver</button>
     </td>
@@ -2421,14 +2326,7 @@ const CAT_DEFAULTS=[
 ];
 function loadCats(){
   const custom=JSON.parse(localStorage.getItem('ns_cats')||'[]');
-  // Remove duplicatas do localStorage que sombreiam as defaults
-  const norm=s=>String(s).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
-  const defaultIds=CAT_DEFAULTS.map(c=>norm(c.id));
-  const customLimpo=custom.filter(c=>!defaultIds.includes(norm(c.id)));
-  if(customLimpo.length!==custom.length){
-    localStorage.setItem('ns_cats',JSON.stringify(customLimpo));
-  }
-  D.categorias=[...CAT_DEFAULTS,...customLimpo];
+  D.categorias=[...CAT_DEFAULTS,...custom];
 }
 function saveCats(){
   // Salva tudo que diverge dos CAT_DEFAULTS originais (inclui novos + modificados)
@@ -2443,23 +2341,14 @@ function getCatMeta(id){
 }
 const CAT_META=new Proxy({},{get:(_,k)=>getCatMeta(k)});
 function normCat(c){
-  if(!c) return D.categorias[0]?.id||'ESTETICA';
-  // Normaliza: maiúscula, sem acento, sem espaço extra
-  const norm=s=>String(s).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
-  const u=norm(c);
-  // 1. Match exato por ID
-  const byId=D.categorias.find(x=>x.id===u);
-  if(byId) return byId.id;
-  // 2. Match por ID sem acento
-  const byIdNorm=D.categorias.find(x=>norm(x.id)===u);
-  if(byIdNorm) return byIdNorm.id;
-  // 3. Match por label normalizado
-  const byLbl=D.categorias.find(x=>norm(x.lbl)===u);
-  if(byLbl) return byLbl.id;
-  // 4. Match parcial (contém)
-  const byPart=D.categorias.find(x=>u.includes(norm(x.id))||norm(x.id).includes(u)||u.includes(norm(x.lbl))||norm(x.lbl).includes(u));
-  if(byPart) return byPart.id;
-  // 5. Não encontrou — retorna a primeira sem criar duplicata
+  if(!c)return D.categorias[0]?.id||'ESTETICA';
+  const u=String(c).toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+  // Match exato por id
+  const exact=D.categorias.find(x=>x.id===u);
+  if(exact)return exact.id;
+  // Match parcial (id contido no texto)
+  const partial=D.categorias.find(x=>u.includes(x.id)||x.id.includes(u));
+  if(partial)return partial.id;
   return D.categorias[0]?.id||'ESTETICA';
 }
 function renderCatConfig(){
@@ -3181,14 +3070,15 @@ function waRelatorio(){
 }
 
 // ============================================================
+// ============================================================
 // REPLICAR DIA
 // ============================================================
 function abrirReplicarDia(){
-  const origem=dStr(S.agDate);
-  document.getElementById('rep-origem').value=origem;
-  // destino padrão = próximo dia
+  // Pré-preenche origem com dia atual da agenda
+  document.getElementById('rep-origem').value = dStr(S.agDate);
+  // Destino = dia seguinte
   const prox=new Date(S.agDate); prox.setDate(prox.getDate()+1);
-  document.getElementById('rep-destino').value=dStr(prox);
+  document.getElementById('rep-destino').value = dStr(prox);
   document.getElementById('rep-aviso').style.display='none';
   carregarAgReplicar();
   openModal('m-replicar');
@@ -3197,26 +3087,37 @@ function abrirReplicarDia(){
 function carregarAgReplicar(){
   const origem=document.getElementById('rep-origem').value;
   const lista=document.getElementById('rep-lista');
-  if(!origem){lista.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Selecione o dia de origem</div>';return;}
+  const count=document.getElementById('rep-count');
+  if(!origem){
+    lista.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Selecione o dia de origem</div>';
+    return;
+  }
   const ags=D.agendamentos
     .filter(a=>(a.data||'').substring(0,10)===origem && a.status!=='cancelado')
     .sort((a,b)=>a.hora.localeCompare(b.hora));
+  count.textContent=`AGENDAMENTOS DA ORIGEM (${ags.length})`;
   if(!ags.length){
     lista.innerHTML='<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Nenhum agendamento neste dia</div>';
     return;
   }
-  const SC2={pendente:'gd',confirmado:'gd',atendimento:'pr',concluido:'gr',cancelado:'gy'};
   lista.innerHTML=ags.map(ag=>{
-    const svcsNm=(ag.svcs||[]).map(gSNm).join(', ')||'—';
-    return`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:var(--r2);cursor:pointer;border:var(--brd);transition:border-color .15s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--bc)'">
+    // Mostra pacote OU serviços, com valor correto
+    const pkId=ag.pacote_id||ag.pkgId;
+    const pk=pkId?D.pacotes.find(x=>x.id===pkId):null;
+    const label=pk
+      ? `📦 ${pk.nome}`
+      : (ag.svcs||[]).map(gSNm).join(', ')||'—';
+    const valor=gAgtot(ag);
+    const sc={pendente:'gd',confirmado:'gd',atendimento:'pr',concluido:'gr',cancelado:'gy'};
+    return`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:var(--r2);cursor:pointer;border:var(--brd);transition:border-color .15s">
       <input type="checkbox" checked data-agid="${ag.id}" style="accent-color:var(--gold);width:15px;height:15px;flex-shrink:0;cursor:pointer">
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px">${gCNm2(ag)}</div>
-        <div style="font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ag.hora} · ${svcsNm} · ${gPNm2(ag)}</div>
+        <div style="font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ag.hora} · ${label} · ${gPNm2(ag)}</div>
       </div>
       <div style="text-align:right;flex-shrink:0">
-        <div style="font-family:var(--fm);font-size:12px;color:var(--gold)">${Rf(gAgtot(ag))}</div>
-        <span class="bd ${SC2[ag.status]||'gy'}" style="font-size:9px">${ag.status}</span>
+        <div style="font-family:var(--fm);font-size:12px;color:var(--gold)">${Rf(valor)}</div>
+        <span class="bd ${sc[ag.status]||'gy'}" style="font-size:9px">${ag.status}</span>
       </div>
     </label>`;
   }).join('');
@@ -3234,37 +3135,40 @@ async function confirmarReplicar(){
   if(origem===destino){toast('Origem e destino não podem ser iguais','e');return;}
   const selecionados=[...document.querySelectorAll('#rep-lista input[type=checkbox]:checked')].map(c=>c.dataset.agid);
   if(!selecionados.length){toast('Selecione ao menos um agendamento','e');return;}
-
   showLoad(`Replicando ${selecionados.length} agendamento(s)...`);
-  let ok=0;let erros=[];
+  let ok=0; const erros=[];
   for(const agId of selecionados){
     const ag=D.agendamentos.find(a=>a.id===agId); if(!ag)continue;
-    // Verifica conflito no destino
-    const ni=toMin(ag.hora), nf=ni+(ag.duracao_total||30);
+    // Verifica conflito no destino (pelo profissional)
+    const ni=toMin(ag.hora), nf=ni+(ag.duracao_total||ag.durTotal||30);
     const conf=D.agendamentos.find(a=>
       (a.profissional_id||a.profId)===(ag.profissional_id||ag.profId) &&
       (a.data||'').substring(0,10)===destino &&
       a.status!=='cancelado' &&
-      toMin(a.hora)<nf && toMin(a.hora)+(a.duracao_total||30)>ni
+      toMin(a.hora)<nf &&
+      toMin(a.hora)+(a.duracao_total||a.durTotal||30)>ni
     );
-    if(conf){erros.push(ag.hora+' '+gCNm2(ag)+' (conflito)');continue;}
-    // Insere novo agendamento — copia pacote_id para preservar valor do pacote
+    if(conf){erros.push(`${ag.hora} ${gCNm2(ag)} (conflito de horário)`);continue;}
+    // Monta novo agendamento — preserva pacote_id para valor correto
     const novoAg={
-      cliente_id: ag.cliente_id||ag.clienteId,
+      cliente_id:    ag.cliente_id||ag.clienteId,
       profissional_id: ag.profissional_id||ag.profId,
-      data: destino,
-      hora: ag.hora,
+      data:          destino,
+      hora:          ag.hora,
       duracao_total: ag.duracao_total||ag.durTotal||30,
-      status: 'pendente',
-      observacoes: ag.observacoes||ag.obs||null,
-      forcar: false,
-      pacote_id: ag.pacote_id||null,  // ← preserva pacote para valor correto
+      status:        'pendente',
+      observacoes:   ag.observacoes||ag.obs||null,
+      forcar:        false,
+      pacote_id:     ag.pacote_id||ag.pkgId||null,  // ← preserva pacote
+      desconto:      ag.desconto||0,
     };
     const{data:ins,error}=await sb.from('agendamentos').insert(novoAg).select().single();
-    if(error||!ins){erros.push(ag.hora+' '+gCNm2(ag)+' (erro)');continue;}
-    // Copia serviços
+    if(error||!ins){erros.push(`${ag.hora} ${gCNm2(ag)} (erro: ${error?.message||'?'})`);continue;}
+    // Copia serviços (mesmo que tenha pacote — preserva os avulsos também)
     if((ag.svcs||[]).length>0){
-      await sb.from('agendamento_servicos').insert((ag.svcs||[]).map(sid=>({agendamento_id:ins.id,servico_id:sid})));
+      await sb.from('agendamento_servicos').insert(
+        (ag.svcs||[]).map(sid=>({agendamento_id:ins.id, servico_id:sid}))
+      );
     }
     ok++;
   }
@@ -3275,10 +3179,10 @@ async function confirmarReplicar(){
   const[y,m,d]=destino.split('-').map(Number);
   S.agDate=new Date(y,m-1,d);
   renderAgenda();
+  aviso.style.display='none';
   if(erros.length){
-    aviso.style.display='block';
-    aviso.innerHTML='⚠️ Não replicados: '+erros.join(' | ');
     toast(`${ok} replicado(s) · ${erros.length} com conflito`,'w');
+    console.warn('Não replicados:',erros);
   }else{
     toast(`✅ ${ok} agendamento(s) replicado(s) para ${fBR(destino)}`);
   }
