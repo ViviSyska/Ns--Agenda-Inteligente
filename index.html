@@ -1551,28 +1551,36 @@ const gCNm2  = ag => gCNm(cliId(ag));
 // ============================================================
 function renderDash(){
   const ags=fAgs().filter(a=>a.status!=='cancelado');
-  const fat=ags.filter(a=>a.status==='concluido').reduce((t,a)=>t+gAgtot(a),0);
-  const desp=fDp().reduce((t,d)=>t+Number(d.valor),0);
+  // ✅ FONTE ÚNICA DE VERDADE: tabela caixa (valores reais pagos, filtrados por data)
+  const cxFiltrado=fCx();
+  const fat=cxFiltrado.filter(x=>x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
+  const desp=cxFiltrado.filter(x=>x.tipo==='saida').reduce((t,x)=>t+Number(x.valor),0);
+  // Despesas também da tabela despesas (pagas no período)
+  const despLanc=fDp().filter(d=>d.status==='pago').reduce((t,d)=>t+Number(d.valor),0);
+  const totalDesp=Math.max(desp,despLanc); // usa o maior para não duplicar
   const concl=ags.filter(a=>a.status==='concluido').length;
-  const nConf=ags.filter(a=>a.status==='confirmado'&&efStatus(a)!=='atendimento').length;
+  const ticket=concl&&fat?fat/concl:0;
+  const nConf=ags.filter(a=>a.status==='confirmado').length;
   const nPend=ags.filter(a=>a.status==='pendente').length;
-  const nAtr =ags.filter(a=>efStatus(a)==='atendimento').length;
+  const nAtr =ags.filter(a=>a.status==='atendimento').length;
   const nConcl=ags.filter(a=>a.status==='concluido').length;
-  const nCanc =D.agendamentos.filter(a=>a.status==='cancelado'&&(fAgs().map(x=>x.id).includes(a.id)||fAgs().length===0)).length;
   document.getElementById('d-cards').innerHTML=`
     <div class="sc"><div class="sc-l">FATURAMENTO</div><div class="sc-v gd">${Rf(fat)}</div></div>
-    <div class="sc cR"><div class="sc-l">DESPESAS</div><div class="sc-v rd">${Rf(desp)}</div></div>
-    <div class="sc cG"><div class="sc-l">LUCRO</div><div class="sc-v ${fat-desp>=0?'gr':'rd'}">${Rf(fat-desp)}</div></div>
-    <div class="sc cB"><div class="sc-l">TICKET MÉDIO</div><div class="sc-v gd">${concl?Rf(fat/concl):Rf(0)}</div></div>
+    <div class="sc cR"><div class="sc-l">DESPESAS</div><div class="sc-v rd">${Rf(totalDesp)}</div></div>
+    <div class="sc cG"><div class="sc-l">LUCRO</div><div class="sc-v ${fat-totalDesp>=0?'gr':'rd'}">${Rf(fat-totalDesp)}</div></div>
+    <div class="sc cB"><div class="sc-l">TICKET MÉDIO</div><div class="sc-v gd">${Rf(ticket)}</div></div>
     <div class="sc"><div class="sc-l">CLIENTES</div><div class="sc-v">${D.clientes.length}</div></div>
     <div class="sc" style="border-top-color:var(--gold)"><div class="sc-l">🟡 CONFIRMADOS</div><div class="sc-v gd">${nConf}</div></div>
     <div class="sc"><div class="sc-l">— AGENDADOS</div><div class="sc-v">${nPend}</div></div>
     <div class="sc" style="border-top-color:var(--purple)"><div class="sc-l">🟣 EM ATENDIMENTO</div><div class="sc-v" style="color:var(--purple)">${nAtr}</div></div>
     <div class="sc cG" style="border-top-color:var(--green)"><div class="sc-l">🟢 PAGOS</div><div class="sc-v gr">${nConcl}</div></div>`;
-  // chart
+  // chart — usa caixa por mês (valores reais)
   const ch=document.getElementById('d-chart'); ch.innerHTML='';
   const meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  const fatV=meses.map((_,i)=>D.agendamentos.filter(a=>a.status==='concluido'&&(a.data||'').startsWith(`${CURYR}-${String(i+1).padStart(2,'0')}`)).reduce((t,a)=>t+gAgtot(a),0));
+  const fatV=meses.map((_,i)=>{
+    const pfx=`${CURYR}-${String(i+1).padStart(2,'0')}`;
+    return D.caixa.filter(x=>x.tipo==='entrada'&&(x.data||'').startsWith(pfx)).reduce((t,x)=>t+Number(x.valor),0);
+  });
   const max=Math.max(...fatV,1);
   meses.forEach((m,i)=>{
     if(fatV[i]===0&&i>new Date().getMonth()) return;
@@ -1582,15 +1590,21 @@ function renderDash(){
     const lbl=document.createElement('div'); lbl.className='bl2'; lbl.textContent=m;
     wrap.appendChild(b); g.appendChild(wrap); g.appendChild(lbl); ch.appendChild(g);
   });
-  // pgto
-  const pgData=fCx().filter(x=>x.tipo==='entrada');
+  // Formas de pagamento — mesma fonte do faturamento (caixa filtrado)
   const pgGroups={pix:0,dinheiro:0,credito:0,debito:0};
-  pgData.forEach(x=>{ if(pgGroups[x.forma_pagamento]!==undefined) pgGroups[x.forma_pagamento]+=Number(x.valor); });
+  cxFiltrado.filter(x=>x.tipo==='entrada').forEach(x=>{ if(pgGroups[x.forma_pagamento]!==undefined) pgGroups[x.forma_pagamento]+=Number(x.valor); });
   const totalPg=Object.values(pgGroups).reduce((a,b)=>a+b,0);
   document.getElementById('d-pgto').innerHTML=totalPg>0?
     Object.entries({PIX:'pix',Crédito:'credito',Débito:'debito',Dinheiro:'dinheiro'}).map(([l,k])=>{
+      if(!pgGroups[k]) return '';
       const c={pix:'var(--green)',credito:'var(--blue)',debito:'var(--orange)',dinheiro:'var(--text3)'}[k];
-      return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="width:8px;height:8px;border-radius:2px;background:${c}"></div><div style="flex:1;font-size:12px;color:var(--text2)">${l}</div><div style="font-family:var(--fm);font-size:13px">${Rf(pgGroups[k])}</div></div>`;
+      const pct=((pgGroups[k]/totalPg)*100).toFixed(0);
+      return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="width:8px;height:8px;border-radius:2px;background:${c}"></div>
+        <div style="flex:1;font-size:12px;color:var(--text2)">${l}</div>
+        <div style="font-size:10px;color:var(--text3)">${pct}%</div>
+        <div style="font-family:var(--fm);font-size:13px">${Rf(pgGroups[k])}</div>
+      </div>`;
     }).join(''):'<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px 0">Sem dados</div>';
   const prox=D.agendamentos.filter(a=>{ const dt=(a.data||'').substring(0,10); return dt>=TODAY&&(a.status==='pendente'||a.status==='confirmado'); }).sort((a,b)=>(a.data||'').localeCompare(b.data||'')||( a.hora||'').localeCompare(b.hora||'')).slice(0,8);
   document.getElementById('d-prox').innerHTML=prox.length?prox.map(a=>{
@@ -2725,12 +2739,13 @@ function renderRel(){
   renderRelCal();
   const {ok,yr,mo,mth,day,wStart,wEnd}=relRange();
   const f=S.filter;
-
+  // ✅ FONTE ÚNICA: caixa (valores reais)
+  const cxOk=D.caixa.filter(x=>ok(x.data));
+  const fat=cxOk.filter(x=>x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
+  const desp=D.despesas.filter(d=>ok(d.data)&&d.status==='pago').reduce((t,d)=>t+Number(d.valor),0);
   const agsF=D.agendamentos.filter(a=>a.status==='concluido'&&ok(a.data));
-  const fat=agsF.reduce((t,a)=>t+gAgtot(a),0);
-  const desp=D.despesas.filter(d=>ok(d.data)).reduce((t,d)=>t+Number(d.valor),0);
   const nAt=agsF.length;
-  const ticket=nAt?fat/nAt:0;
+  const ticket=nAt&&fat?fat/nAt:0;
 
   const periodoSuffix=f==='hoje'?'HOJE':f==='semana'?'SEMANA':f==='mes'?'MÊS':'ANO';
   document.getElementById('rel-cards').innerHTML=`
@@ -2748,8 +2763,8 @@ function renderRel(){
     chartTitle='📈 EVOLUÇÃO MENSAL (Faturamento vs Despesas)';
     bars=REL_MESES_SHORT.map((lbl,i)=>{
       const pfx=`${yr}-${String(i+1).padStart(2,'0')}`;
-      const fv=D.agendamentos.filter(a=>a.status==='concluido'&&(a.data||'').startsWith(pfx)).reduce((t,a)=>t+gAgtot(a),0);
-      const dv=D.despesas.filter(d=>(d.data||'').startsWith(pfx)).reduce((t,d)=>t+Number(d.valor),0);
+      const fv=D.caixa.filter(x=>x.tipo==='entrada'&&(x.data||'').startsWith(pfx)).reduce((t,x)=>t+Number(x.valor),0);
+      const dv=D.despesas.filter(d=>(d.data||'').startsWith(pfx)&&d.status==='pago').reduce((t,d)=>t+Number(d.valor),0);
       return{lbl,fv,dv};
     });
   } else if(f==='mes'){
@@ -2757,8 +2772,8 @@ function renderRel(){
     const daysInM=new Date(Number(yr),mo+1,0).getDate();
     bars=Array.from({length:daysInM},(_,i)=>{
       const pfx=`${mth}-${String(i+1).padStart(2,'0')}`;
-      const fv=D.agendamentos.filter(a=>a.status==='concluido'&&(a.data||'').substring(0,10)===pfx).reduce((t,a)=>t+gAgtot(a),0);
-      const dv=D.despesas.filter(d=>(d.data||'').substring(0,10)===pfx).reduce((t,d)=>t+Number(d.valor),0);
+      const fv=D.caixa.filter(x=>x.tipo==='entrada'&&(x.data||'').substring(0,10)===pfx).reduce((t,x)=>t+Number(x.valor),0);
+      const dv=D.despesas.filter(d=>(d.data||'').substring(0,10)===pfx&&d.status==='pago').reduce((t,d)=>t+Number(d.valor),0);
       return{lbl:String(i+1),fv,dv};
     });
   } else if(f==='semana'){
@@ -2767,15 +2782,15 @@ function renderRel(){
     bars=Array.from({length:7},(_,i)=>{
       const ws=new Date(S.relDate); ws.setDate(ws.getDate()-ws.getDay()+i);
       const ds=dStr(ws);
-      const fv=D.agendamentos.filter(a=>a.status==='concluido'&&(a.data||'').substring(0,10)===ds).reduce((t,a)=>t+gAgtot(a),0);
-      const dv=D.despesas.filter(d=>(d.data||'').substring(0,10)===ds).reduce((t,d)=>t+Number(d.valor),0);
+      const fv=D.caixa.filter(x=>x.tipo==='entrada'&&(x.data||'').substring(0,10)===ds).reduce((t,x)=>t+Number(x.valor),0);
+      const dv=D.despesas.filter(d=>(d.data||'').substring(0,10)===ds&&d.status==='pago').reduce((t,d)=>t+Number(d.valor),0);
       return{lbl:wDias[i],fv,dv};
     });
   } else {
     chartTitle='📈 FATURAMENTO DE HOJE';
     const horas=['08','09','10','11','12','13','14','15','16','17','18','19'];
     bars=horas.map(h=>{
-      const fv=D.agendamentos.filter(a=>a.status==='concluido'&&(a.data||'').substring(0,10)===day&&(a.hora||'').startsWith(h)).reduce((t,a)=>t+gAgtot(a),0);
+      const fv=D.caixa.filter(x=>x.tipo==='entrada'&&(x.data||'').substring(0,10)===day&&(x.created_at||x.data||'').includes(h+':')).reduce((t,x)=>t+Number(x.valor),0);
       return{lbl:h+'h',fv,dv:0};
     });
   }
@@ -2826,11 +2841,17 @@ function renderRel(){
     </div>`).join(''):'<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Sem dados</div>';
 
   // Faturamento por Profissional
+  // Faturamento por Profissional — via caixa (valores reais)
   const profFat={};
-  agsF.forEach(a=>{ const pid=profId(a); profFat[pid]=(profFat[pid]||0)+gAgtot(a); });
+  agsF.forEach(a=>{
+    const pid=profId(a);
+    const cxAg=D.caixa.find(x=>x.agendamento_id===a.id&&x.tipo==="entrada");
+    const val=cxAg?Number(cxAg.valor):gAgtot(a);
+    profFat[pid]=(profFat[pid]||0)+val;
+  });
   const topProf=Object.entries(profFat).sort((a,b)=>b[1]-a[1]);
   const maxProf=topProf[0]?.[1]||1;
-  document.getElementById('rel-top-prof').innerHTML=topProf.length?topProf.map(([pid,val])=>`
+  document.getElementById("rel-top-prof").innerHTML=topProf.length?topProf.map(([pid,val])=>`
     <div class="cf" style="padding:9px 14px">
       <div class="c-av" style="width:30px;height:30px;font-size:11px;flex-shrink:0">${ini(gPNm(pid))}</div>
       <div style="flex:1;min-width:0;margin-left:8px">
@@ -2840,27 +2861,27 @@ function renderRel(){
         </div>
       </div>
       <span style="font-family:var(--fm);color:var(--gold);font-size:13px;font-weight:700;margin-left:8px;flex-shrink:0">${Rf(val)}</span>
-    </div>`).join(''):'<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Sem dados</div>';
+    </div>`).join(""):'<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Sem dados</div>';
 
-  // Tabela mensal (apenas no modo Ano)
-  const tbWrap=document.getElementById('tb-rel')?.closest('.tw');
-  if(tbWrap) tbWrap.style.display=f==='ano'?'':'none';
-  if(f==='ano'){
-    document.getElementById('tb-rel').innerHTML=REL_MESES_SHORT.map((m,i)=>{
-      const pfx=`${yr}-${String(i+1).padStart(2,'0')}`;
-      const fv=D.agendamentos.filter(a=>a.status==='concluido'&&(a.data||'').startsWith(pfx)).reduce((t,a)=>t+gAgtot(a),0);
-      const dv=D.despesas.filter(d=>(d.data||'').startsWith(pfx)).reduce((t,d)=>t+Number(d.valor),0);
-      const cnt=D.agendamentos.filter(a=>a.status==='concluido'&&(a.data||'').startsWith(pfx)).length;
+  // Tabela mensal — usa caixa
+  const tbWrap=document.getElementById("tb-rel")?.closest(".tw");
+  if(tbWrap) tbWrap.style.display=f==="ano"?"":"none";
+  if(f==="ano"){
+    document.getElementById("tb-rel").innerHTML=REL_MESES_SHORT.map((m,i)=>{
+      const pfx=`${yr}-${String(i+1).padStart(2,"0")}`;
+      const fv=D.caixa.filter(x=>x.tipo==="entrada"&&(x.data||"").startsWith(pfx)).reduce((t,x)=>t+Number(x.valor),0);
+      const dv=D.despesas.filter(d=>(d.data||"").startsWith(pfx)&&d.status==="pago").reduce((t,d)=>t+Number(d.valor),0);
+      const cnt=D.agendamentos.filter(a=>a.status==="concluido"&&(a.data||"").startsWith(pfx)).length;
       const l=fv-dv;
       return`<tr>
         <td style="font-weight:600">${m}</td>
         <td style="font-family:var(--fm);color:var(--gold)">${Rf(fv)}</td>
         <td style="font-family:var(--fm);color:var(--red)">${Rf(dv)}</td>
-        <td style="font-family:var(--fm);color:${l>=0?'var(--green)':'var(--red)'}">${Rf(l)}</td>
+        <td style="font-family:var(--fm);color:${l>=0?"var(--green)":"var(--red)"}">${Rf(l)}</td>
         <td>${cnt}</td>
-        <td style="font-family:var(--fm)">${cnt?Rf(fv/cnt):'—'}</td>
+        <td style="font-family:var(--fm)">${cnt?Rf(fv/cnt):"—"}</td>
       </tr>`;
-    }).join('');
+    }).join("");
   }
 }
 
