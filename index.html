@@ -739,7 +739,17 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
                 <div class="fgr"><label>API KEY</label><input id="cfg-wa-key" type="password" placeholder="••••••••" style="background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:13px;outline:none;width:100%"></div>
               </div>
               <div style="font-size:11px;color:var(--text3);margin-top:4px">Webhook para respostas: configure no Evolution API para chamar seu Supabase Edge Function e atualizar o campo <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">wa_status</code> nos agendamentos.</div>
-              <div style="margin-top:10px"><button class="btn gd sm" onclick="saveConfigWA()">SALVAR API WA</button><button class="btn gh sm" style="margin-left:8px" onclick="testarWA()">Testar conexão</button></div>
+              <div class="dv"></div>
+              <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:8px">MEU NÚMERO (para receber relatórios)</div>
+              <div class="fg fg2">
+                <div class="fgr"><label>MEU WHATSAPP</label><input id="cfg-wa-dono" placeholder="11999990000" style="background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:13px;outline:none;width:100%"></div>
+                <div class="fgr"><label>HORÁRIO DO RELATÓRIO DIÁRIO</label><input type="time" id="cfg-wa-relhr" value="07:00" style="background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:13px;outline:none;width:100%"></div>
+              </div>
+              <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn gd sm" onclick="saveConfigWA()">SALVAR CONFIG WA</button>
+                <button class="btn gh sm" onclick="testarWA()">📡 Testar conexão</button>
+                <button class="btn gh sm" onclick="waRelatorio()">📊 Enviar relatório agora</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1254,27 +1264,35 @@ const CURMTH= TODAY.substring(0,7);
 const WEEK  = (()=>{ const d=new Date(),dow=d.getDay(),s=new Date(d),e=new Date(d); s.setDate(d.getDate()-dow); e.setDate(d.getDate()+(6-dow)); return[dStr(s),dStr(e)]; })();
 // Mapa de status → classe CSS de badge
 // pendente=neutro | confirmado=amarelo | atendimento=roxo | concluido=verde(pago) | cancelado=cinza
-const SC = {pendente:'nt', confirmado:'gd', atendimento:'pr', concluido:'gr', cancelado:'gy', recusou:'gy'};
 
-// Status visual efetivo:
-// confirmado + hoje + hora passada → 'atendimento' (automático)
+// ============================================================
+// STATUS — mapa visual e lógica
+// ============================================================
+// BANCO:   pendente | confirmado | atendimento | concluido | cancelado
+// WA:      aguardando | confirmou | recusou (campo wa_status separado)
+// VISUAL:  recusou aparece quando wa_status=recusou (não muda status real)
+const SC = {
+  pendente:    'nt',   // cinza
+  confirmado:  'gd',   // amarelo
+  atendimento: 'pr',   // roxo
+  concluido:   'gr',   // verde
+  cancelado:   'gy',   // cinza apagado
+  recusou:     'gy',   // cinza apagado (visual do wa)
+};
+// efStatus: NUNCA muda status automaticamente — só lê o que está no banco
+// O "recusou" aparece como visual mas NÃO altera o status real
 const efStatus = ag => {
-  // wa_status sobrescreve status visual em certas condições
   if(ag.wa_status==='recusou') return 'recusou';
-  if(ag.wa_status==='confirmou'&&ag.status==='pendente') return 'confirmado';
-  if(ag.status==='confirmado'){
-    const agDate=(ag.data||'').substring(0,10);
-    if(agDate===TODAY){
-      const now=new Date();
-      const nowMin=now.getHours()*60+now.getMinutes();
-      if(nowMin >= toMin(ag.hora||'00:00')) return 'atendimento';
-    }
-  }
+  if(ag.wa_status==='confirmou' && ag.status==='pendente') return 'confirmado';
   return ag.status;
 };
 const efLabel = ag => ({
-  pendente:'Agendado', confirmado:'Confirmado', atendimento:'Em Atendimento',
-  concluido:'Pago', cancelado:'Cancelado', recusou:'Recusou'
+  pendente:    '📋 Agendado',
+  confirmado:  '✅ Confirmado',
+  atendimento: '🟣 Em Atendimento',
+  concluido:   '💰 Pago',
+  cancelado:   '❌ Cancelado',
+  recusou:     '🚫 Recusou',
 }[efStatus(ag)] || ag.status);
 
 // ============================================================
@@ -1444,6 +1462,7 @@ async function doLogin(){
   }
   if(window.innerWidth<768) document.getElementById('mob-b').style.display='flex';
   goTo('dashboard', document.querySelector('.ni.active'));
+  iniciarRelatorioDiario(); // inicia verificador de relatório diário
   // Realtime — wa_status e confirmação automática na agenda
   sb.channel('wa-updates')
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'agendamentos'},payload=>{
@@ -1564,6 +1583,12 @@ function renderDash(){
   const nPend=ags.filter(a=>a.status==='pendente').length;
   const nAtr =ags.filter(a=>a.status==='atendimento').length;
   const nConcl=ags.filter(a=>a.status==='concluido').length;
+  // Previsão do dia — soma de agendamentos pendentes e confirmados de hoje
+  const agsHoje=D.agendamentos.filter(a=>(a.data||'').substring(0,10)===TODAY&&a.status!=='cancelado');
+  const prevHoje=agsHoje.filter(a=>['pendente','confirmado','atendimento'].includes(a.status)).reduce((t,a)=>t+gAgtot(a),0);
+  const nHoje=agsHoje.filter(a=>['pendente','confirmado','atendimento'].includes(a.status)).length;
+  const fatHoje=D.caixa.filter(x=>x.tipo==='entrada'&&(x.data||'').substring(0,10)===TODAY).reduce((t,x)=>t+Number(x.valor),0);
+
   document.getElementById('d-cards').innerHTML=`
     <div class="sc"><div class="sc-l">FATURAMENTO</div><div class="sc-v gd">${Rf(fat)}</div></div>
     <div class="sc cR"><div class="sc-l">DESPESAS</div><div class="sc-v rd">${Rf(totalDesp)}</div></div>
@@ -1573,7 +1598,19 @@ function renderDash(){
     <div class="sc" style="border-top-color:var(--gold)"><div class="sc-l">🟡 CONFIRMADOS</div><div class="sc-v gd">${nConf}</div></div>
     <div class="sc"><div class="sc-l">— AGENDADOS</div><div class="sc-v">${nPend}</div></div>
     <div class="sc" style="border-top-color:var(--purple)"><div class="sc-l">🟣 EM ATENDIMENTO</div><div class="sc-v" style="color:var(--purple)">${nAtr}</div></div>
-    <div class="sc cG" style="border-top-color:var(--green)"><div class="sc-l">🟢 PAGOS</div><div class="sc-v gr">${nConcl}</div></div>`;
+    <div class="sc cG" style="border-top-color:var(--green)"><div class="sc-l">🟢 PAGOS</div><div class="sc-v gr">${nConcl}</div></div>
+    <div class="sc" style="border-top-color:#f59e0b;grid-column:1/-1">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <div class="sc-l">📅 PREVISÃO HOJE — ${nHoje} agendamento(s) pendente(s)/confirmado(s)</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">Valor previsto se todos forem atendidos</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px">
+          ${fatHoje>0?`<div style="text-align:right"><div style="font-size:10px;color:var(--green)">JÁ FATURADO HOJE</div><div style="font-family:var(--fm);font-size:16px;color:var(--green);font-weight:700">${Rf(fatHoje)}</div></div>`:''}
+          <div style="text-align:right"><div style="font-size:10px;color:#f59e0b">AINDA A FATURAR</div><div style="font-family:var(--fm);font-size:22px;color:#f59e0b;font-weight:700">${Rf(prevHoje)}</div></div>
+        </div>
+      </div>
+    </div>`;
   // chart — usa caixa por mês (valores reais)
   const ch=document.getElementById('d-chart'); ch.innerHTML='';
   const meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -1696,29 +1733,67 @@ function syncDatePicker(){ const p=document.getElementById('ag-date-pick'); if(p
 function verAg(id){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
   const tot=gAgtot(ag);
+  const ef=efStatus(ag);
+  const waInfo=ag.wa_status
+    ?`<span class="bd ${ag.wa_status==='confirmou'?'gr':ag.wa_status==='recusou'?'rd':'gy'}" style="font-size:10px;margin-top:4px">WA: ${ag.wa_status}</span>`:'';
+
+  const statusFlow=[
+    {k:'pendente',    ic:'📋', lbl:'Agendado',       cor:'#888'},
+    {k:'confirmado',  ic:'✅', lbl:'Confirmado',      cor:'var(--gold)'},
+    {k:'atendimento', ic:'🟣', lbl:'Em Atendimento',  cor:'var(--purple)'},
+    {k:'concluido',   ic:'💰', lbl:'Pago',            cor:'var(--green)'},
+    {k:'cancelado',   ic:'❌', lbl:'Cancelado',       cor:'var(--red)'},
+  ];
+
   document.getElementById('ver-body').innerHTML=`
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
       <div class="c-av">${ini(gCNm2(ag))}</div>
       <div style="flex:1"><div style="font-size:15px;font-weight:600">${gCNm2(ag)}</div><div style="font-size:12px;color:var(--text3)">${gPNm2(ag)}</div></div>
-      <span class="bd ${SC[efStatus(ag)]||'gy'}">${efLabel(ag)}</span>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+        <span class="bd ${SC[ef]||'gy'}" id="ver-status-badge">${efLabel(ag)}</span>
+        ${waInfo}
+      </div>
     </div>
+
+    <div style="background:var(--bg3);border-radius:var(--r2);padding:12px;margin-bottom:14px">
+      <div style="font-size:10px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:10px">🔄 MUDAR STATUS MANUALMENTE</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        ${statusFlow.map(s=>{
+          const ativo=ag.status===s.k;
+          return`<button onclick="mudarStatusAg('${id}','${s.k}',this)" id="ver-st-btn-${s.k}"
+            style="display:flex;align-items:center;gap:4px;padding:7px 11px;border-radius:20px;
+              border:2px solid ${ativo?s.cor:'var(--bc)'};
+              background:${ativo?s.cor:'transparent'};
+              color:${ativo?(s.k==='pendente'?'#fff':'#fff'):'var(--text2)'};
+              font-size:11px;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap">
+            ${s.ic} ${s.lbl}
+          </button>`;
+        }).join('')}
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:7px">💡 Clique para mudar. "Pago" abre o faturamento.</div>
+    </div>
+
     <div class="dv"></div>
     <div class="fg" style="gap:10px">
       <div style="display:flex;justify-content:space-between"><span style="color:var(--text3);font-size:12px">DATA</span><span style="font-family:var(--fm)">${fBR((ag.data||'').substring(0,10))}</span></div>
       <div style="display:flex;justify-content:space-between"><span style="color:var(--text3);font-size:12px">HORÁRIO</span><span style="font-family:var(--fm)">${ag.hora} – ${frMin(toMin(ag.hora)+(ag.duracao_total||ag.durTotal||30))}</span></div>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start"><span style="color:var(--text3);font-size:12px">SERVIÇOS</span><span style="text-align:right">${(ag.svcs||[]).map(gSNm).join('<br>')||'—'}</span></div>
-      <div style="display:flex;justify-content:space-between"><span style="color:var(--text3);font-size:12px">TOTAL</span><span style="font-family:var(--fm);font-size:20px;font-weight:700;color:var(--gold)">${Rf(tot)}</span></div>
-      ${ag.observacoes||ag.obs?`<div style="font-size:12px;color:var(--text3)">OBS: ${ag.observacoes||ag.obs}</div>`:''}
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <span style="color:var(--text3);font-size:12px">SERVIÇOS</span>
+        <span style="text-align:right;max-width:60%">${(ag.svcs||[]).map(gSNm).join('<br>')||'—'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="color:var(--text3);font-size:12px">VALOR PREVISTO</span>
+        <span style="font-family:var(--fm);font-size:20px;font-weight:700;color:var(--gold)">${Rf(tot)}</span>
+      </div>
+      ${ag.observacoes||ag.obs?`<div style="font-size:12px;color:var(--text3);padding:8px;background:var(--bg3);border-radius:var(--r2)">📝 ${ag.observacoes||ag.obs}</div>`:''}
     </div>`;
+
   const foot=document.getElementById('ver-foot'); foot.innerHTML='';
   const addB=(lbl,cls,fn)=>{ const b=document.createElement('button'); b.className=`btn ${cls}`; b.textContent=lbl; b.onclick=fn; foot.appendChild(b); };
   addB('Fechar','gh',()=>closeModal('m-ver'));
   addB('✏ Editar','ol',()=>{ closeModal('m-ver'); editAg(id); });
-  const ef=efStatus(ag);
-  if(['pendente','confirmado','atendimento'].includes(ef)){
-    if(ag.status==='pendente') addB('Confirmar','ol sm',()=>{ updateAgStatus(id,'confirmado'); closeModal('m-ver'); });
-    addB('✓ Faturar','gr',()=>{ closeModal('m-ver'); abrirFat(id); });
-    addB('Cancelar','rd sm',()=>{ closeModal('m-ver'); confirm2('⚠️','CANCELAR','Cancelar agendamento de '+gCNm2(ag)+'?',()=>updateAgStatus(id,'cancelado')); });
+  if(ag.status!=='concluido'&&ag.status!=='cancelado'){
+    addB('💰 Faturar','gr',()=>{ closeModal('m-ver'); abrirFat(id); });
   }
   if(ag.status==='concluido'){
     addB('↩ Reabrir','ol',()=>{ closeModal('m-ver'); reabrirComanda(id); });
@@ -1727,9 +1802,13 @@ function verAg(id){
 }
 
 async function updateAgStatus(id,status){
-  await sb.from('agendamentos').update({status}).eq('id',id);
-  await reloadSection('agendamentos');
-  renderAgenda(); renderComandas(); toast(status==='cancelado'?'Cancelado':'Status atualizado!',status==='cancelado'?'w':'ok');
+  const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
+  ag.status=status; // cache local imediato
+  renderAgenda(); renderComandas();
+  sb.from('agendamentos').update({status}).eq('id',id).then(({error})=>{
+    if(error) toast('Erro ao salvar status: '+error.message,'e');
+  });
+  toast(status==='cancelado'?'❌ Cancelado':'✅ Status: '+status, status==='cancelado'?'w':'ok');
 }
 
 // ============================================================
@@ -2995,15 +3074,21 @@ function saveConfigWA(){
   WA_CFG.url=(document.getElementById('cfg-wa-url')?.value||'').replace(/\/$/,'');
   WA_CFG.inst=document.getElementById('cfg-wa-inst')?.value||'';
   WA_CFG.key=document.getElementById('cfg-wa-key')?.value||'';
+  const dono=document.getElementById('cfg-wa-dono')?.value||'';
+  const relHr=document.getElementById('cfg-wa-relhr')?.value||'07:00';
   localStorage.setItem('wa_url',WA_CFG.url);
   localStorage.setItem('wa_inst',WA_CFG.inst);
   localStorage.setItem('wa_key',WA_CFG.key);
-  toast('Config WA salva!');
+  localStorage.setItem('wa_dono_num',dono);
+  localStorage.setItem('wa_rel_hora',relHr);
+  toast('✅ Config WhatsApp salva!');
 }
 function renderConfigWA(){
   const u=document.getElementById('cfg-wa-url'); if(u)u.value=WA_CFG.url;
   const i=document.getElementById('cfg-wa-inst'); if(i)i.value=WA_CFG.inst;
   const k=document.getElementById('cfg-wa-key'); if(k)k.value=WA_CFG.key;
+  const d=document.getElementById('cfg-wa-dono'); if(d)d.value=localStorage.getItem('wa_dono_num')||'';
+  const h=document.getElementById('cfg-wa-relhr'); if(h)h.value=localStorage.getItem('wa_rel_hora')||'07:00';
 }
 async function testarWA(){
   if(!WA_CFG.url||!WA_CFG.inst||!WA_CFG.key){toast('Configure URL, instância e chave primeiro','e');return;}
@@ -3136,19 +3221,75 @@ async function abrirSelecionadosWA(){
     toast(`Abrindo ${sels.length} conversa(s) no WhatsApp...`,'ok');
   }
 }
-function waRelatorio(){
+async function waRelatorio(){
   const ds=dStr(S.agDate);
   const ags=D.agendamentos.filter(a=>(a.data||'').substring(0,10)===ds&&a.status!=='cancelado');
   const confirmaram=ags.filter(a=>a.wa_status==='confirmou');
   const recusaram=ags.filter(a=>a.wa_status==='recusou');
   const aguardando=ags.filter(a=>a.wa_status==='aguardando');
   const semEnvio=ags.filter(a=>!a.wa_status);
-  let msg=`📊 RELATÓRIO WA — ${fBR(ds)}\n\n`;
-  msg+=`✅ Confirmaram (${confirmaram.length}):\n`+(confirmaram.map(a=>` • ${gCNm2(a)} ${a.hora}`).join('\n')||' nenhum');
-  msg+=`\n\n❌ Recusaram (${recusaram.length}):\n`+(recusaram.map(a=>` • ${gCNm2(a)} ${a.hora}`).join('\n')||' nenhum');
-  msg+=`\n\n⏳ Sem resposta / aguardando (${aguardando.length+semEnvio.length}):\n`+([...aguardando,...semEnvio].map(a=>` • ${gCNm2(a)} ${a.hora}`).join('\n')||' nenhum');
-  alert(msg);
+  const fat=D.caixa.filter(x=>x.tipo==='entrada'&&(x.data||'').substring(0,10)===ds).reduce((t,x)=>t+Number(x.valor),0);
+  let msg=`📊 *RELATÓRIO DO DIA — ${fBR(ds)}*\n\n`;
+  msg+=`💰 Faturamento: *${Rf(fat)}*\n`;
+  msg+=`📅 Total agendamentos: *${ags.length}*\n\n`;
+  msg+=`✅ *Confirmaram (${confirmaram.length}):*\n`+(confirmaram.map(a=>` • ${gCNm2(a)} — ${a.hora}`).join('\n')||' _nenhum_');
+  msg+=`\n\n❌ *Recusaram (${recusaram.length}):*\n`+(recusaram.map(a=>` • ${gCNm2(a)} — ${a.hora}`).join('\n')||' _nenhum_');
+  msg+=`\n\n⏳ *Aguardando resposta (${aguardando.length}):*\n`+(aguardando.map(a=>` • ${gCNm2(a)} — ${a.hora}`).join('\n')||' _nenhum_');
+  msg+=`\n\n📋 *Sem envio (${semEnvio.length}):*\n`+(semEnvio.map(a=>` • ${gCNm2(a)} — ${a.hora}`).join('\n')||' _nenhum_');
+  // Tenta enviar via API para o número do dono configurado
+  const numDono=localStorage.getItem('wa_dono_num')||'';
+  if(WA_CFG.url&&WA_CFG.inst&&WA_CFG.key&&numDono){
+    showLoad('Enviando relatório...');
+    const sent=await waEnviarAPI(numDono,msg);
+    hideLoad();
+    toast(sent?'📊 Relatório enviado para seu WhatsApp!':'❌ Erro ao enviar, verifique a API','e');
+  } else {
+    // Fallback: copia para área de transferência
+    navigator.clipboard?.writeText(msg).catch(()=>{});
+    alert(msg);
+    toast('Configure seu número em Config > WA para enviar automaticamente','w');
+  }
 }
+
+// ============================================================
+// RELATÓRIO DIÁRIO AUTOMÁTICO
+// Verifica todo dia se deve enviar o relatório
+// ============================================================
+function iniciarRelatorioDiario(){
+  const horarioRel=localStorage.getItem('wa_rel_hora')||'07:00';
+  const [hh,mm]=horarioRel.split(':').map(Number);
+  function checarEEnviar(){
+    const agora=new Date();
+    const jaMandouHoje=localStorage.getItem('wa_rel_ultimo')===dStr(agora);
+    if(!jaMandouHoje&&agora.getHours()===hh&&agora.getMinutes()===mm){
+      localStorage.setItem('wa_rel_ultimo',dStr(agora));
+      // Envia relatório do dia para o dono
+      const numDono=localStorage.getItem('wa_dono_num')||'';
+      if(WA_CFG.url&&WA_CFG.inst&&WA_CFG.key&&numDono){
+        waRelatorioDia(dStr(agora),numDono);
+      }
+    }
+  }
+  setInterval(checarEEnviar, 60000); // verifica a cada minuto
+}
+
+async function waRelatorioDia(ds,numDono){
+  const ags=D.agendamentos.filter(a=>(a.data||'').substring(0,10)===ds&&a.status!=='cancelado');
+  const fat=D.caixa.filter(x=>x.tipo==='entrada'&&(x.data||'').substring(0,10)===ds).reduce((t,x)=>t+Number(x.valor),0);
+  const salaoNm=document.getElementById('sl-nm')?.value||'Salão';
+  let msg=`🌅 *BOM DIA, ${salaoNm.toUpperCase()}!*\n\n`;
+  msg+=`📅 *Agenda de hoje — ${fBR(ds)}*\n`;
+  msg+=`Total de agendamentos: *${ags.length}*\n`;
+  if(fat>0) msg+=`💰 Faturamento do dia anterior: *${Rf(fat)}*\n`;
+  msg+=`\n*Horários de hoje:*\n`;
+  ags.sort((a,b)=>a.hora.localeCompare(b.hora)).forEach(a=>{
+    const icon={pendente:'📋',confirmado:'✅',atendimento:'🟣',concluido:'💰',cancelado:'❌'}[a.status]||'📋';
+    msg+=`${icon} ${a.hora} — ${gCNm2(a)} (${(a.svcs||[]).map(gSNm).join(', ')||'—'})\n`;
+  });
+  if(!ags.length) msg+=`_Nenhum agendamento para hoje_\n`;
+  await waEnviarAPI(numDono,msg);
+}
+
 
 // ============================================================
 // ============================================================
