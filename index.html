@@ -1021,6 +1021,11 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
       </div>
       <div id="pg-list"></div>
       <div style="margin-top:6px;font-size:11px;color:var(--text3)" id="fat-tax"></div>
+      <div id="fat-resumo-pgto" style="display:none;margin-top:10px;padding:10px 12px;background:var(--bg3);border-radius:var(--r2)">
+        <div style="font-size:10px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:6px">✅ SERÁ LANÇADO NO CAIXA</div>
+        <div id="fat-resumo-lista" style="font-size:12px"></div>
+        <div id="fat-resumo-total" style="font-size:13px;font-weight:700;color:var(--gold);margin-top:6px;padding-top:6px;border-top:1px dashed var(--bc)"></div>
+      </div>
     </div>
     <div class="mf"><button class="btn gh" onclick="closeModal('m-fat')">Cancelar</button><button class="btn gr" onclick="confirmarFat()">✓ CONFIRMAR</button></div>
   </div>
@@ -2218,7 +2223,9 @@ function abrirFat(agId){
   const ag=D.agendamentos.find(a=>a.id===agId); if(!ag)return;
   if(ag.status==='cancelado'){ toast('Não é possível faturar comanda cancelada','e'); return; }
   const pendentes=D.agendamentos.filter(a=>cliId(a)===cliId(ag)&&(a.status==='pendente'||a.status==='confirmado'));
-  S.fatIds=[agId]; S.pgtos=[]; S.selPgTipo=null;
+  S.fatIds=[agId]; S.pgtos=[]; S.selPgTipo=null; S._faturando=false;
+  const resumoEl=document.getElementById('fat-resumo-pgto'); if(resumoEl)resumoEl.style.display='none';
+  const pgListEl=document.getElementById('pg-list'); if(pgListEl)pgListEl.innerHTML='';
   const list=document.getElementById('fat-list'); list.innerHTML='';
   pendentes.forEach(a=>{
     const item=document.createElement('div'); item.className='cc-item'+(a.id===agId?' sel':'');
@@ -2299,16 +2306,43 @@ function addPg(){
   }
   const taxa=S.selPgTipo==='credito'?D.cfg.taxaCred:S.selPgTipo==='debito'?D.cfg.taxaDeb:0;
   const liq=val*(1-taxa/100);
-  S.pgtos.push({tipo:S.selPgTipo,valor:val,taxa,liq});
+  // Chave única e estável — evita bug de remoção por índice desatualizado
+  const pgUid = 'pg_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+  S.pgtos.push({uid:pgUid, tipo:S.selPgTipo, valor:val, taxa, liq});
   const list=document.getElementById('pg-list');
-  const row=document.createElement('div'); row.className='pg-row';
+  const row=document.createElement('div'); row.className='pg-row'; row.dataset.uid=pgUid;
   const nms={pix:'PIX',dinheiro:'Dinheiro',credito:'Crédito',debito:'Débito',saldo:'💳 Saldo Cliente'};
   row.innerHTML=`<span style="font-weight:600">${nms[S.selPgTipo]}</span><span style="color:var(--text3)">${taxa>0?'(-'+taxa+'%) ≈ '+Rf(liq):''}</span><span style="font-family:var(--fm);color:var(--gold)">${Rf(val)}</span>`;
   const rm=document.createElement('button'); rm.className='rm'; rm.textContent='✕';
-  const idx=S.pgtos.length-1; rm.onclick=()=>{ S.pgtos.splice(idx,1); row.remove(); updTax(); };
+  rm.onclick=()=>{ S.pgtos=S.pgtos.filter(p=>p.uid!==pgUid); row.remove(); updTax(); };
   row.appendChild(rm); list.appendChild(row); updTax(); document.getElementById('pg-vl').value='';
 }
-function updTax(){ const tt=S.pgtos.reduce((t,p)=>t+p.valor*(p.taxa/100),0); document.getElementById('fat-tax').textContent=tt>0?`Taxas: -${Rf(tt)} | Líquido: ${Rf(S.pgtos.reduce((t,p)=>t+p.liq,0))}`:''; }
+function updTax(){
+  const tt=S.pgtos.reduce((t,p)=>t+p.valor*(p.taxa/100),0);
+  document.getElementById('fat-tax').textContent=tt>0?`Taxas: -${Rf(tt)} | Líquido: ${Rf(S.pgtos.reduce((t,p)=>t+p.liq,0))}`:'';
+  atualizarResumoPgto();
+}
+// Mostra exatamente o que será salvo no caixa, por forma de pagamento — evita surpresas
+function atualizarResumoPgto(){
+  const wrap=document.getElementById('fat-resumo-pgto');
+  const lista=document.getElementById('fat-resumo-lista');
+  const totalEl=document.getElementById('fat-resumo-total');
+  if(!wrap||!lista||!totalEl) return;
+  if(!S.pgtos.length){ wrap.style.display='none'; return; }
+  const nms={pix:'PIX',dinheiro:'Dinheiro',credito:'Crédito',debito:'Débito',saldo:'💳 Saldo (abatimento)'};
+  // Agrupa por forma (caso tenha 2x a mesma forma)
+  const grp={};
+  S.pgtos.forEach(p=>{ grp[p.tipo]=(grp[p.tipo]||0)+p.valor; });
+  lista.innerHTML=Object.entries(grp).map(([tipo,val])=>
+    `<div style="display:flex;justify-content:space-between;padding:2px 0">
+      <span>${nms[tipo]||tipo}${tipo==='saldo'?' <span style="color:var(--text3)">(não soma no caixa)</span>':''}</span>
+      <span style="font-family:var(--fm)">${Rf(val)}</span>
+    </div>`
+  ).join('');
+  const totalCaixa=S.pgtos.filter(p=>p.tipo!=='saldo').reduce((t,p)=>t+p.valor,0);
+  totalEl.textContent=`Total no caixa: ${Rf(totalCaixa)}`;
+  wrap.style.display='block';
+}
 
 // ── Créditos de Cliente ─────────────────────────────────────
 function gCliCredito(cliId){
@@ -2376,59 +2410,82 @@ function reabrirComanda(id){
 async function confirmarFat(){
   if(S.fatIds.length===0){ toast('Selecione pelo menos uma comanda','e'); return; }
   if(S.pgtos.length===0){ toast('Adicione pelo menos um pagamento','e'); return; }
-  showLoad('Faturando...');
-  const hoje=document.getElementById('fat-dt')?.value || TODAY;
-  const desc=parseFloat(document.getElementById('fat-desc')?.value)||0;
-  // Valor total a registrar (personalizado ou calculado)
-  const customChk=document.getElementById('fat-custom-chk');
-  const customVal=parseFloat(document.getElementById('fat-custom-val')?.value)||0;
-  const usandoCustom=customChk?.checked && customVal>0;
-  const totalFinal=S._fatTotal||0;
+  // Proteção contra duplo clique / duplo envio
+  if(S._faturando) return;
+  S._faturando = true;
+  const btnConfirmar = document.querySelector('#m-fat .mf .btn.gr');
+  if(btnConfirmar){ btnConfirmar.disabled = true; btnConfirmar.style.opacity = '0.5'; btnConfirmar.style.pointerEvents = 'none'; btnConfirmar.textContent = 'Processando...'; }
 
-  for(const id of S.fatIds){
-    const ag=D.agendamentos.find(a=>a.id===id); if(!ag)continue;
-    const tot=usandoCustom ? customVal/S.fatIds.length : (S._fatTotal/S.fatIds.length)||gAgtot(ag);
-    // Atualiza status + valor_cobrado no agendamento
-    const upd={status:'concluido'};
-    if(desc>0) upd.desconto=desc;
-    if(usandoCustom) upd.valor_cobrado=tot; // salva valor personalizado
-    await sb.from('agendamentos').update(upd).eq('id',id);
-    // Atualiza cache local imediatamente
-    const agLocal=D.agendamentos.find(a=>a.id===id);
-    if(agLocal){ agLocal.status='concluido'; if(upd.valor_cobrado)agLocal.valor_cobrado=tot; }
-    const pgTipo=S.pgtos[0]?.tipo||'pix';
-    await sb.from('caixa').insert({
-      tipo:'entrada',
-      descricao:'Comanda - '+gCNm2(ag)+(desc>0?` (desc. ${Rf(desc)})`:''+(usandoCustom?' (valor ajustado)':'')),
-      valor:tot, data:hoje, forma_pagamento:pgTipo, agendamento_id:id
-    });
-  }
-  // Taxa do cartão → despesa automática
-  for(const pg of S.pgtos){
-    if((pg.tipo==='credito'||pg.tipo==='debito') && pg.taxa>0){
-      const taxaVal=pg.valor*(pg.taxa/100);
-      const nms={credito:'Crédito',debito:'Débito'};
-      await sb.from('despesas').insert({
-        descricao:`Taxa ${nms[pg.tipo]} (${pg.taxa}%) — faturamento`,
-        valor:taxaVal, categoria:'Taxas Financeiras', data:hoje, status:'pago'
-      });
+  try {
+    showLoad('Faturando...');
+    const hoje=document.getElementById('fat-dt')?.value || TODAY;
+    const desc=parseFloat(document.getElementById('fat-desc')?.value)||0;
+    const customChk=document.getElementById('fat-custom-chk');
+    const customVal=parseFloat(document.getElementById('fat-custom-val')?.value)||0;
+    const usandoCustom=customChk?.checked && customVal>0;
+    const totalFinal=S._fatTotal||0;
+
+    // ① Atualiza status dos agendamentos (sem lançar caixa aqui ainda)
+    for(const id of S.fatIds){
+      const ag=D.agendamentos.find(a=>a.id===id); if(!ag)continue;
+      const tot=usandoCustom ? customVal/S.fatIds.length : (S._fatTotal/S.fatIds.length)||gAgtot(ag);
+      const upd={status:'concluido'};
+      if(desc>0) upd.desconto=desc;
+      if(usandoCustom) upd.valor_cobrado=tot;
+      await sb.from('agendamentos').update(upd).eq('id',id);
+      const agLocal=D.agendamentos.find(a=>a.id===id);
+      if(agLocal){ agLocal.status='concluido'; if(upd.valor_cobrado)agLocal.valor_cobrado=tot; }
+    }
+
+    // ② Lança CADA forma de pagamento separadamente no caixa — com o VALOR REAL de cada uma
+    const nomeComandas=S.fatIds.map(id=>{ const a=D.agendamentos.find(x=>x.id===id); return a?gCNm2(a):''; }).filter(Boolean).join(', ');
+    const agendamentoRef = S.fatIds.length===1 ? S.fatIds[0] : null;
+
+    for(const pg of S.pgtos){
+      if(pg.tipo==='saldo') continue; // abatimento de crédito, não é entrada nova
       await sb.from('caixa').insert({
-        tipo:'saida', descricao:`Taxa cartão ${nms[pg.tipo]} (${pg.taxa}%)`,
-        valor:taxaVal, data:hoje, forma_pagamento:pg.tipo
+        tipo:'entrada',
+        descricao:`Comanda - ${nomeComandas}${desc>0?` (desc. ${Rf(desc)})`:''}${usandoCustom?' (valor ajustado)':''}`,
+        valor: pg.valor,
+        data: hoje,
+        forma_pagamento: pg.tipo,
+        agendamento_id: agendamentoRef,
       });
     }
-    if(pg.tipo==='saldo' && S._fatCliId){
-      await sb.from('historico_cliente').insert({
-        cliente_id:S._fatCliId, valor:-pg.valor,
-        descricao:`[CREDITO] Saldo utilizado no faturamento`, data:hoje
-      });
+
+    // ③ Taxa do cartão → despesa automática
+    for(const pg of S.pgtos){
+      if((pg.tipo==='credito'||pg.tipo==='debito') && pg.taxa>0){
+        const taxaVal=pg.valor*(pg.taxa/100);
+        const nms={credito:'Crédito',debito:'Débito'};
+        await sb.from('despesas').insert({
+          descricao:`Taxa ${nms[pg.tipo]} (${pg.taxa}%) — faturamento`,
+          valor:taxaVal, categoria:'Taxas Financeiras', data:hoje, status:'pago'
+        });
+        await sb.from('caixa').insert({
+          tipo:'saida', descricao:`Taxa cartão ${nms[pg.tipo]} (${pg.taxa}%)`,
+          valor:taxaVal, data:hoje, forma_pagamento:pg.tipo
+        });
+      }
+      if(pg.tipo==='saldo' && S._fatCliId){
+        await sb.from('historico_cliente').insert({
+          cliente_id:S._fatCliId, valor:-pg.valor,
+          descricao:`[CREDITO] Saldo utilizado no faturamento`, data:hoje
+        });
+      }
     }
+    await Promise.all([reloadSection('agendamentos'),reloadSection('caixa'),reloadSection('despesas'),reloadSection('historico')]);
+    hideLoad(); closeModal('m-fat');
+    const taxTotal=S.pgtos.filter(p=>p.tipo==='credito'||p.tipo==='debito').reduce((t,p)=>t+p.valor*(p.taxa/100),0);
+    toast(`${S.fatIds.length} comanda(s) faturada(s) · ${Rf(totalFinal)}${taxTotal>0?' · Taxa '+Rf(taxTotal):''}`);
+    renderComandas(); renderDash();
+  } catch(e){
+    hideLoad();
+    toast('Erro ao faturar: '+e.message,'e');
+  } finally {
+    S._faturando = false;
+    if(btnConfirmar){ btnConfirmar.disabled = false; btnConfirmar.style.opacity = '1'; btnConfirmar.style.pointerEvents = 'auto'; btnConfirmar.textContent = '✓ CONFIRMAR'; }
   }
-  await Promise.all([reloadSection('agendamentos'),reloadSection('caixa'),reloadSection('despesas'),reloadSection('historico')]);
-  hideLoad(); closeModal('m-fat');
-  const taxTotal=S.pgtos.filter(p=>p.tipo==='credito'||p.tipo==='debito').reduce((t,p)=>t+p.valor*(p.taxa/100),0);
-  toast(`${S.fatIds.length} comanda(s) faturada(s) · ${Rf(totalFinal)}${taxTotal>0?' · Taxa '+Rf(taxTotal):''}`);
-  renderComandas(); renderDash();
 }
 
 // ============================================================
@@ -2977,13 +3034,12 @@ function renderRel(){
       <span class="bd gd" style="margin-left:8px;flex-shrink:0">${cnt}x</span>
     </div>`).join(''):'<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Sem dados</div>';
 
-  // Faturamento por Profissional
-  // Faturamento por Profissional — via caixa (valores reais)
+  // Faturamento por Profissional — via caixa (valores reais, soma todas as formas de pgto do agendamento)
   const profFat={};
   agsF.forEach(a=>{
     const pid=profId(a);
-    const cxAg=D.caixa.find(x=>x.agendamento_id===a.id&&x.tipo==="entrada");
-    const val=cxAg?Number(cxAg.valor):gAgtot(a);
+    const cxAg=D.caixa.filter(x=>x.agendamento_id===a.id&&x.tipo==="entrada");
+    const val=cxAg.length?cxAg.reduce((t,x)=>t+Number(x.valor),0):gAgtot(a);
     profFat[pid]=(profFat[pid]||0)+val;
   });
   const topProf=Object.entries(profFat).sort((a,b)=>b[1]-a[1]);
