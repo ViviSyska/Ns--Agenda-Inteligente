@@ -1583,11 +1583,14 @@ function renderDash(){
   const nPend=ags.filter(a=>a.status==='pendente').length;
   const nAtr =ags.filter(a=>a.status==='atendimento').length;
   const nConcl=ags.filter(a=>a.status==='concluido').length;
-  // Previsão do dia — soma de agendamentos pendentes e confirmados de hoje
-  const agsHoje=D.agendamentos.filter(a=>(a.data||'').substring(0,10)===TODAY&&a.status!=='cancelado');
-  const prevHoje=agsHoje.filter(a=>['pendente','confirmado','atendimento'].includes(a.status)).reduce((t,a)=>t+gAgtot(a),0);
-  const nHoje=agsHoje.filter(a=>['pendente','confirmado','atendimento'].includes(a.status)).length;
-  const fatHoje=D.caixa.filter(x=>x.tipo==='entrada'&&(x.data||'').substring(0,10)===TODAY).reduce((t,x)=>t+Number(x.valor),0);
+  // Previsão do período — usa o mesmo filtro do dashboard (hoje/semana/mês/ano)
+  const agsPeriodo=fAgs().filter(a=>a.status!=='cancelado');
+  const agsAbertos=agsPeriodo.filter(a=>['pendente','confirmado','atendimento'].includes(a.status));
+  const prevPeriodo=agsAbertos.reduce((t,a)=>t+gAgtot(a),0);
+  const nAbertos=agsAbertos.length;
+  const fatPeriodo=fat; // já calculado acima via caixa filtrado
+  const periodoLabel={hoje:'HOJE',semana:'ESTA SEMANA',mes:'ESTE MÊS',ano:'ESTE ANO'}[S.filter]||'HOJE';
+  const iconePerido={hoje:'📅',semana:'🗓',mes:'📆',ano:'📊'}[S.filter]||'📅';
 
   document.getElementById('d-cards').innerHTML=`
     <div class="sc"><div class="sc-l">FATURAMENTO</div><div class="sc-v gd">${Rf(fat)}</div></div>
@@ -1602,12 +1605,12 @@ function renderDash(){
     <div class="sc" style="border-top-color:#f59e0b;grid-column:1/-1">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <div>
-          <div class="sc-l">📅 PREVISÃO HOJE — ${nHoje} agendamento(s) pendente(s)/confirmado(s)</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">Valor previsto se todos forem atendidos</div>
+          <div class="sc-l">${iconePerido} PREVISÃO ${periodoLabel} — ${nAbertos} agendamento(s) em aberto</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">Valor previsto se todos forem atendidos no período</div>
         </div>
         <div style="display:flex;align-items:center;gap:16px">
-          ${fatHoje>0?`<div style="text-align:right"><div style="font-size:10px;color:var(--green)">JÁ FATURADO HOJE</div><div style="font-family:var(--fm);font-size:16px;color:var(--green);font-weight:700">${Rf(fatHoje)}</div></div>`:''}
-          <div style="text-align:right"><div style="font-size:10px;color:#f59e0b">AINDA A FATURAR</div><div style="font-family:var(--fm);font-size:22px;color:#f59e0b;font-weight:700">${Rf(prevHoje)}</div></div>
+          ${fatPeriodo>0?`<div style="text-align:right"><div style="font-size:10px;color:var(--green)">JÁ FATURADO</div><div style="font-family:var(--fm);font-size:16px;color:var(--green);font-weight:700">${Rf(fatPeriodo)}</div></div>`:''}
+          ${prevPeriodo>0?`<div style="text-align:right"><div style="font-size:10px;color:#f59e0b">AINDA A FATURAR</div><div style="font-family:var(--fm);font-size:22px;color:#f59e0b;font-weight:700">${Rf(prevPeriodo)}</div></div>`:'<div style="font-size:12px;color:var(--text3)">Nenhum agendamento em aberto</div>'}
         </div>
       </div>
     </div>`;
@@ -1647,7 +1650,7 @@ function renderDash(){
   document.getElementById('d-prox').innerHTML=prox.length?prox.map(a=>{
     const st=efStatus(a); const cls={pendente:'nt',confirmado:'gd',atendimento:'pr'}[st]||'nt';
     const lbl={pendente:'Agendado',confirmado:'Confirmado',atendimento:'Em Atendimento'}[st]||'';
-    return`<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--bc)" onclick="navTo('agenda')" style="cursor:pointer">
+    return`<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--bc)" onclick="goTo('agenda',document.querySelector('.ni[onclick*=agenda]'))" style="cursor:pointer">
       <div style="width:38px;height:38px;border-radius:var(--r2);background:var(--bg3);display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0">
         <div style="font-size:16px;font-weight:700;color:var(--text);line-height:1">${(a.data||'').substring(8,10)}</div>
         <div style="font-size:8px;color:var(--text3);letter-spacing:.5px">${['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'][parseInt((a.data||'').substring(5,7))-1]||''}</div>
@@ -1809,6 +1812,61 @@ async function updateAgStatus(id,status){
     if(error) toast('Erro ao salvar status: '+error.message,'e');
   });
   toast(status==='cancelado'?'❌ Cancelado':'✅ Status: '+status, status==='cancelado'?'w':'ok');
+}
+
+// Usada pelos botões de status no modal verAg
+async function mudarStatusAg(id, novoStatus, btnEl){
+  const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
+  if(ag.status===novoStatus) return; // já está nesse status
+
+  // "Pago" abre o fluxo de faturamento (não muda status direto)
+  if(novoStatus==='concluido'){
+    closeModal('m-ver');
+    abrirFat(id);
+    return;
+  }
+
+  // "Cancelado" pede confirmação antes
+  if(novoStatus==='cancelado'){
+    confirm2('❌','CANCELAR AGENDAMENTO',
+      `Cancelar o agendamento de ${gCNm2(ag)}?`,
+      ()=>_aplicarStatusManual(id, novoStatus, btnEl),
+      'SIM, CANCELAR','rd'
+    );
+    return;
+  }
+
+  _aplicarStatusManual(id, novoStatus, btnEl);
+}
+
+function _aplicarStatusManual(id, novoStatus, btnEl){
+  const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
+  const labels={pendente:'Agendado',confirmado:'Confirmado',atendimento:'Em Atendimento',concluido:'Pago',cancelado:'Cancelado'};
+  const cores={pendente:'#888',confirmado:'var(--gold)',atendimento:'var(--purple)',concluido:'var(--green)',cancelado:'var(--red)'};
+
+  // ① Cache local imediato — reflete na hora
+  ag.status = novoStatus;
+
+  // ② Atualiza visual dos botões no modal
+  document.querySelectorAll('[id^="ver-st-btn-"]').forEach(b=>{
+    b.style.borderColor='var(--bc)'; b.style.background='transparent'; b.style.color='var(--text2)';
+  });
+  if(btnEl){
+    btnEl.style.borderColor=cores[novoStatus]||'var(--gold)';
+    btnEl.style.background=cores[novoStatus]||'var(--gold)';
+    btnEl.style.color='#fff';
+  }
+  const badge=document.getElementById('ver-status-badge');
+  if(badge){ badge.textContent=efLabel(ag); badge.className='bd '+(SC[novoStatus]||'gy'); }
+
+  // ③ Re-renderiza agenda/comandas instantaneamente
+  renderAgenda(); renderComandas();
+  toast(`Status → ${labels[novoStatus]||novoStatus}`, novoStatus==='cancelado'?'w':'ok');
+
+  // ④ Persiste no banco em background
+  sb.from('agendamentos').update({status:novoStatus}).eq('id',id).then(({error})=>{
+    if(error) toast('Erro ao salvar no banco: '+error.message,'e');
+  });
 }
 
 // ============================================================
