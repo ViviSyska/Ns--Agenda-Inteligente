@@ -1016,7 +1016,7 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
       </div>
       <div id="fat-saldo-info" style="display:none;font-size:11px;color:var(--green);margin-top:4px"></div>
       <div class="fg fg2" style="margin-bottom:8px">
-        <div class="fgr"><label>VALOR PARCIAL (R$)</label><input type="number" id="pg-vl" placeholder="Deixe vazio para total" step="0.01"></div>
+        <div class="fgr"><label>VALOR (R$)</label><input type="number" id="pg-vl" placeholder="Sugestão = valor restante" step="0.01"></div>
         <div style="display:flex;align-items:flex-end"><button class="btn ol sm" style="width:100%" onclick="addPg()">+ Adicionar</button></div>
       </div>
       <div id="pg-list"></div>
@@ -2226,6 +2226,7 @@ function abrirFat(agId){
   S.fatIds=[agId]; S.pgtos=[]; S.selPgTipo=null; S._faturando=false;
   const resumoEl=document.getElementById('fat-resumo-pgto'); if(resumoEl)resumoEl.style.display='none';
   const pgListEl=document.getElementById('pg-list'); if(pgListEl)pgListEl.innerHTML='';
+  const saldoInfoEl=document.getElementById('fat-saldo-info'); if(saldoInfoEl)saldoInfoEl.style.display='none';
   const list=document.getElementById('fat-list'); list.innerHTML='';
   pendentes.forEach(a=>{
     const item=document.createElement('div'); item.className='cc-item'+(a.id===agId?' sel':'');
@@ -2288,12 +2289,38 @@ function calcFatTotal(){
 }
 function selPg(el,tipo){
   document.querySelectorAll('.pg-b').forEach(b=>b.classList.remove('sel')); el.classList.add('sel'); S.selPgTipo=tipo;
-  const tot=S.fatIds.reduce((t,id)=>{ const a=D.agendamentos.find(x=>x.id===id); return t+(a?gAgtot(a):0); },0);
+  // Total real considerando desconto e valor personalizado (mesma lógica do card TOTAL A PAGAR)
+  const totReal = S._fatTotal || S.fatIds.reduce((t,id)=>{ const a=D.agendamentos.find(x=>x.id===id); return t+(a?gAgtot(a):0); },0);
+  // Já foi lançado em pagamentos anteriores nesta mesma comanda
+  const jaAdicionado = S.pgtos.reduce((t,p)=>t+p.valor,0);
+  const restante = Math.max(0, totReal - jaAdicionado);
   if(tipo==='saldo'){
     const saldo=gCliCredito(S._fatCliId||'');
-    document.getElementById('pg-vl').value=Math.min(saldo,tot).toFixed(2);
+    document.getElementById('pg-vl').value=Math.min(saldo,restante||totReal).toFixed(2);
   } else {
-    document.getElementById('pg-vl').value=tot.toFixed(2);
+    // Sugere o RESTANTE (não o total cheio) — evita lançar valor duplicado ao dividir pagamento
+    document.getElementById('pg-vl').value=(restante>0?restante:totReal).toFixed(2);
+  }
+  atualizarRestanteInfo();
+}
+// Mostra quanto já foi lançado e quanto falta — atualiza a cada seleção/adição
+function atualizarRestanteInfo(){
+  const totReal = S._fatTotal || S.fatIds.reduce((t,id)=>{ const a=D.agendamentos.find(x=>x.id===id); return t+(a?gAgtot(a):0); },0);
+  const jaAdicionado = S.pgtos.reduce((t,p)=>t+p.valor,0);
+  const restante = totReal - jaAdicionado;
+  const el=document.getElementById('fat-saldo-info');
+  if(!el) return;
+  if(jaAdicionado===0){ el.style.display='none'; return; }
+  el.style.display='block';
+  if(restante>0.009){
+    el.style.color='var(--gold)';
+    el.textContent=`Já lançado: ${Rf(jaAdicionado)} · Falta: ${Rf(restante)}`;
+  } else if(restante<-0.009){
+    el.style.color='var(--red)';
+    el.textContent=`Já lançado: ${Rf(jaAdicionado)} · Valor A MAIS: ${Rf(Math.abs(restante))} (gorjeta/arredondamento)`;
+  } else {
+    el.style.color='var(--green)';
+    el.textContent=`✓ Valor completo lançado: ${Rf(jaAdicionado)}`;
   }
 }
 function addPg(){
@@ -2314,8 +2341,8 @@ function addPg(){
   const nms={pix:'PIX',dinheiro:'Dinheiro',credito:'Crédito',debito:'Débito',saldo:'💳 Saldo Cliente'};
   row.innerHTML=`<span style="font-weight:600">${nms[S.selPgTipo]}</span><span style="color:var(--text3)">${taxa>0?'(-'+taxa+'%) ≈ '+Rf(liq):''}</span><span style="font-family:var(--fm);color:var(--gold)">${Rf(val)}</span>`;
   const rm=document.createElement('button'); rm.className='rm'; rm.textContent='✕';
-  rm.onclick=()=>{ S.pgtos=S.pgtos.filter(p=>p.uid!==pgUid); row.remove(); updTax(); };
-  row.appendChild(rm); list.appendChild(row); updTax(); document.getElementById('pg-vl').value='';
+  rm.onclick=()=>{ S.pgtos=S.pgtos.filter(p=>p.uid!==pgUid); row.remove(); updTax(); atualizarRestanteInfo(); };
+  row.appendChild(rm); list.appendChild(row); updTax(); atualizarRestanteInfo(); document.getElementById('pg-vl').value='';
 }
 function updTax(){
   const tt=S.pgtos.reduce((t,p)=>t+p.valor*(p.taxa/100),0);
