@@ -1625,7 +1625,17 @@ function renderDash(){
   const periodoLabel={hoje:'HOJE',semana:'ESTA SEMANA',mes:'ESTE MÊS',ano:'ESTE ANO'}[S.filter]||'HOJE';
   const iconePerido={hoje:'📅',semana:'🗓',mes:'📆',ano:'📊'}[S.filter]||'📅';
   // Contas em aberto — comandas com pagamento PARCIAL (dinheiro que ficou faltando)
-  const comSaldoDevedor=D.agendamentos.filter(a=>a.status!=='cancelado'&&gAgSaldo(a)>0.01);
+  // ⚠️ CONTAS EM ABERTO — só comandas de HOJE que JÁ FORAM COBRADAS (têm pagamento
+  // parcial real no caixa) mas ainda falta receber. NÃO inclui agendamentos que ainda
+  // nem foram faturados — esses já aparecem em "Ainda a Faturar" (Previsão).
+  const comSaldoDevedor=D.agendamentos.filter(a=>{
+    if(a.status==='cancelado') return false;
+    const dt=(a.data||'').substring(0,10);
+    if(dt!==TODAY) return false; // só hoje
+    const pagoReal=D.caixa.filter(x=>x.agendamento_id===a.id&&x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
+    if(pagoReal<=0) return false; // nunca foi cobrada ainda — não é "em aberto", é só pendente de faturar
+    return gAgSaldo(a)>0.01;
+  });
   const totalSaldoDevedor=comSaldoDevedor.reduce((t,a)=>t+gAgSaldo(a),0);
 
   document.getElementById('d-cards').innerHTML=`
@@ -1642,7 +1652,7 @@ function renderDash(){
     <div class="sc" style="border-top-color:var(--red);grid-column:1/-1">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <div>
-          <div class="sc-l">⚠️ CONTAS EM ABERTO — ${comSaldoDevedor.length} comanda(s) com saldo pendente</div>
+          <div class="sc-l">⚠️ CONTAS EM ABERTO HOJE — ${comSaldoDevedor.length} comanda(s) com saldo pendente</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px">Clientes que pagaram menos que o combinado — falta receber</div>
         </div>
         <div style="text-align:right">
