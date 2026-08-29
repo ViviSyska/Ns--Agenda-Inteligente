@@ -1279,11 +1279,17 @@ const gAgtot= ag => {
   return Math.max(0,base-desc);
 };
 // Quanto AINDA FALTA PAGAR desta comanda — diferente de gAgtot (que é o preço TOTAL combinado)
-// Se nunca foi cobrada (saldo_devedor null), falta o valor inteiro.
-// Se já foi paga parcialmente, retorna só o que restou.
+// SEMPRE calculado a partir do CAIXA REAL (fonte da verdade), não de um campo salvo que pode
+// ficar desatualizado por correções manuais de banco. Assim nunca mais "perde" o pagamento parcial.
 const gAgSaldo = ag => {
+  const totalCombinado = gAgtot(ag);
+  const pagoReal = D.caixa
+    .filter(x=>x.agendamento_id===ag.id && x.tipo==='entrada')
+    .reduce((t,x)=>t+Number(x.valor),0);
+  if(pagoReal>0) return Math.max(0, totalCombinado-pagoReal);
+  // Sem nenhum pagamento no caixa ainda: usa saldo_devedor salvo, se existir; senão o total inteiro
   if(ag.saldo_devedor!==null && ag.saldo_devedor!==undefined) return Math.max(0, Number(ag.saldo_devedor));
-  return gAgtot(ag);
+  return totalCombinado;
 };
 const TODAY = dStr(new Date());
 const CURYR = new Date().getFullYear().toString();
@@ -1613,14 +1619,14 @@ function renderDash(){
   // Previsão do período — usa o mesmo filtro do dashboard (hoje/semana/mês/ano)
   const agsPeriodo=fAgs().filter(a=>a.status!=='cancelado');
   const agsAbertos=agsPeriodo.filter(a=>['pendente','confirmado','atendimento'].includes(a.status));
-  const prevPeriodo=agsAbertos.reduce((t,a)=>t+gAgtot(a),0);
+  const prevPeriodo=agsAbertos.reduce((t,a)=>t+gAgSaldo(a),0);
   const nAbertos=agsAbertos.length;
   const fatPeriodo=fat; // já calculado acima via caixa filtrado
   const periodoLabel={hoje:'HOJE',semana:'ESTA SEMANA',mes:'ESTE MÊS',ano:'ESTE ANO'}[S.filter]||'HOJE';
   const iconePerido={hoje:'📅',semana:'🗓',mes:'📆',ano:'📊'}[S.filter]||'📅';
   // Contas em aberto — comandas com pagamento PARCIAL (dinheiro que ficou faltando)
-  const comSaldoDevedor=D.agendamentos.filter(a=>a.status!=='cancelado'&&Number(a.saldo_devedor)>0.01);
-  const totalSaldoDevedor=comSaldoDevedor.reduce((t,a)=>t+Number(a.saldo_devedor),0);
+  const comSaldoDevedor=D.agendamentos.filter(a=>a.status!=='cancelado'&&gAgSaldo(a)>0.01);
+  const totalSaldoDevedor=comSaldoDevedor.reduce((t,a)=>t+gAgSaldo(a),0);
 
   document.getElementById('d-cards').innerHTML=`
     <div class="sc"><div class="sc-l">FATURAMENTO</div><div class="sc-v gd">${Rf(fat)}</div></div>
@@ -2269,7 +2275,7 @@ function renderComandas(){
   );
   ags=ags.sort((a,b)=>(b.data||'').localeCompare(a.data||'')||b.hora.localeCompare(a.hora));
   document.getElementById('tb-cmd').innerHTML=ags.length?ags.map(a=>{
-    const saldoDev=Number(a.saldo_devedor)||0;
+    const saldoDev=gAgSaldo(a);
     return`<tr>
     <td><strong>${gCNm2(a)}</strong></td>
     <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(a.svcs||[]).map(gSNm).join(', ')||'—'}</td>
@@ -2297,7 +2303,7 @@ function abrirFat(agId){
   const ag=D.agendamentos.find(a=>a.id===agId); if(!ag)return;
   if(ag.status==='cancelado'){ toast('Não é possível faturar comanda cancelada','e'); return; }
   // Inclui pendentes/confirmados normais + qualquer comanda com saldo devedor (mesmo já "concluída")
-  const pendentes=D.agendamentos.filter(a=>cliId(a)===cliId(ag)&&(a.status==='pendente'||a.status==='confirmado'||(Number(a.saldo_devedor)>0.01)));
+  const pendentes=D.agendamentos.filter(a=>cliId(a)===cliId(ag)&&(a.status==='pendente'||a.status==='confirmado'||gAgSaldo(a)>0.01));
   S.fatIds=[agId]; S.pgtos=[]; S.selPgTipo=null; S._faturando=false;
   const resumoEl=document.getElementById('fat-resumo-pgto'); if(resumoEl)resumoEl.style.display='none';
   const pgListEl=document.getElementById('pg-list'); if(pgListEl)pgListEl.innerHTML='';
@@ -2309,7 +2315,7 @@ function abrirFat(agId){
     chk.onchange=()=>{ if(chk.checked){ if(!S.fatIds.includes(a.id))S.fatIds.push(a.id); item.classList.add('sel'); } else { S.fatIds=S.fatIds.filter(x=>x!==a.id); item.classList.remove('sel'); } calcFatTotal(); };
     item.innerHTML=''; item.appendChild(chk);
     const info=document.createElement('div'); info.style.flex='1';
-    const temSaldo=Number(a.saldo_devedor)>0.01;
+    const temSaldo=gAgSaldo(a)>0.01;
     info.innerHTML=`<div style="font-weight:600;font-size:13px">${gCNm2(a)}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${fBR((a.data||'').substring(0,10))} ${a.hora} · ${(a.svcs||[]).map(gSNm).join(', ')||'—'}${temSaldo?' <span style="color:var(--red)">(saldo pendente)</span>':''}</div>`;
     const val=document.createElement('div'); val.style.cssText='font-family:var(--fm);font-size:14px;font-weight:700;color:var(--gold);white-space:nowrap'; val.textContent=Rf(gAgSaldo(a));
     item.appendChild(info); item.appendChild(val);
