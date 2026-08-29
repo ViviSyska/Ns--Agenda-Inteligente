@@ -825,6 +825,18 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
           </div>
         </div>
         <div id="ag-seq" style="display:none" class="info-box"></div>
+        <!-- VALOR PERSONALIZADO — combina de antemão sem precisar anotar -->
+        <div style="background:var(--bg3);border:1px dashed var(--gold3);border-radius:var(--r2);padding:10px 12px;margin-bottom:4px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--text2);margin-bottom:6px">
+            <input type="checkbox" id="ag-custom-chk" style="accent-color:var(--gold)" onchange="toggleAgCustomVal()">
+            <span>💰 Combinar valor diferente do calculado (inclusive R$ 0,00 / cortesia)</span>
+          </label>
+          <div id="ag-custom-wrap" style="display:none">
+            <input type="number" id="ag-custom-val" placeholder="0.00" step="0.01" min="0"
+              style="background:var(--inp);border:1px solid var(--gold3);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:14px;font-weight:700;outline:none;width:100%">
+            <div style="font-size:10px;color:var(--text3);margin-top:4px">Esse valor já fica salvo no agendamento — no faturamento ele vem pronto, sem precisar anotar em outro lugar.</div>
+          </div>
+        </div>
         <div class="fgr"><label>STATUS</label>
           <select id="ag-st"><option value="pendente">Pendente</option><option value="confirmado">Confirmado</option></select>
         </div>
@@ -1241,8 +1253,11 @@ const gSNm  = id => { const s=D.servicos.find(x=>x.id===id); return s?s.nome:'�
 const gSDur = id => { const s=D.servicos.find(x=>x.id===id); return s?s.duracao_min:0; };
 const gSVal = id => { const s=D.servicos.find(x=>x.id===id); return s?s.valor:0; };
 const gAgtot= ag => {
-  // Se tem valor_cobrado salvo (faturamento com valor personalizado), usa ele
-  if(ag.valor_cobrado!=null && Number(ag.valor_cobrado)>0) return Number(ag.valor_cobrado);
+  // Se tem valor_cobrado salvo (personalizado), usa ele — INCLUSIVE ZERO (cortesia)
+  // Importante: verifica null/undefined, NÃO >0, para não ignorar valor combinado de R$ 0,00
+  if(ag.valor_cobrado!==null && ag.valor_cobrado!==undefined){
+    return Math.max(0, Number(ag.valor_cobrado));
+  }
   const pid = ag.pacote_id || ag.pkgId;
   let base=0;
   if(pid){
@@ -1262,6 +1277,13 @@ const gAgtot= ag => {
   }
   const desc=Number(ag.desconto)||0;
   return Math.max(0,base-desc);
+};
+// Quanto AINDA FALTA PAGAR desta comanda — diferente de gAgtot (que é o preço TOTAL combinado)
+// Se nunca foi cobrada (saldo_devedor null), falta o valor inteiro.
+// Se já foi paga parcialmente, retorna só o que restou.
+const gAgSaldo = ag => {
+  if(ag.saldo_devedor!==null && ag.saldo_devedor!==undefined) return Math.max(0, Number(ag.saldo_devedor));
+  return gAgtot(ag);
 };
 const TODAY = dStr(new Date());
 const CURYR = new Date().getFullYear().toString();
@@ -1596,6 +1618,9 @@ function renderDash(){
   const fatPeriodo=fat; // já calculado acima via caixa filtrado
   const periodoLabel={hoje:'HOJE',semana:'ESTA SEMANA',mes:'ESTE MÊS',ano:'ESTE ANO'}[S.filter]||'HOJE';
   const iconePerido={hoje:'📅',semana:'🗓',mes:'📆',ano:'📊'}[S.filter]||'📅';
+  // Contas em aberto — comandas com pagamento PARCIAL (dinheiro que ficou faltando)
+  const comSaldoDevedor=D.agendamentos.filter(a=>a.status!=='cancelado'&&Number(a.saldo_devedor)>0.01);
+  const totalSaldoDevedor=comSaldoDevedor.reduce((t,a)=>t+Number(a.saldo_devedor),0);
 
   document.getElementById('d-cards').innerHTML=`
     <div class="sc"><div class="sc-l">FATURAMENTO</div><div class="sc-v gd">${Rf(fat)}</div></div>
@@ -1607,6 +1632,18 @@ function renderDash(){
     <div class="sc"><div class="sc-l">— AGENDADOS</div><div class="sc-v">${nPend}</div></div>
     <div class="sc" style="border-top-color:var(--purple)"><div class="sc-l">🟣 EM ATENDIMENTO</div><div class="sc-v" style="color:var(--purple)">${nAtr}</div></div>
     <div class="sc cG" style="border-top-color:var(--green)"><div class="sc-l">🟢 PAGOS</div><div class="sc-v gr">${nConcl}</div></div>
+    ${totalSaldoDevedor>0.01?`
+    <div class="sc" style="border-top-color:var(--red);grid-column:1/-1">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <div class="sc-l">⚠️ CONTAS EM ABERTO — ${comSaldoDevedor.length} comanda(s) com saldo pendente</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">Clientes que pagaram menos que o combinado — falta receber</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:var(--fm);font-size:22px;color:var(--red);font-weight:700">${Rf(totalSaldoDevedor)}</div>
+        </div>
+      </div>
+    </div>`:''}
     <div class="sc" style="border-top-color:#f59e0b;grid-column:1/-1">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
         <div>
@@ -1900,6 +1937,13 @@ function aplicarPacoteAg(){
   info.innerHTML=`📦 <b>${pk.nome}</b> aplicado · ${pk.svcs.length} serviço(s) · ${dur}min · ${Rf(pk.valor)}${orig>pk.valor?' <span style="color:var(--green)">(economia '+Rf(orig-pk.valor)+')</span>':''}`;
   calcSeq();
 }
+function toggleAgCustomVal(){
+  const chk=document.getElementById('ag-custom-chk');
+  const wrap=document.getElementById('ag-custom-wrap');
+  if(!wrap)return;
+  wrap.style.display=chk.checked?'block':'none';
+  if(!chk.checked) document.getElementById('ag-custom-val').value='';
+}
 function abrirAg(data,hora,profId){
   S.editAgId=null;
   document.getElementById('m-ag-t').textContent='NOVO AGENDAMENTO';
@@ -1910,6 +1954,10 @@ function abrirAg(data,hora,profId){
   document.getElementById('ag-dt').value=data||dStr(S.agDate);
   document.getElementById('ag-hr').value=hora||'09:00';
   document.getElementById('ag-ob').value=''; document.getElementById('ag-st').value='pendente'; document.getElementById('ag-fc').checked=false;
+  // Reset valor personalizado
+  const cChk=document.getElementById('ag-custom-chk'); if(cChk)cChk.checked=false;
+  const cWrap=document.getElementById('ag-custom-wrap'); if(cWrap)cWrap.style.display='none';
+  const cVal=document.getElementById('ag-custom-val'); if(cVal)cVal.value='';
   S.agSvcs=[]; renderAgSvcChips(); document.getElementById('ag-seq').style.display='none';
   document.getElementById('ag-svc-search').value=''; document.getElementById('ag-svc-dd').classList.remove('open');
   // Auto-seleciona profissional: usa o passado ou o primeiro da lista
@@ -1927,6 +1975,19 @@ function editAg(id){
   document.getElementById('ag-hr').value=ag.hora;
   document.getElementById('ag-ob').value=ag.observacoes||ag.obs||'';
   document.getElementById('ag-st').value=ag.status; document.getElementById('ag-fc').checked=false;
+  // Preenche valor personalizado se já existir (permite zero/cortesia)
+  const cChk=document.getElementById('ag-custom-chk');
+  const cWrap=document.getElementById('ag-custom-wrap');
+  const cVal=document.getElementById('ag-custom-val');
+  if(ag.valor_cobrado!==null && ag.valor_cobrado!==undefined){
+    if(cChk)cChk.checked=true;
+    if(cWrap)cWrap.style.display='block';
+    if(cVal)cVal.value=Number(ag.valor_cobrado).toFixed(2);
+  } else {
+    if(cChk)cChk.checked=false;
+    if(cWrap)cWrap.style.display='none';
+    if(cVal)cVal.value='';
+  }
   const ps=document.getElementById('ag-prf'); for(const o of ps.options) if(o.value===(ag.profissional_id||ag.profId)){o.selected=true;break}
   // Se nenhum profissional, seleciona o primeiro
   if(!ps.value && D.profs.length) ps.value=D.profs[0].id;
@@ -2020,7 +2081,12 @@ async function salvarAg(){
   }
   showLoad('Salvando agendamento...');
   const pkgSel=document.getElementById('ag-pkg'); const pacote_id=pkgSel?(pkgSel.value||null):null;
-  const agData={ cliente_id:cliId2, profissional_id:profId2, data, hora, duracao_total:durTotal, status:document.getElementById('ag-st').value, observacoes:document.getElementById('ag-ob').value, forcar:document.getElementById('ag-fc').checked, pacote_id };
+  // Valor personalizado — checa checkbox e permite valor ZERO (cortesia)
+  const customChk=document.getElementById('ag-custom-chk');
+  const customValRaw=document.getElementById('ag-custom-val')?.value;
+  const usandoCustomAg = customChk?.checked && customValRaw!=='' && customValRaw!=null;
+  const valor_cobrado = usandoCustomAg ? parseFloat(customValRaw) : null;
+  const agData={ cliente_id:cliId2, profissional_id:profId2, data, hora, duracao_total:durTotal, status:document.getElementById('ag-st').value, observacoes:document.getElementById('ag-ob').value, forcar:document.getElementById('ag-fc').checked, pacote_id, valor_cobrado };
   let agId=S.editAgId;
   if(S.editAgId){
     await sb.from('agendamentos').update(agData).eq('id',S.editAgId);
@@ -2200,20 +2266,26 @@ function renderComandas(){
     a.hora.includes(q)
   );
   ags=ags.sort((a,b)=>(b.data||'').localeCompare(a.data||'')||b.hora.localeCompare(a.hora));
-  document.getElementById('tb-cmd').innerHTML=ags.length?ags.map(a=>`<tr>
+  document.getElementById('tb-cmd').innerHTML=ags.length?ags.map(a=>{
+    const saldoDev=Number(a.saldo_devedor)||0;
+    return`<tr>
     <td><strong>${gCNm2(a)}</strong></td>
     <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(a.svcs||[]).map(gSNm).join(', ')||'—'}</td>
     <td>${gPNm2(a)}</td>
     <td style="font-family:var(--fm);font-size:12px">${fBR((a.data||'').substring(0,10))} ${a.hora}</td>
-    <td style="font-family:var(--fm);color:var(--gold)">${Rf(gAgtot(a))}</td>
+    <td style="font-family:var(--fm);color:var(--gold)">
+      ${Rf(gAgtot(a))}
+      ${saldoDev>0.01?`<div style="margin-top:2px"><span class="bd rd" style="font-size:9px">⚠ Falta ${Rf(saldoDev)}</span></div>`:''}
+    </td>
     <td><span class="bd ${SC[efStatus(a)]||'gy'}">${efLabel(a)}</span></td>
     <td style="display:flex;gap:4px;flex-wrap:wrap">
-      ${['pendente','confirmado','atendimento'].includes(efStatus(a))?`<button class="btn gr xs" onclick="abrirFat('${a.id}')">✓ Faturar</button>`:''}
-      ${a.status==='concluido'?`<button class="btn ol xs" style="color:var(--purple);border-color:var(--purple)" onclick="reabrirComanda('${a.id}')">↩ Reabrir</button>`:''}
+      ${['pendente','confirmado','atendimento'].includes(efStatus(a))||saldoDev>0.01?`<button class="btn gr xs" onclick="abrirFat('${a.id}')">${saldoDev>0.01?'✓ Receber saldo':'✓ Faturar'}</button>`:''}
+      ${a.status==='concluido'&&saldoDev<=0.01?`<button class="btn ol xs" style="color:var(--purple);border-color:var(--purple)" onclick="reabrirComanda('${a.id}')">↩ Reabrir</button>`:''}
       <button class="btn ol xs" onclick="editAg('${a.id}')">✏</button>
       <button class="btn gh xs" onclick="verAg('${a.id}')">Ver</button>
     </td>
-  </tr>`).join(''):`<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:24px">Nenhuma comanda encontrada</td></tr>`;
+  </tr>`;
+  }).join(''):`<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:24px">Nenhuma comanda encontrada</td></tr>`;
 }
 
 // ============================================================
@@ -2222,7 +2294,8 @@ function renderComandas(){
 function abrirFat(agId){
   const ag=D.agendamentos.find(a=>a.id===agId); if(!ag)return;
   if(ag.status==='cancelado'){ toast('Não é possível faturar comanda cancelada','e'); return; }
-  const pendentes=D.agendamentos.filter(a=>cliId(a)===cliId(ag)&&(a.status==='pendente'||a.status==='confirmado'));
+  // Inclui pendentes/confirmados normais + qualquer comanda com saldo devedor (mesmo já "concluída")
+  const pendentes=D.agendamentos.filter(a=>cliId(a)===cliId(ag)&&(a.status==='pendente'||a.status==='confirmado'||(Number(a.saldo_devedor)>0.01)));
   S.fatIds=[agId]; S.pgtos=[]; S.selPgTipo=null; S._faturando=false;
   const resumoEl=document.getElementById('fat-resumo-pgto'); if(resumoEl)resumoEl.style.display='none';
   const pgListEl=document.getElementById('pg-list'); if(pgListEl)pgListEl.innerHTML='';
@@ -2234,8 +2307,9 @@ function abrirFat(agId){
     chk.onchange=()=>{ if(chk.checked){ if(!S.fatIds.includes(a.id))S.fatIds.push(a.id); item.classList.add('sel'); } else { S.fatIds=S.fatIds.filter(x=>x!==a.id); item.classList.remove('sel'); } calcFatTotal(); };
     item.innerHTML=''; item.appendChild(chk);
     const info=document.createElement('div'); info.style.flex='1';
-    info.innerHTML=`<div style="font-weight:600;font-size:13px">${gCNm2(a)}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${fBR((a.data||'').substring(0,10))} ${a.hora} · ${(a.svcs||[]).map(gSNm).join(', ')||'—'}</div>`;
-    const val=document.createElement('div'); val.style.cssText='font-family:var(--fm);font-size:14px;font-weight:700;color:var(--gold);white-space:nowrap'; val.textContent=Rf(gAgtot(a));
+    const temSaldo=Number(a.saldo_devedor)>0.01;
+    info.innerHTML=`<div style="font-weight:600;font-size:13px">${gCNm2(a)}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${fBR((a.data||'').substring(0,10))} ${a.hora} · ${(a.svcs||[]).map(gSNm).join(', ')||'—'}${temSaldo?' <span style="color:var(--red)">(saldo pendente)</span>':''}</div>`;
+    const val=document.createElement('div'); val.style.cssText='font-family:var(--fm);font-size:14px;font-weight:700;color:var(--gold);white-space:nowrap'; val.textContent=Rf(gAgSaldo(a));
     item.appendChild(info); item.appendChild(val);
     item.onclick=e=>{ if(e.target!==chk){ chk.checked=!chk.checked; chk.onchange(); } };
     list.appendChild(item);
@@ -2275,14 +2349,15 @@ function toggleCustomVal(){
   calcFatTotal();
 }
 function calcFatTotal(){
-  const sub=S.fatIds.reduce((t,id)=>{ const a=D.agendamentos.find(x=>x.id===id); return t+(a?gAgtot(a):0); },0);
+  // Soma o que REALMENTE falta pagar de cada comanda selecionada (não o total cheio de novo)
+  const sub=S.fatIds.reduce((t,id)=>{ const a=D.agendamentos.find(x=>x.id===id); return t+(a?gAgSaldo(a):0); },0);
   const desc=parseFloat(document.getElementById('fat-desc')?.value)||0;
   const subComDesc=Math.max(0,sub-desc);
   const subEl=document.getElementById('fat-sub'); if(subEl)subEl.textContent=Rf(sub);
-  // Se valor personalizado ativo, usa ele; senão usa calculado
   const customChk=document.getElementById('fat-custom-chk');
-  const customVal=parseFloat(document.getElementById('fat-custom-val')?.value);
-  const tot=(customChk?.checked && customVal>0) ? customVal : subComDesc;
+  const customValRaw=document.getElementById('fat-custom-val')?.value;
+  const usandoCustom = customChk?.checked && customValRaw!=='' && customValRaw!=null;
+  const tot = usandoCustom ? Math.max(0,parseFloat(customValRaw)) : subComDesc;
   document.getElementById('fat-tot').textContent=Rf(tot);
   S._fatTotal=tot;
   S._fatSubtotal=sub;
@@ -2422,8 +2497,9 @@ function reabrirComanda(id){
     'Isso vai estornar o pagamento e reabrir a comanda de '+gCNm2(ag)+' para edição.',
     async()=>{
       showLoad('Reabrindo comanda...');
-      // Volta status para confirmado
-      await sb.from('agendamentos').update({status:'confirmado'}).eq('id',id);
+      // Volta status para confirmado e restaura o saldo devedor para o valor total combinado
+      const totalCombinado = gAgtot(ag);
+      await sb.from('agendamentos').update({status:'confirmado', saldo_devedor: totalCombinado}).eq('id',id);
       // Remove entradas de caixa vinculadas a este agendamento
       await sb.from('caixa').delete().eq('agendamento_id',id);
       await Promise.all([reloadSection('agendamentos'),reloadSection('caixa')]);
@@ -2448,39 +2524,71 @@ async function confirmarFat(){
     const hoje=document.getElementById('fat-dt')?.value || TODAY;
     const desc=parseFloat(document.getElementById('fat-desc')?.value)||0;
     const customChk=document.getElementById('fat-custom-chk');
-    const customVal=parseFloat(document.getElementById('fat-custom-val')?.value)||0;
-    const usandoCustom=customChk?.checked && customVal>0;
+    const customValRaw=document.getElementById('fat-custom-val')?.value;
+    const usandoCustom = customChk?.checked && customValRaw!=='' && customValRaw!=null;
     const totalFinal=S._fatTotal||0;
 
-    // ① Atualiza status dos agendamentos (sem lançar caixa aqui ainda)
+    // ── Quanto foi REALMENTE pago (soma de todas as formas, incluindo saldo/crédito) ──
+    const totalPago = S.pgtos.reduce((t,p)=>t+p.valor,0);
+    const saldoDevedorTotal = Math.max(0, totalFinal - totalPago);
+    const pagouTudo = saldoDevedorTotal < 0.01; // tolerância de arredondamento
+
+    // ── Peso de cada comanda = quanto ELA ainda deve (não o total cheio) ──
+    // Garante distribuição justa quando há comandas com saldo parcial misturadas com novas
+    const pesos={};
+    let pesoTotal=0;
+    S.fatIds.forEach(id=>{
+      const ag=D.agendamentos.find(a=>a.id===id);
+      const w=ag?gAgSaldo(ag):0;
+      pesos[id]=w>0?w:0.01;
+      pesoTotal+=pesos[id];
+    });
+    if(pesoTotal<=0) pesoTotal=S.fatIds.length;
+
+    // ① Atualiza cada agendamento
     for(const id of S.fatIds){
       const ag=D.agendamentos.find(a=>a.id===id); if(!ag)continue;
-      const tot=usandoCustom ? customVal/S.fatIds.length : (S._fatTotal/S.fatIds.length)||gAgtot(ag);
-      const upd={status:'concluido'};
-      if(desc>0) upd.desconto=desc;
-      if(usandoCustom) upd.valor_cobrado=tot;
+      const fatia = pesos[id]/pesoTotal;
+      const novoSaldo = saldoDevedorTotal*fatia;
+      const upd={ saldo_devedor: novoSaldo };
+      // Trava o valor_cobrado (preço combinado) SÓ na primeira cobrança dessa comanda —
+      // pagamentos parciais seguintes não reescrevem o preço já combinado.
+      if(ag.valor_cobrado===null || ag.valor_cobrado===undefined){
+        upd.valor_cobrado = totalFinal*fatia;
+      }
+      if(desc>0 && (ag.desconto===null||ag.desconto===undefined||ag.desconto===0)) upd.desconto = desc*fatia;
+      if(novoSaldo<0.01) upd.status='concluido'; // só fecha quando realmente quitou
       await sb.from('agendamentos').update(upd).eq('id',id);
       const agLocal=D.agendamentos.find(a=>a.id===id);
-      if(agLocal){ agLocal.status='concluido'; if(upd.valor_cobrado)agLocal.valor_cobrado=tot; }
+      if(agLocal){
+        agLocal.saldo_devedor=novoSaldo;
+        if(upd.valor_cobrado!==undefined) agLocal.valor_cobrado=upd.valor_cobrado;
+        if(upd.desconto!==undefined) agLocal.desconto=upd.desconto;
+        if(upd.status) agLocal.status='concluido';
+      }
     }
 
-    // ② Lança CADA forma de pagamento separadamente no caixa — com o VALOR REAL de cada uma
-    const nomeComandas=S.fatIds.map(id=>{ const a=D.agendamentos.find(x=>x.id===id); return a?gCNm2(a):''; }).filter(Boolean).join(', ');
-    const agendamentoRef = S.fatIds.length===1 ? S.fatIds[0] : null;
-
+    // ② Lança cada forma de pagamento — UMA LINHA POR COMANDA, com o valor proporcional
+    //    Só lança o que foi REALMENTE recebido — o que falta NÃO entra no caixa.
     for(const pg of S.pgtos){
       if(pg.tipo==='saldo') continue; // abatimento de crédito, não é entrada nova
-      await sb.from('caixa').insert({
-        tipo:'entrada',
-        descricao:`Comanda - ${nomeComandas}${desc>0?` (desc. ${Rf(desc)})`:''}${usandoCustom?' (valor ajustado)':''}`,
-        valor: pg.valor,
-        data: hoje,
-        forma_pagamento: pg.tipo,
-        agendamento_id: agendamentoRef,
-      });
+      for(const id of S.fatIds){
+        const ag=D.agendamentos.find(a=>a.id===id); if(!ag)continue;
+        const fatia = pesos[id]/pesoTotal;
+        const valorFatia = pg.valor*fatia;
+        if(valorFatia<=0) continue;
+        await sb.from('caixa').insert({
+          tipo:'entrada',
+          descricao:`Comanda - ${gCNm2(ag)}${desc>0?` (desc. ${Rf(desc*fatia)})`:''}${usandoCustom?' (valor ajustado)':''}${!pagouTudo?' [PAGAMENTO PARCIAL]':''}`,
+          valor: valorFatia,
+          data: hoje,
+          forma_pagamento: pg.tipo,
+          agendamento_id: id,
+        });
+      }
     }
 
-    // ③ Taxa do cartão → despesa automática
+    // ③ Taxa do cartão → despesa automática (sobre o valor total, não precisa dividir)
     for(const pg of S.pgtos){
       if((pg.tipo==='credito'||pg.tipo==='debito') && pg.taxa>0){
         const taxaVal=pg.valor*(pg.taxa/100);
@@ -2504,7 +2612,11 @@ async function confirmarFat(){
     await Promise.all([reloadSection('agendamentos'),reloadSection('caixa'),reloadSection('despesas'),reloadSection('historico')]);
     hideLoad(); closeModal('m-fat');
     const taxTotal=S.pgtos.filter(p=>p.tipo==='credito'||p.tipo==='debito').reduce((t,p)=>t+p.valor*(p.taxa/100),0);
-    toast(`${S.fatIds.length} comanda(s) faturada(s) · ${Rf(totalFinal)}${taxTotal>0?' · Taxa '+Rf(taxTotal):''}`);
+    if(pagouTudo){
+      toast(`${S.fatIds.length} comanda(s) faturada(s) · ${Rf(totalFinal)}${taxTotal>0?' · Taxa '+Rf(taxTotal):''}`);
+    } else {
+      toast(`⚠️ Pagamento PARCIAL registrado: ${Rf(totalPago)} de ${Rf(totalFinal)} · Falta ${Rf(saldoDevedorTotal)}`,'w');
+    }
     renderComandas(); renderDash();
   } catch(e){
     hideLoad();
