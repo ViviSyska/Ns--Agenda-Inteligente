@@ -2092,7 +2092,9 @@ async function salvarAg(){
     await sb.from('agendamentos').update(agData).eq('id',S.editAgId);
     await sb.from('agendamento_servicos').delete().eq('agendamento_id',S.editAgId);
   } else {
-    const {data:ins}=await sb.from('agendamentos').insert(agData).select().single();
+    // Novo agendamento: garante saldo_devedor null (nunca foi cobrado ainda) —
+    // não depende do default da coluna no banco
+    const {data:ins}=await sb.from('agendamentos').insert({...agData, saldo_devedor:null}).select().single();
     agId=ins?.id;
   }
   if(agId && svcs.length>0){
