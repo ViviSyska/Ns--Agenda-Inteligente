@@ -1027,6 +1027,7 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
         <div class="pg-b" onclick="selPg(this,'saldo')" id="pg-saldo-btn" style="display:none">💳 Saldo</div>
       </div>
       <div id="fat-saldo-info" style="display:none;font-size:11px;color:var(--green);margin-top:4px"></div>
+      <div id="fat-restante-info" style="display:none;font-size:11px;margin-top:4px;font-weight:600"></div>
       <div class="fg fg2" style="margin-bottom:8px">
         <div class="fgr"><label>VALOR (R$)</label><input type="number" id="pg-vl" placeholder="Sugestão = valor restante" step="0.01"></div>
         <div style="display:flex;align-items:flex-end"><button class="btn ol sm" style="width:100%" onclick="addPg()">+ Adicionar</button></div>
@@ -1603,13 +1604,12 @@ const gCNm2  = ag => gCNm(cliId(ag));
 // ============================================================
 function renderDash(){
   const ags=fAgs().filter(a=>a.status!=='cancelado');
-  // ✅ FONTE ÚNICA DE VERDADE: tabela caixa (valores reais pagos, filtrados por data)
+  // ✅ FONTE ÚNICA DE VERDADE: tabela caixa (valores reais, filtrados por data)
+  // Agora que salvarDp/pagarDp/delDp sempre sincronizam com o caixa, não precisa
+  // mais comparar duas fontes com Math.max — o caixa já é 100% confiável.
   const cxFiltrado=fCx();
   const fat=cxFiltrado.filter(x=>x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
-  const desp=cxFiltrado.filter(x=>x.tipo==='saida').reduce((t,x)=>t+Number(x.valor),0);
-  // Despesas também da tabela despesas (pagas no período)
-  const despLanc=fDp().filter(d=>d.status==='pago').reduce((t,d)=>t+Number(d.valor),0);
-  const totalDesp=Math.max(desp,despLanc); // usa o maior para não duplicar
+  const totalDesp=cxFiltrado.filter(x=>x.tipo==='saida').reduce((t,x)=>t+Number(x.valor),0);
   const concl=ags.filter(a=>a.status==='concluido').length;
   const ticket=concl&&fat?fat/concl:0;
   const nConf=ags.filter(a=>a.status==='confirmado').length;
@@ -1618,13 +1618,19 @@ function renderDash(){
   const nConcl=ags.filter(a=>a.status==='concluido').length;
   // Previsão do período — usa o mesmo filtro do dashboard (hoje/semana/mês/ano)
   const agsPeriodo=fAgs().filter(a=>a.status!=='cancelado');
-  const agsAbertos=agsPeriodo.filter(a=>['pendente','confirmado','atendimento'].includes(a.status));
+  // "Ainda a Faturar" = só quem NUNCA passou pelo faturamento ainda (nenhum pagamento no caixa).
+  // Comandas já parcialmente cobradas saem daqui e ficam só em "Contas em Aberto",
+  // evitando que o mesmo dinheiro apareça contado duas vezes nos dois cards.
+  const agsAbertos=agsPeriodo.filter(a=>{
+    if(!['pendente','confirmado','atendimento'].includes(a.status)) return false;
+    const pagoReal=D.caixa.filter(x=>x.agendamento_id===a.id&&x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
+    return pagoReal<=0; // nunca foi cobrada
+  });
   const prevPeriodo=agsAbertos.reduce((t,a)=>t+gAgSaldo(a),0);
   const nAbertos=agsAbertos.length;
   const fatPeriodo=fat; // já calculado acima via caixa filtrado
   const periodoLabel={hoje:'HOJE',semana:'ESTA SEMANA',mes:'ESTE MÊS',ano:'ESTE ANO'}[S.filter]||'HOJE';
   const iconePerido={hoje:'📅',semana:'🗓',mes:'📆',ano:'📊'}[S.filter]||'📅';
-  // Contas em aberto — comandas com pagamento PARCIAL (dinheiro que ficou faltando)
   // ⚠️ CONTAS EM ABERTO — só comandas de HOJE que JÁ FORAM COBRADAS (têm pagamento
   // parcial real no caixa) mas ainda falta receber. NÃO inclui agendamentos que ainda
   // nem foram faturados — esses já aparecem em "Ainda a Faturar" (Previsão).
@@ -2313,11 +2319,13 @@ function abrirFat(agId){
   const ag=D.agendamentos.find(a=>a.id===agId); if(!ag)return;
   if(ag.status==='cancelado'){ toast('Não é possível faturar comanda cancelada','e'); return; }
   // Inclui pendentes/confirmados normais + qualquer comanda com saldo devedor (mesmo já "concluída")
-  const pendentes=D.agendamentos.filter(a=>cliId(a)===cliId(ag)&&(a.status==='pendente'||a.status==='confirmado'||gAgSaldo(a)>0.01));
+  // Exclui SEMPRE comandas canceladas, mesmo que gAgSaldo ainda "ache" que falta pagar
+  const pendentes=D.agendamentos.filter(a=>a.status!=='cancelado'&&cliId(a)===cliId(ag)&&(a.status==='pendente'||a.status==='confirmado'||gAgSaldo(a)>0.01));
   S.fatIds=[agId]; S.pgtos=[]; S.selPgTipo=null; S._faturando=false;
   const resumoEl=document.getElementById('fat-resumo-pgto'); if(resumoEl)resumoEl.style.display='none';
   const pgListEl=document.getElementById('pg-list'); if(pgListEl)pgListEl.innerHTML='';
   const saldoInfoEl=document.getElementById('fat-saldo-info'); if(saldoInfoEl)saldoInfoEl.style.display='none';
+  const restanteInfoEl=document.getElementById('fat-restante-info'); if(restanteInfoEl)restanteInfoEl.style.display='none';
   const list=document.getElementById('fat-list'); list.innerHTML='';
   pendentes.forEach(a=>{
     const item=document.createElement('div'); item.className='cc-item'+(a.id===agId?' sel':'');
@@ -2401,7 +2409,7 @@ function atualizarRestanteInfo(){
   const totReal = S._fatTotal || S.fatIds.reduce((t,id)=>{ const a=D.agendamentos.find(x=>x.id===id); return t+(a?gAgtot(a):0); },0);
   const jaAdicionado = S.pgtos.reduce((t,p)=>t+p.valor,0);
   const restante = totReal - jaAdicionado;
-  const el=document.getElementById('fat-saldo-info');
+  const el=document.getElementById('fat-restante-info');
   if(!el) return;
   if(jaAdicionado===0){ el.style.display='none'; return; }
   el.style.display='block';
@@ -2711,17 +2719,69 @@ async function salvarDp(){
   if(!desc||!val){ toast('Descrição e valor obrigatórios','e'); return; }
   showLoad('Salvando...');
   const payload={descricao:desc, valor:val, categoria:document.getElementById('dp-ct').value, data:document.getElementById('dp-dt').value, status:document.getElementById('dp-st').value};
-  if(eid){ await sb.from('despesas').update(payload).eq('id',eid); toast('Despesa atualizada!'); }
-  else {
-    await sb.from('despesas').insert(payload);
-    if(payload.status==='pago') await sb.from('caixa').insert({tipo:'saida',descricao:desc,valor:val,data:payload.data,forma_pagamento:'pix'});
+
+  if(eid){
+    // EDIÇÃO — sincroniza o caixa com o novo status/valor
+    const antiga=D.despesas.find(x=>x.id===eid);
+    await sb.from('despesas').update(payload).eq('id',eid);
+    // Busca lançamento de caixa já vinculado a esta despesa (se houver)
+    const {data:cxExistente}=await sb.from('caixa').select('id').eq('despesa_id',eid).eq('tipo','saida');
+    const jaTemCaixa = cxExistente && cxExistente.length>0;
+
+    if(payload.status==='pago' && !jaTemCaixa){
+      // Passou a pendente→pago: cria o lançamento agora
+      await sb.from('caixa').insert({tipo:'saida', descricao:desc, valor:val, data:payload.data, forma_pagamento:'pix', despesa_id:eid});
+    } else if(payload.status==='pago' && jaTemCaixa){
+      // Já era pago: apenas atualiza valor/descrição/data no(s) lançamento(s) vinculado(s)
+      await sb.from('caixa').update({descricao:desc, valor:val, data:payload.data}).eq('despesa_id',eid).eq('tipo','saida');
+    } else if(payload.status==='pendente' && jaTemCaixa){
+      // Voltou de pago→pendente: remove o lançamento do caixa
+      await sb.from('caixa').delete().eq('despesa_id',eid).eq('tipo','saida');
+    }
+    toast('Despesa atualizada!');
+  } else {
+    // NOVA despesa
+    const {data:ins}=await sb.from('despesas').insert(payload).select().single();
+    if(payload.status==='pago' && ins?.id){
+      await sb.from('caixa').insert({tipo:'saida', descricao:desc, valor:val, data:payload.data, forma_pagamento:'pix', despesa_id:ins.id});
+    }
     toast('Despesa registrada!');
   }
   await Promise.all([reloadSection('despesas'), reloadSection('caixa')]);
-  hideLoad(); closeModal('m-dp'); renderDesp();
+  hideLoad(); closeModal('m-dp'); renderDesp(); renderDash();
 }
-async function pagarDp(id){ showLoad(); await sb.from('despesas').update({status:'pago'}).eq('id',id); const d=D.despesas.find(x=>x.id===id); if(d) await sb.from('caixa').insert({tipo:'saida',descricao:d.descricao||d.desc,valor:d.valor,data:(d.data||'').substring(0,10),forma_pagamento:'pix'}); await Promise.all([reloadSection('despesas'),reloadSection('caixa')]); hideLoad(); renderDesp(); toast('Pago!'); }
-function delDp(id){ confirm2('🗑️','EXCLUIR DESPESA','Esta ação não pode ser desfeita.',async()=>{ showLoad(); await sb.from('despesas').delete().eq('id',id); await reloadSection('despesas'); hideLoad(); renderDesp(); toast('Excluída','w'); }); }
+
+async function pagarDp(id){
+  if(S._pagandoDp) return; // proteção contra duplo clique
+  S._pagandoDp=true;
+  showLoad();
+  try{
+    const d=D.despesas.find(x=>x.id===id); if(!d){hideLoad();S._pagandoDp=false;return;}
+    await sb.from('despesas').update({status:'pago'}).eq('id',id);
+    // Evita duplicar se já existir um lançamento vinculado
+    const {data:cxExistente}=await sb.from('caixa').select('id').eq('despesa_id',id).eq('tipo','saida');
+    if(!cxExistente || cxExistente.length===0){
+      await sb.from('caixa').insert({tipo:'saida', descricao:d.descricao||d.desc, valor:d.valor, data:(d.data||'').substring(0,10), forma_pagamento:'pix', despesa_id:id});
+    }
+    await Promise.all([reloadSection('despesas'),reloadSection('caixa')]);
+    renderDesp(); renderDash();
+    toast('Pago!');
+  } finally {
+    hideLoad();
+    S._pagandoDp=false;
+  }
+}
+
+function delDp(id){
+  confirm2('🗑️','EXCLUIR DESPESA','Esta ação não pode ser desfeita — o lançamento no caixa também será removido.',async()=>{
+    showLoad();
+    // Remove o(s) lançamento(s) de caixa vinculados ANTES de apagar a despesa
+    await sb.from('caixa').delete().eq('despesa_id',id).eq('tipo','saida');
+    await sb.from('despesas').delete().eq('id',id);
+    await Promise.all([reloadSection('despesas'),reloadSection('caixa')]);
+    hideLoad(); renderDesp(); renderDash(); toast('Excluída','w');
+  });
+}
 
 // ============================================================
 // SERVIÇOS
@@ -3093,7 +3153,7 @@ function renderRel(){
   // ✅ FONTE ÚNICA: caixa (valores reais)
   const cxOk=D.caixa.filter(x=>ok(x.data));
   const fat=cxOk.filter(x=>x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
-  const desp=D.despesas.filter(d=>ok(d.data)&&d.status==='pago').reduce((t,d)=>t+Number(d.valor),0);
+  const desp=cxOk.filter(x=>x.tipo==='saida').reduce((t,x)=>t+Number(x.valor),0);
   const agsF=D.agendamentos.filter(a=>a.status==='concluido'&&ok(a.data));
   const nAt=agsF.length;
   const ticket=nAt&&fat?fat/nAt:0;
@@ -3115,7 +3175,7 @@ function renderRel(){
     bars=REL_MESES_SHORT.map((lbl,i)=>{
       const pfx=`${yr}-${String(i+1).padStart(2,'0')}`;
       const fv=D.caixa.filter(x=>x.tipo==='entrada'&&(x.data||'').startsWith(pfx)).reduce((t,x)=>t+Number(x.valor),0);
-      const dv=D.despesas.filter(d=>(d.data||'').startsWith(pfx)&&d.status==='pago').reduce((t,d)=>t+Number(d.valor),0);
+      const dv=D.caixa.filter(x=>x.tipo==='saida'&&(x.data||'').startsWith(pfx)).reduce((t,x)=>t+Number(x.valor),0);
       return{lbl,fv,dv};
     });
   } else if(f==='mes'){
@@ -3124,7 +3184,7 @@ function renderRel(){
     bars=Array.from({length:daysInM},(_,i)=>{
       const pfx=`${mth}-${String(i+1).padStart(2,'0')}`;
       const fv=D.caixa.filter(x=>x.tipo==='entrada'&&(x.data||'').substring(0,10)===pfx).reduce((t,x)=>t+Number(x.valor),0);
-      const dv=D.despesas.filter(d=>(d.data||'').substring(0,10)===pfx&&d.status==='pago').reduce((t,d)=>t+Number(d.valor),0);
+      const dv=D.caixa.filter(x=>x.tipo==='saida'&&(x.data||'').substring(0,10)===pfx).reduce((t,x)=>t+Number(x.valor),0);
       return{lbl:String(i+1),fv,dv};
     });
   } else if(f==='semana'){
@@ -3134,7 +3194,7 @@ function renderRel(){
       const ws=new Date(S.relDate); ws.setDate(ws.getDate()-ws.getDay()+i);
       const ds=dStr(ws);
       const fv=D.caixa.filter(x=>x.tipo==='entrada'&&(x.data||'').substring(0,10)===ds).reduce((t,x)=>t+Number(x.valor),0);
-      const dv=D.despesas.filter(d=>(d.data||'').substring(0,10)===ds&&d.status==='pago').reduce((t,d)=>t+Number(d.valor),0);
+      const dv=D.caixa.filter(x=>x.tipo==='saida'&&(x.data||'').substring(0,10)===ds).reduce((t,x)=>t+Number(x.valor),0);
       return{lbl:wDias[i],fv,dv};
     });
   } else {
@@ -3220,7 +3280,7 @@ function renderRel(){
     document.getElementById("tb-rel").innerHTML=REL_MESES_SHORT.map((m,i)=>{
       const pfx=`${yr}-${String(i+1).padStart(2,"0")}`;
       const fv=D.caixa.filter(x=>x.tipo==="entrada"&&(x.data||"").startsWith(pfx)).reduce((t,x)=>t+Number(x.valor),0);
-      const dv=D.despesas.filter(d=>(d.data||"").startsWith(pfx)&&d.status==="pago").reduce((t,d)=>t+Number(d.valor),0);
+      const dv=D.caixa.filter(x=>x.tipo==="saida"&&(x.data||"").startsWith(pfx)).reduce((t,x)=>t+Number(x.valor),0);
       const cnt=D.agendamentos.filter(a=>a.status==="concluido"&&(a.data||"").startsWith(pfx)).length;
       const l=fv-dv;
       return`<tr>
@@ -3244,8 +3304,8 @@ function exportCSV(){
     csv='MÊS,FATURAMENTO,DESPESAS,LUCRO,ATENDIMENTOS,TICKET MÉDIO\n';
     REL_MESES_SHORT.forEach((m,i)=>{
       const pfx=`${yr}-${String(i+1).padStart(2,'0')}`;
-      const fat=D.agendamentos.filter(a=>a.status==='concluido'&&(a.data||'').startsWith(pfx)).reduce((t,a)=>t+gAgtot(a),0);
-      const desp=D.despesas.filter(d=>(d.data||'').startsWith(pfx)).reduce((t,d)=>t+Number(d.valor),0);
+      const fat=D.caixa.filter(x=>x.tipo==='entrada'&&(x.data||'').startsWith(pfx)).reduce((t,x)=>t+Number(x.valor),0);
+      const desp=D.caixa.filter(x=>x.tipo==='saida'&&(x.data||'').startsWith(pfx)).reduce((t,x)=>t+Number(x.valor),0);
       const cnt=D.agendamentos.filter(a=>a.status==='concluido'&&(a.data||'').startsWith(pfx)).length;
       csv+=`${m},${fat.toFixed(2)},${desp.toFixed(2)},${(fat-desp).toFixed(2)},${cnt},${cnt?(fat/cnt).toFixed(2):0}\n`;
     });
