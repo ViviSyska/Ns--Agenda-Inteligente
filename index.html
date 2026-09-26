@@ -2577,9 +2577,12 @@ async function confirmarFat(){
       const fatia = pesos[id]/pesoTotal;
       const novoSaldo = saldoDevedorTotal*fatia;
       const upd={ saldo_devedor: novoSaldo };
-      // Trava o valor_cobrado (preço combinado) SÓ na primeira cobrança dessa comanda —
-      // pagamentos parciais seguintes não reescrevem o preço já combinado.
-      if(ag.valor_cobrado===null || ag.valor_cobrado===undefined){
+      // Trava o valor_cobrado (preço combinado) na primeira cobrança dessa comanda —
+      // pagamentos parciais seguintes (sem "valor diferente" marcado) não reescrevem
+      // o preço já combinado. MAS se o usuário marcou "Cobrar valor diferente" agora,
+      // é uma renegociação explícita: o valor_cobrado TEM que ser atualizado, senão
+      // o saldo devedor fica calculado contra o preço antigo pra sempre.
+      if(ag.valor_cobrado===null || ag.valor_cobrado===undefined || usandoCustom){
         upd.valor_cobrado = totalFinal*fatia;
       }
       if(desc>0 && (ag.desconto===null||ag.desconto===undefined||ag.desconto===0)) upd.desconto = desc*fatia;
