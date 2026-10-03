@@ -2538,7 +2538,11 @@ function reabrirComanda(id){
 
 async function confirmarFat(){
   if(S.fatIds.length===0){ toast('Selecione pelo menos uma comanda','e'); return; }
-  if(S.pgtos.length===0){ toast('Adicione pelo menos um pagamento','e'); return; }
+  // Cortesia/brinde: se "Cobrar valor diferente" está marcado com R$0,00, o total a
+  // pagar é zero — não faz sentido exigir uma forma de pagamento pra isso, então
+  // deixa fechar a comanda direto, sem nenhum lançamento no caixa.
+  const isCortesiaZero = (S._fatTotal||0) < 0.01;
+  if(S.pgtos.length===0 && !isCortesiaZero){ toast('Adicione pelo menos um pagamento','e'); return; }
   // Proteção contra duplo clique / duplo envio
   if(S._faturando) return;
   S._faturando = true;
