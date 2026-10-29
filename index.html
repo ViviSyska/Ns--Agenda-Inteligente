@@ -731,14 +731,17 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
             <div style="margin-top:14px"><button class="btn gd sm" onclick="saveConfig()">SALVAR</button></div>
           </div>
           <div class="tw" style="padding:16px">
-            <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:14px">📱 WHATSAPP API (Evolution API)</div>
+            <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:14px">📱 WHATSAPP (servidor Baileys — envio em lote)</div>
             <div class="fg">
               <div class="fgr"><label>URL DA API</label><input id="cfg-wa-url" placeholder="http://localhost:8080" style="background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:13px;outline:none;width:100%"></div>
               <div class="fg fg2">
                 <div class="fgr"><label>INSTÂNCIA</label><input id="cfg-wa-inst" placeholder="NS_Salao" style="background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:13px;outline:none;width:100%"></div>
                 <div class="fgr"><label>API KEY</label><input id="cfg-wa-key" type="password" placeholder="••••••••" style="background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:13px;outline:none;width:100%"></div>
               </div>
-              <div style="font-size:11px;color:var(--text3);margin-top:4px">Webhook para respostas: configure no Evolution API para chamar seu Supabase Edge Function e atualizar o campo <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">wa_status</code> nos agendamentos.</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:4px">As respostas <b>Sim/Não</b> das clientes são registradas sozinhas no campo <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">wa_status</code> (o servidor escuta o WhatsApp). Instância = <code style="background:var(--bg3);padding:1px 5px;border-radius:3px">salao</code> (qualquer nome serve).</div>
+              <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+                <button class="btn sm" onclick="abrirQRWA()">📷 Abrir QR Code</button>
+              </div>
               <div class="dv"></div>
               <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:8px">MEU NÚMERO (para receber relatórios)</div>
               <div class="fg fg2">
@@ -3450,6 +3453,10 @@ async function testarWA(){
     toast(estado==='open'?'✅ Conectado: '+estado:'⚠️ Estado: '+estado, estado==='open'?'ok':'w');
   }catch(e){hideLoad();toast('❌ Erro: '+e.message,'e');}
 }
+function abrirQRWA(){
+  if(!WA_CFG.url||!WA_CFG.key){toast('Preencha URL e API key e salve primeiro','w');return;}
+  window.open(`${WA_CFG.url}/qr?key=${encodeURIComponent(WA_CFG.key)}`,'_blank');
+}
 async function waEnviarAPI(phone, message){
   if(!WA_CFG.url||!WA_CFG.inst||!WA_CFG.key) return false;
   const wp=phone.replace(/\D/g,'');
@@ -3544,26 +3551,85 @@ function montarMsgWA(agId){
 }
 function abrirWAindividual(agId){ const ag=D.agendamentos.find(a=>a.id===agId); if(!ag)return; const cli=D.clientes.find(c=>c.id===cliId(ag)); if(!cli?.whatsapp)return; const wp=cli.whatsapp.replace(/\D/g,''); const num=wp.length<=11?'55'+wp:wp; const msg=montarMsgWA(agId); if(msg) window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`,'_blank'); }
 function waSelecionarTodos(sel){ document.querySelectorAll('#wa-list input[type=checkbox]:not(:disabled)').forEach(c=>c.checked=sel); }
+// Envio mensagem a mensagem (compatível com Evolution API / servidor sem sendBulk)
+async function waEnviarLoopAntigo(sels){
+  showLoad(`Enviando ${sels.length} mensagem(ns) via API...`);
+  let ok=0,fail=0;
+  for(const id of sels){
+    const ag=D.agendamentos.find(a=>a.id===id); if(!ag)continue;
+    const cli=D.clientes.find(c=>c.id===cliId(ag)); if(!cli?.whatsapp)continue;
+    const msg=montarMsgWA(id); if(!msg)continue;
+    const sent=await waEnviarAPI(cli.whatsapp,msg);
+    if(sent){ await waSetStatus(id,'aguardando'); ok++; }
+    else fail++;
+    await new Promise(r=>setTimeout(r,400));
+  }
+  hideLoad();
+  toast(`${ok} enviada(s) via API${fail>0?' | '+fail+' erro(s)':''}`, ok>0?'ok':'e');
+  enviarWhatsAppDia(); renderAgenda();
+}
+// Acompanha o lote enviado pelo servidor Baileys
+async function waAcompanharLote(jobId, total){
+  let falhas=0;
+  for(let i=0;i<400;i++){ // ~20 min no máximo
+    await new Promise(r=>setTimeout(r,3000));
+    let j=null;
+    try{
+      const r=await fetch(`${WA_CFG.url}/message/jobs/${WA_CFG.inst}/${jobId}`,{headers:{'apikey':WA_CFG.key}});
+      if(!r.ok) throw new Error('http '+r.status);
+      j=await r.json(); falhas=0;
+    }catch(e){ if(++falhas>=10){ toast('Perdi o contato com o servidor. O envio continua lá; confira os status na agenda.','w'); break; } continue; }
+    if(j.status==='done'||j.status==='finished'||j.status==='concluido'||(j.sent+j.failed>=j.total&&j.total>0)){
+      const nomes=(j.items||[]).filter(x=>x.status==='falhou').map(x=>x.name).filter(Boolean);
+      toast(`✅ ${j.sent} enviada(s)`+(j.failed?` | ⚠️ ${j.failed} falha(s)${nomes.length?': '+nomes.slice(0,5).join(', '):''}`:''), j.failed?'w':'ok');
+      break;
+    }
+  }
+  try{ await reloadSection('agendamentos'); }catch(e){}
+  try{ renderAgenda(); }catch(e){}
+  const m=document.getElementById('m-wa');
+  if(m&&m.classList.contains('open')){ try{ enviarWhatsAppDia(); }catch(e){} }
+}
 async function abrirSelecionadosWA(){
   const sels=[...document.querySelectorAll('#wa-list input[type=checkbox]:checked')].map(c=>c.dataset.agid);
   if(!sels.length){ toast('Selecione ao menos um agendamento','w'); return; }
   const temAPI=WA_CFG.url&&WA_CFG.inst&&WA_CFG.key;
   if(temAPI){
-    // Envio via Evolution API
-    showLoad(`Enviando ${sels.length} mensagem(ns) via API...`);
-    let ok=0,fail=0;
+    const messages=[];
     for(const id of sels){
       const ag=D.agendamentos.find(a=>a.id===id); if(!ag)continue;
       const cli=D.clientes.find(c=>c.id===cliId(ag)); if(!cli?.whatsapp)continue;
-      const msg=montarMsgWA(id); if(!msg)continue;
-      const sent=await waEnviarAPI(cli.whatsapp,msg);
-      if(sent){ await waSetStatus(id,'aguardando'); ok++; }
-      else fail++;
-      await new Promise(r=>setTimeout(r,400));
+      const text=montarMsgWA(id); if(!text)continue;
+      const wp=cli.whatsapp.replace(/\D/g,'');
+      messages.push({number:wp.length<=11?'55'+wp:wp,text,agId:id,name:cli.nome});
     }
+    if(!messages.length){ toast('Nenhuma cliente com WhatsApp válido nos selecionados','w'); return; }
+    showLoad(`Enviando ${messages.length} lembrete(s) de uma vez...`);
+    let r;
+    try{
+      r=await fetch(`${WA_CFG.url}/message/sendBulk/${WA_CFG.inst}`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','apikey':WA_CFG.key},
+        body:JSON.stringify({messages})
+      });
+    }catch(e){
+      hideLoad();
+      toast('❌ Não consegui falar com o servidor. Se ele estava dormindo, aguarde 1 min e tente de novo.','e');
+      return;
+    }
+    if(r.status===404){ hideLoad(); return waEnviarLoopAntigo(sels); } // servidor sem envio em lote
+    if(r.status===503){ hideLoad(); toast('⚠️ WhatsApp desconectado no servidor. Vá em Configurações → "Abrir QR Code" e escaneie.','w'); return; }
+    if(!r.ok){
+      hideLoad();
+      let msg=''; try{ msg=(await r.json()).error||''; }catch(e){}
+      toast('❌ Servidor recusou o envio ('+r.status+(msg?': '+msg:'')+')','e');
+      return;
+    }
+    const j=await r.json();
     hideLoad();
-    toast(`${ok} enviada(s) via API${fail>0?' | '+fail+' erro(s)':''}`, ok>0?'ok':'e');
-    enviarWhatsAppDia(); renderAgenda();
+    const rej=(j.rejected&&j.rejected.length)||0;
+    toast(`📤 ${j.queued} mensagem(ns) na fila${j.estimateMin?` (~${j.estimateMin} min)`:''}${rej?` | ${rej} recusada(s)`:''}. Pode continuar usando o sistema.`,'ok');
+    waAcompanharLote(j.jobId, j.queued);
   } else {
     // Fallback: abre wa.me tabs
     sels.forEach((id,i)=>{ setTimeout(()=>abrirWAindividual(id), i*900); });

@@ -1,0 +1,23 @@
+# Blueprint do Render: New → Blueprint → aponte para este repositório.
+services:
+  - type: web
+    name: ns-whatsapp
+    runtime: node
+    plan: free
+    rootDir: baileys-server
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: WA_SESSION
+        value: salao
+      - key: TZ
+        value: America/Sao_Paulo
+      - key: NODE_VERSION
+        value: 22
