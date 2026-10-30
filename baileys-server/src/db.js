@@ -99,7 +99,8 @@ export function createDb(sb) {
       return fetchAll(() => sb.from('clientes').select('id,nome,whatsapp,nao_contatar').eq('salao_id', salaoId).not('whatsapp', 'is', null).order('id'));
     },
     listAgendamentosSalao(salaoId) {
-      return fetchAll(() => sb.from('agendamentos').select('id,cliente_id,data,status').eq('salao_id', salaoId).order('id'));
+      return fetchAll(() => sb.from('agendamentos').select('id,cliente_id,data,status,agendamento_servicos(servico_id)').eq('salao_id', salaoId).order('id'))
+        .then((rows) => rows.map((a) => ({ id: a.id, cliente_id: a.cliente_id, data: a.data, status: a.status, servicos: (a.agendamento_servicos || []).map((x) => x.servico_id) })));
     },
     async listReativacoes(salaoId) {
       const { data, error } = await sb.from('reativacoes').select('cliente_id,enviado_em').eq('salao_id', salaoId).order('enviado_em', { ascending: false }).limit(2000);

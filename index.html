@@ -3749,7 +3749,7 @@ function diasEntre(a,b){ return Math.round((new Date(b+'T12:00:00')-new Date(a+'
 function mediana(v){ if(!v.length) return 0; const a=[...v].sort((x,y)=>x-y); const m=Math.floor(a.length/2); return a.length%2?a[m]:(a[m-1]+a[m])/2; }
 // Estatística de cada cliente a partir do histórico (visita = comanda paga/concluída)
 function cliStats(svcId){
-  const hoje=dStr(new Date()); const lim=Number(WA_CFG.dias)||60;
+  const hoje=dStr(new Date()); const lim=SUMIDA_DIAS;
   const porCli={};
   D.agendamentos.forEach(a=>{
     const cid=cliId(a); if(!cid) return;
@@ -3787,7 +3787,7 @@ function renderRelCli(){
   const svcId=S.relSvc||''; const fSit=S.relSit||'';
   const stats=cliStats(svcId).filter(x=>x.n>0);
   const cnt=k=>stats.filter(x=>x.sit===k).length;
-  const lim=Number(WA_CFG.dias)||60;
+  const lim=SUMIDA_DIAS;
   // serviços no período
   const sv={};
   D.agendamentos.filter(a=>ok(a.data)).forEach(a=>{
@@ -4223,7 +4223,8 @@ async function salvarBlk(){
 // WHATSAPP DO DIA
 // ============================================================
 // ── WhatsApp API Config ──────────────────────────────────────
-const WA_CFG = { url:'', inst:'', key:'', dono:'', relhr:'07:00', ultimo:'', dias:60, reativarOn:false, reativarMsg:'', reativarMax:8 };
+const WA_CFG = { url:'', inst:'', key:'', dono:'', relhr:'07:00', ultimo:'', reativarOn:false, reativarMsg:'', reativarMax:15, reativarDias:30, reativarSvc:'', reativarNth:-1, reativarDow:6 };
+const SUMIDA_DIAS=60; // relatório: cliente sem vir há mais que isso = sumida
 // A conexão do WhatsApp é do SALÃO (tabela salao_whatsapp): configura uma vez e vale em todos os aparelhos
 
 // ============================================================
@@ -4299,7 +4300,7 @@ async function serieSalvar(){
   if(error){ hideLoad(); toast('Não consegui criar: '+error.message,'e'); return; }
   await sb.from('agendamentos').update({serie_id:data.id}).eq('id',ag.id); ag.serie_id=data.id;
   D.series.push({...row,...data}); hideLoad(); closeModal('m-serie');
-  toast('🔁 Repetição criada: '+serieTexto(data)); await serieGerar();
+  toast('🔁 Repetição criada: '+serieTexto({...row,...data})); await serieGerar();
 }
 function renderSeries(){
   const el=document.getElementById('cfg-series'); if(!el) return;
@@ -4332,36 +4333,55 @@ async function reativCarregar(){
   if(S.user?.role!=='admin') return;
   try{ const {data}=await sb.from('reativacoes').select('cliente_id,enviado_em').order('enviado_em',{ascending:false}).limit(500); D.reativ=data||[]; }catch(e){ D.reativ=[]; }
 }
+function reativJanela(){
+  // semana do laser = da segunda até o dia ANTES do laser (mesma regra do servidor)
+  const hoje=dStr(new Date()); const d=new Date();
+  const laser=serieData(Number(WA_CFG.reativarNth),Number(WA_CFG.reativarDow),d.getFullYear(),d.getMonth());
+  if(!laser) return {laser:null,ativa:false};
+  const L=new Date(laser+'T12:00:00'); const seg=new Date(L); seg.setDate(L.getDate()-((L.getDay()+6)%7)); const fim=new Date(L); fim.setDate(L.getDate()-1);
+  const ativa=hoje>=dStr(seg)&&hoje<=dStr(fim);
+  return {laser,ativa,inicio:dStr(seg)};
+}
 function reativCandidatas(){
-  const hoje=dStr(new Date());
-  return cliStats().filter(x=>x.sit==='sumida'&&x.c.whatsapp&&!x.c.nao_contatar&&!D.reativ.some(r=>r.cliente_id===x.c.id&&diasEntre(String(r.enviado_em).substring(0,10),hoje)<90))
-    .sort((a,b)=>b.n-a.n||a.dias-b.dias);
+  const svc=WA_CFG.reativarSvc; if(!svc) return [];
+  const hoje=dStr(new Date()); const min=Number(WA_CFG.reativarDias)||30;
+  return cliStats(svc).filter(x=>x.n>0&&x.ultima&&!x.futura&&x.dias>min&&x.c.whatsapp&&!x.c.nao_contatar&&!D.reativ.some(r=>r.cliente_id===x.c.id&&diasEntre(String(r.enviado_em).substring(0,10),hoje)<25))
+    .sort((a,b)=>a.ultima<b.ultima?1:a.ultima>b.ultima?-1:b.n-a.n);
 }
 function renderReativ(){
   const el=document.getElementById('cfg-reativ'); if(!el) return;
   if(S.user?.role!=='admin'){ el.style.display='none'; return; } el.style.display='';
-  const cand=reativCandidatas(); const max=Number(WA_CFG.reativarMax)||8;
+  const max=Number(WA_CFG.reativarMax)||15; const cand=reativCandidatas().slice(0,max); const jan=reativJanela();
+  const svcOpt='<option value="">— escolha o serviço —</option>'+D.servicos.map(x=>`<option value="${x.id}" ${x.id===WA_CFG.reativarSvc?'selected':''}>${relEsc(x.nome)}</option>`).join('');
   const ult=D.reativ[0]?fBR(String(D.reativ[0].enviado_em).substring(0,10)):'nunca';
+  const quando=jan.laser?`Este mês o laser cai em <b>${fBR(jan.laser)}</b>. ${jan.ativa?'Estamos na semana de chamar.':'As mensagens saem na semana anterior, de segunda até o dia antes.'}`:'';
   el.innerHTML=`
-    <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:6px">💌 CHAMAR DE VOLTA CLIENTES QUE SUMIRAM (automático)</div>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Se a cliente não volta há mais dias que o prazo abaixo (e não tem horário marcado), o servidor do WhatsApp manda o convite sozinho, em dias úteis e horário comercial, com pausa entre as mensagens. Cada cliente recebe no máximo uma vez a cada 90 dias. Quem responde "parar" não recebe mais.</div>
+    <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:6px">💌 SEMANA DO LASER: CHAMAR QUEM NÃO VOLTOU (automático)</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Na semana do laser, o servidor do WhatsApp chama as últimas clientes que fizeram o serviço e não voltaram, poucas por dia (a meta da semana é dividida pelos dias úteis), de segunda até o dia antes. Só em horário comercial, uma vez por dia. Cada cliente é chamada no máximo uma vez a cada 25 dias. Quem responde "parar" não recebe mais.</div>
     <label style="display:flex;align-items:center;gap:8px;font-weight:700;margin-bottom:12px"><input type="checkbox" id="rv-on" ${WA_CFG.reativarOn?'checked':''}> Envio automático LIGADO</label>
     <div class="fg fg2">
-      <div class="fgr"><label>SUMIU HÁ MAIS DE (dias)</label><select id="rv-dias">${[45,60,75,90,120].map(d=>`<option value="${d}" ${Number(WA_CFG.dias)===d?'selected':''}>${d} dias</option>`).join('')}</select></div>
-      <div class="fgr"><label>NO MÁXIMO POR DIA</label><input type="number" id="rv-max" min="1" max="30" value="${max}"></div>
+      <div class="fgr"><label>SERVIÇO (laser)</label><select id="rv-svc">${svcOpt}</select></div>
+      <div class="fgr"><label>QUANTAS CLIENTES POR SEMANA</label><input type="number" id="rv-max" min="1" max="60" value="${max}"></div>
+      <div class="fgr"><label>QUAL É O DIA DO LASER</label><select id="rv-nth">${[[-1,'Último'],[1,'1º'],[2,'2º'],[3,'3º'],[4,'4º']].map(([v,l])=>`<option value="${v}" ${Number(WA_CFG.reativarNth)===v?'selected':''}>${l}</option>`).join('')}</select></div>
+      <div class="fgr"><label>DIA DA SEMANA</label><select id="rv-dow">${DIAS_SEM.map((n,i)=>`<option value="${i}" ${Number(WA_CFG.reativarDow)===i?'selected':''}>${n[0].toUpperCase()+n.slice(1)}</option>`).join('')}</select></div>
+      <div class="fgr"><label>NÃO VOLTOU HÁ MAIS DE (dias)</label><input type="number" id="rv-dias" min="7" max="365" value="${Number(WA_CFG.reativarDias)||30}"></div>
     </div>
-    <div class="fgr" style="margin-top:10px"><label>MENSAGEM ({nome} e {salao} são trocados)</label><textarea id="rv-msg" rows="3" style="width:100%">${relEsc(WA_CFG.reativarMsg||'Oi {nome}! Tudo bem? 💛 Sentimos sua falta por aqui no {salao}. Vamos marcar o seu horário? É só me responder por aqui!')}</textarea></div>
+    <div class="fgr" style="margin-top:10px"><label>MENSAGEM ({nome} {data} {dia} {salao} são trocados)</label><textarea id="rv-msg" rows="3" style="width:100%">${relEsc(WA_CFG.reativarMsg||'Oi {nome}! Tudo bem? 💛 Dia {data} ({dia}) é o dia do laser aqui no {salao}. Quer garantir o seu horário? É só me responder por aqui!')}</textarea></div>
     <div style="margin-top:12px"><button class="btn gd sm" onclick="salvarReativ()">SALVAR</button> <span style="font-size:12px;color:var(--text3);margin-left:8px">Último envio: ${ult}</span></div>
-    <div style="margin-top:14px;font-size:12px"><b>${cand.length}</b> cliente(s) seriam chamadas (até ${max} por dia)${cand.length?': '+cand.slice(0,6).map(x=>relEsc(x.c.nome.split(' ')[0])+' ('+x.dias+'d)').join(', ')+(cand.length>6?'…':''):''}</div>`;
+    <div style="margin-top:14px;font-size:12px">${quando}<br>${WA_CFG.reativarSvc?`<b>${cand.length}</b> cliente(s) na fila (as mais recentes primeiro)${cand.length?': '+cand.slice(0,8).map(x=>relEsc(x.c.nome.split(' ')[0])+' ('+x.dias+'d)').join(', ')+(cand.length>8?'…':''):''}`:'Escolha o serviço para ver quem seria chamada.'}</div>`;
 }
 async function salvarReativ(){
   WA_CFG.reativarOn=document.getElementById('rv-on').checked;
-  WA_CFG.dias=Number(document.getElementById('rv-dias').value)||60;
-  WA_CFG.reativarMax=Math.max(1,Math.min(30,Number(document.getElementById('rv-max').value)||8));
+  WA_CFG.reativarSvc=document.getElementById('rv-svc').value;
+  if(WA_CFG.reativarOn&&!WA_CFG.reativarSvc){ toast('Escolha o serviço do laser antes de ligar','e'); WA_CFG.reativarOn=false; return; }
+  WA_CFG.reativarNth=Number(document.getElementById('rv-nth').value);
+  WA_CFG.reativarDow=Number(document.getElementById('rv-dow').value);
+  WA_CFG.reativarDias=Math.max(7,Math.min(365,Number(document.getElementById('rv-dias').value)||30));
+  WA_CFG.reativarMax=Math.max(1,Math.min(60,Number(document.getElementById('rv-max').value)||15));
   WA_CFG.reativarMsg=document.getElementById('rv-msg').value.trim();
   const {error}=await waSalvarDB();
   if(error){ toast('Não consegui salvar: '+error.message,'e'); return; }
-  toast(WA_CFG.reativarOn?'✅ Envio automático ligado':'Envio automático desligado','ok'); renderReativ();
+  toast(WA_CFG.reativarOn?'✅ Envio automático ligado':'Salvo (envio desligado)','ok'); renderReativ();
 }
 
 async function waCarregar(){
@@ -4371,7 +4391,7 @@ async function waCarregar(){
     if(data){
       WA_CFG.url=data.wa_url||''; WA_CFG.inst=data.wa_inst||''; WA_CFG.key=data.wa_key||'';
       WA_CFG.dono=data.wa_dono||''; WA_CFG.relhr=data.wa_rel_hora||'07:00'; WA_CFG.ultimo=data.wa_rel_ultimo||'';
-      WA_CFG.reativarOn=!!data.reativar_on; WA_CFG.dias=Number(data.reativar_dias)||60; WA_CFG.reativarMsg=data.reativar_msg||''; WA_CFG.reativarMax=Number(data.reativar_max)||8; WA_CFG.reativarUltimo=data.reativar_ultimo||'';
+      WA_CFG.reativarOn=!!data.reativar_on; WA_CFG.reativarDias=Number(data.reativar_dias)||30; WA_CFG.reativarMsg=data.reativar_msg||''; WA_CFG.reativarMax=Number(data.reativar_max)||15; WA_CFG.reativarUltimo=data.reativar_ultimo||''; WA_CFG.reativarSvc=data.reativar_servico||''; WA_CFG.reativarNth=data.reativar_nth==null?-1:Number(data.reativar_nth); WA_CFG.reativarDow=data.reativar_dow==null?6:Number(data.reativar_dow);
     } else {
       // primeira vez: aproveita o que estava salvo neste aparelho
       const g=k=>{ try{return localStorage.getItem(k)||'';}catch(e){return '';} };
@@ -4385,7 +4405,7 @@ async function waCarregar(){
 }
 async function waSalvarDB(){
   const base={salao_id:S.salaoId,wa_url:WA_CFG.url,wa_inst:WA_CFG.inst,wa_key:WA_CFG.key,wa_dono:WA_CFG.dono,wa_rel_hora:WA_CFG.relhr,wa_rel_ultimo:WA_CFG.ultimo,updated_at:new Date().toISOString()};
-  const rv={reativar_on:!!WA_CFG.reativarOn,reativar_dias:Number(WA_CFG.dias)||60,reativar_msg:WA_CFG.reativarMsg||'',reativar_max:Number(WA_CFG.reativarMax)||8};
+  const rv={reativar_on:!!WA_CFG.reativarOn,reativar_dias:Number(WA_CFG.reativarDias)||30,reativar_msg:WA_CFG.reativarMsg||'',reativar_max:Number(WA_CFG.reativarMax)||15,reativar_servico:WA_CFG.reativarSvc||null,reativar_nth:Number(WA_CFG.reativarNth),reativar_dow:Number(WA_CFG.reativarDow)};
   let r=await sb.from('salao_whatsapp').upsert({...base,...rv},{onConflict:'salao_id'});
   // banco ainda sem as colunas novas (recorrencia-reativacao.sql não rodou): salva o resto
   if(r.error&&/reativar/i.test(r.error.message||'')) r=await sb.from('salao_whatsapp').upsert(base,{onConflict:'salao_id'});
