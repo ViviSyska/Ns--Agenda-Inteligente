@@ -1880,40 +1880,27 @@ function renderDash(){
   });
   const totalSaldoDevedor=comSaldoDevedor.reduce((t,a)=>t+gAgSaldo(a),0);
 
+  // 6 indicadores: previsto, ganhei, despesas, ticket médio, agendadas e canceladas
+  const todosPeriodo=fAgs();
+  const previstoTotal=agsPeriodo.reduce((t,a)=>t+gAgtot(a),0);
+  const nCancel=todosPeriodo.filter(a=>a.status==='cancelado').length;
+  const nAgend=agsPeriodo.length;
+  const nFeitas=agsPeriodo.filter(a=>a.status==='concluido').length;
+  const nPorVir=nAgend-nFeitas;
+  const pctCancel=todosPeriodo.length?Math.round(nCancel/todosPeriodo.length*100):0;
   document.getElementById('d-cards').innerHTML=`
-    <div class="sc"><div class="sc-l">FATURAMENTO</div><div class="sc-v gd">${Rf(fat)}</div></div>
-    <div class="sc cR"><div class="sc-l">DESPESAS</div><div class="sc-v rd">${Rf(totalDesp)}</div></div>
-    <div class="sc cG"><div class="sc-l">LUCRO</div><div class="sc-v ${fat-totalDesp>=0?'gr':'rd'}">${Rf(fat-totalDesp)}</div></div>
-    <div class="sc cB"><div class="sc-l">TICKET MÉDIO</div><div class="sc-v gd">${Rf(ticket)}</div></div>
-    <div class="sc"><div class="sc-l">CLIENTES</div><div class="sc-v">${D.clientes.length}</div></div>
-    <div class="sc" style="border-top-color:var(--gold)"><div class="sc-l">🟡 CONFIRMADOS</div><div class="sc-v gd">${nConf}</div></div>
-    <div class="sc"><div class="sc-l">— AGENDADOS</div><div class="sc-v">${nPend}</div></div>
-    <div class="sc" style="border-top-color:var(--purple)"><div class="sc-l">🟣 EM ATENDIMENTO</div><div class="sc-v" style="color:var(--purple)">${nAtr}</div></div>
-    <div class="sc cG" style="border-top-color:var(--green)"><div class="sc-l">🟢 PAGOS</div><div class="sc-v gr">${nConcl}</div></div>
-    ${totalSaldoDevedor>0.01?`
-    <div class="sc" style="border-top-color:var(--red);grid-column:1/-1">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <div>
-          <div class="sc-l">⚠️ CONTAS EM ABERTO HOJE — ${comSaldoDevedor.length} comanda(s) com saldo pendente</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">Clientes que pagaram menos que o combinado — falta receber</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-family:var(--fm);font-size:22px;color:var(--red);font-weight:700">${Rf(totalSaldoDevedor)}</div>
-        </div>
-      </div>
-    </div>`:''}
-    <div class="sc" style="border-top-color:#f59e0b;grid-column:1/-1">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <div>
-          <div class="sc-l">${iconePerido} PREVISÃO ${periodoLabel} — ${nAbertos} agendamento(s) em aberto</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">Valor previsto se todos forem atendidos no período</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:16px">
-          ${fatPeriodo>0?`<div style="text-align:right"><div style="font-size:10px;color:var(--green)">JÁ FATURADO</div><div style="font-family:var(--fm);font-size:16px;color:var(--green);font-weight:700">${Rf(fatPeriodo)}</div></div>`:''}
-          ${prevPeriodo>0?`<div style="text-align:right"><div style="font-size:10px;color:#f59e0b">AINDA A FATURAR</div><div style="font-family:var(--fm);font-size:22px;color:#f59e0b;font-weight:700">${Rf(prevPeriodo)}</div></div>`:'<div style="font-size:12px;color:var(--text3)">Nenhum agendamento em aberto</div>'}
-        </div>
-      </div>
-    </div>`;
+    <div class="sc"><div class="sc-l">PREVISTO</div><div class="sc-v gd">${Rf(previstoTotal)}</div>
+      <div class="sc-s">${prevPeriodo>0.01?'ainda a faturar '+Rf(prevPeriodo):'tudo faturado'}</div></div>
+    <div class="sc cG"><div class="sc-l">GANHEI</div><div class="sc-v gr">${Rf(fat)}</div>
+      <div class="sc-s">lucro ${Rf(fat-totalDesp)}</div></div>
+    <div class="sc cR"><div class="sc-l">DESPESAS</div><div class="sc-v rd">${Rf(totalDesp)}</div>
+      <div class="sc-s">${fat>0?Math.round(totalDesp/fat*100)+'% do que ganhei':'no período'}</div></div>
+    <div class="sc cB"><div class="sc-l">TICKET MÉDIO</div><div class="sc-v gd">${Rf(ticket)}</div>
+      <div class="sc-s">por atendimento pago</div></div>
+    <div class="sc"><div class="sc-l">AGENDADAS</div><div class="sc-v">${nAgend}</div>
+      <div class="sc-s">${nFeitas} atendida(s) · ${nPorVir} por vir</div></div>
+    <div class="sc cR"><div class="sc-l">CANCELADAS</div><div class="sc-v ${nCancel?'rd':''}">${nCancel}</div>
+      <div class="sc-s">${nCancel?pctCancel+'% das comandas':'nenhuma'}</div></div>`;
   // chart — usa caixa por mês (valores reais)
   const ch=document.getElementById('d-chart'); ch.innerHTML='';
   const meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
