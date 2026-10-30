@@ -712,6 +712,9 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
   /* tira larguras fixas/cortes que vinham da versão de computador */
   table.rt td{max-width:none !important;overflow:visible !important;text-overflow:clip !important;width:auto !important}
 }
+
+.row-canc td{opacity:.72}
+.row-canc td:first-child strong{text-decoration:line-through}
 </style>
 </head>
 <body>
@@ -1600,7 +1603,7 @@ const SC = {
   confirmado:  'gd',   // amarelo
   atendimento: 'pr',   // roxo
   concluido:   'gr',   // verde
-  cancelado:   'gy',   // cinza apagado
+  cancelado:   'rd',   // vermelho: cancelada
   recusou:     'gy',   // cinza apagado (visual do wa)
 };
 // efStatus: NUNCA muda status automaticamente — só lê o que está no banco
@@ -1608,7 +1611,7 @@ const SC = {
 // Cancelada de verdade OU cliente respondeu NÃO no WhatsApp (e ainda não foi atendida)
 const isCanc = ag => ag.status==='cancelado' || (ag.wa_status==='recusou' && ag.status!=='concluido' && ag.status!=='atendimento');
 const efStatus = ag => {
-  if(ag.wa_status==='recusou') return 'recusou';
+  if(isCanc(ag)) return 'cancelado'; // cancelada OU cliente respondeu NÃO
   if(ag.wa_status==='confirmou' && ag.status==='pendente') return 'confirmado';
   return ag.status;
 };
@@ -2639,7 +2642,8 @@ function renderComandas(){
   });
   // Filtro por status (inclui 'atendimento' como virtual)
   if(f==='atendimento') ags=ags.filter(a=>efStatus(a)==='atendimento');
-  else if(f) ags=ags.filter(a=>a.status===f);
+  else if(f==='cancelado') ags=ags.filter(isCanc);
+  else if(f) ags=ags.filter(a=>a.status===f&&!isCanc(a));
   // Pesquisa universal
   if(q) ags=ags.filter(a=>
     gCNm2(a).toLowerCase().includes(q) ||
@@ -2650,8 +2654,9 @@ function renderComandas(){
   );
   ags=ags.sort((a,b)=>(b.data||'').localeCompare(a.data||'')||b.hora.localeCompare(a.hora));
   document.getElementById('tb-cmd').innerHTML=ags.length?ags.map(a=>{
-    const saldoDev=gAgSaldo(a);
-    return`<tr>
+    const canc=isCanc(a);
+    const saldoDev=canc?0:gAgSaldo(a);
+    return`<tr class="${canc?'row-canc':''}">
     <td><strong>${gCNm2(a)}</strong></td>
     <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(a.svcs||[]).map(gSNm).join(', ')||'—'}</td>
     <td>${gPNm2(a)}</td>
@@ -2679,7 +2684,7 @@ function abrirFat(agId){
   if(ag.status==='cancelado'){ toast('Não é possível faturar comanda cancelada','e'); return; }
   // Inclui pendentes/confirmados normais + qualquer comanda com saldo devedor (mesmo já "concluída")
   // Exclui SEMPRE comandas canceladas, mesmo que gAgSaldo ainda "ache" que falta pagar
-  const pendentes=D.agendamentos.filter(a=>a.status!=='cancelado'&&cliId(a)===cliId(ag)&&(a.status==='pendente'||a.status==='confirmado'||gAgSaldo(a)>0.01));
+  const pendentes=D.agendamentos.filter(a=>!isCanc(a)&&cliId(a)===cliId(ag)&&(a.status==='pendente'||a.status==='confirmado'||gAgSaldo(a)>0.01));
   S.fatIds=[agId]; S.pgtos=[]; S.selPgTipo=null; S._faturando=false;
   const resumoEl=document.getElementById('fat-resumo-pgto'); if(resumoEl)resumoEl.style.display='none';
   const pgListEl=document.getElementById('pg-list'); if(pgListEl)pgListEl.innerHTML='';
@@ -3530,7 +3535,7 @@ function renderRelFin(){
   const el=document.getElementById('rel-fin'); if(!el) return;
   const {ok}=relRange();
   const pagoDe=a=>D.caixa.filter(x=>x.agendamento_id===a.id&&x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
-  const ags=D.agendamentos.filter(a=>a.status!=='cancelado'&&ok(a.data));
+  const ags=D.agendamentos.filter(a=>!isCanc(a)&&ok(a.data));
   const previsto=ags.reduce((t,a)=>t+gAgtot(a),0);
   const concl=ags.filter(a=>a.status==='concluido');
   const faturado=concl.reduce((t,a)=>t+gAgtot(a),0);
@@ -3568,7 +3573,7 @@ function renderRelFin(){
   // Pendência geral (todas as datas), só para referência
   let totGeral=0;
   D.agendamentos.forEach(a=>{
-    if(a.status==='cancelado') return;
+    if(isCanc(a)) return;
     const saldo=gAgSaldo(a); if(saldo<=0.01||gAgtot(a)<=0.009) return;
     const dt=(a.data||'').substring(0,10);
     if(a.status==='concluido'||pagoDe(a)>0||dt<TODAY) totGeral+=saldo;
@@ -4446,7 +4451,7 @@ function carregarAgReplicar(){
       ? `📦 ${pk.nome}`
       : (ag.svcs||[]).map(gSNm).join(', ')||'—';
     const valor=gAgtot(ag);
-    const sc={pendente:'gd',confirmado:'gd',atendimento:'pr',concluido:'gr',cancelado:'gy'};
+    const sc={pendente:'gd',confirmado:'gd',atendimento:'pr',concluido:'gr',cancelado:'rd'};
     return`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:var(--r2);cursor:pointer;border:var(--brd);transition:border-color .15s">
       <input type="checkbox" checked data-agid="${ag.id}" style="accent-color:var(--gold);width:15px;height:15px;flex-shrink:0;cursor:pointer">
       <div style="flex:1;min-width:0">
