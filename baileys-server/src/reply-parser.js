@@ -65,3 +65,9 @@ export function describeMessage(message) {
   if (m.contactMessage || m.contactsArrayMessage) return '👤 Contato';
   return null;
 }
+
+// "parar", "sair", "não quero receber" — pedido para não receber mais mensagens de retorno
+export function isOptOut(raw) {
+  const t = String(raw ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  return /^(parar|pare|sair|stop|descadastrar|remover|nao quero (mais )?(receber|mensagem|mensagens)|nao me (mande|envie)( mais)? mensagem|nao envie mais)( |$)/.test(t);
+}

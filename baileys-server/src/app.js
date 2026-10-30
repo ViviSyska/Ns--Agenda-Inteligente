@@ -5,7 +5,7 @@ import express from 'express';
 import QRCode from 'qrcode';
 import { timingSafeEqual, randomUUID } from 'node:crypto';
 import { toWaNumber, phoneKey, jidToPhone } from './phone.js';
-import { parseReply, describeMessage, extractText as extractText0 } from './reply-parser.js';
+import { parseReply, describeMessage, isOptOut, extractText as extractText0 } from './reply-parser.js';
 
 const defaultSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CLIENTES_TTL_MS = 5 * 60 * 1000;
@@ -410,7 +410,21 @@ export function createApp({ cfg, db, wa, log = console, sleep = defaultSleep }) 
       });
     }
     if (msg.key?.fromMe) return { handled: false, reason: 'ignorada' };
-    const verdict = parseReply(extractText0(msg.message));
+    const textoMsg = extractText0(msg.message);
+    if (isOptOut(textoMsg) && db.setNaoContatar) {
+      phone = phone || (await resolvePhone(msg));
+      const k = phone && phoneKey(phone);
+      const cs = k ? await findClientes(k) : [];
+      if (cs.length) {
+        await db.setNaoContatar(cs.map((c) => c.id));
+        try {
+          const r = await wa.getSock()?.sendMessage(jid, { text: 'Tudo bem! Não vamos mais enviar mensagens de retorno. Quando quiser agendar é só chamar. 💛' });
+          await recordMsg({ jid, phone, direction: 'out', text: 'Tudo bem! Não vamos mais enviar mensagens de retorno. Quando quiser agendar é só chamar. 💛', waId: r?.key?.id });
+        } catch (e) { log.warn?.({ err: String(e) }, 'não consegui confirmar o pedido para parar'); }
+        return { handled: true, reason: 'optout' };
+      }
+    }
+    const verdict = parseReply(textoMsg);
     if (!verdict) return { handled: false, reason: 'nao_e_resposta' };
 
     phone = phone || (await resolvePhone(msg));

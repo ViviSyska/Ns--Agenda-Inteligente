@@ -2,6 +2,7 @@ import pino from 'pino';
 import { createApp } from './app.js';
 import { createDb, createSupabase } from './db.js';
 import { createWhatsApp } from './whatsapp.js';
+import { createReativacao } from './reativacao.js';
 
 const log = pino({ level: process.env.LOG_LEVEL || 'info' });
 
@@ -49,6 +50,10 @@ const wa = createWhatsApp({
     }),
 });
 api = createApp({ cfg, db, wa, log });
+
+const reat = createReativacao({ db, wa, sendOne: (n, t) => api.sendOne(n, t), log, salaoId: process.env.SALAO_ID || null });
+const reatTimer = setInterval(() => reat.tick().catch((e) => log.error({ err: String(e?.message || e) }, 'reativação falhou')), 10 * 60 * 1000);
+reatTimer.unref();
 
 const port = num('PORT', 3000);
 const server = api.app.listen(port, () => log.info(`Servidor WhatsApp ouvindo na porta ${port}`));

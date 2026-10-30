@@ -991,6 +991,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
             <div id="rel-top-prof"></div>
           </div>
         </div>
+        <div id="rel-cli"></div>
         <!-- Tabela mensal -->
         <div class="tw">
           <div class="th2"><span class="th2-t">📅 DETALHE MENSAL</span></div>
@@ -1000,6 +1001,8 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 
       <!-- CONFIG -->
       <div id="sec-config" class="sec">
+        <div class="tw" id="cfg-series" style="margin-bottom:14px"></div>
+        <div class="tw" id="cfg-reativ" style="margin-bottom:14px;padding:16px"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
           <div class="tw"><div class="th2"><span class="th2-t">PROFISSIONAIS</span><div class="tb-sp"></div><button class="btn gd xs" onclick="abrirProf(null)">+ Adicionar</button></div>
             <table><thead><tr><th>NOME</th><th>COMISSÃO</th><th>HORÁRIO</th><th>AÇÕES</th></tr></thead><tbody id="tb-prof"></tbody></table>
@@ -1465,6 +1468,23 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
     </div>
   </div>
 </div>
+
+<div class="ov" id="m-serie">
+  <div class="md">
+    <div class="mh"><div class="mt">🔁 REPETIR AGENDAMENTO</div><button class="mx" onclick="closeModal('m-serie')">✕</button></div>
+    <div class="mb">
+      <div id="sr-info" style="font-size:13px;margin-bottom:12px"></div>
+      <div class="fg fg2">
+        <div class="fgr"><label>QUAL SEMANA</label><select id="sr-nth"><option value="-1">Último</option><option value="1">1º</option><option value="2">2º</option><option value="3">3º</option><option value="4">4º</option></select></div>
+        <div class="fgr"><label>DIA DA SEMANA</label><select id="sr-dow"><option value="0">Domingo</option><option value="1">Segunda</option><option value="2">Terça</option><option value="3">Quarta</option><option value="4">Quinta</option><option value="5">Sexta</option><option value="6">Sábado</option></select></div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin:14px 0 6px">MESES EM QUE NÃO ATENDE (marque para pular)</div>
+      <div id="sr-meses" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px"></div>
+      <div style="font-size:12px;color:var(--text3);margin-top:12px">O app cria o próximo agendamento só depois que o atual passar, e segue todo mês para sempre, até você pausar ou excluir em Configurações.</div>
+    </div>
+    <div class="mf"><button class="btn gh" onclick="closeModal('m-serie')">Cancelar</button><button class="btn gd" onclick="serieSalvar()">CRIAR REPETIÇÃO</button></div>
+  </div>
+</div>
 <div class="ov" id="m-logout">
   <div class="md conf-md">
     <div class="mb" style="text-align:center;padding:28px 20px">
@@ -1918,6 +1938,7 @@ async function entrarSalao(m){
   const ok = await loadAll();
   if(!ok){ S.user=null; return; }
   await waCarregar();
+  await serieCarregar(); await reativCarregar();
   document.getElementById('ls').style.display='none';
   document.getElementById('app').style.display='flex';
   const sn=document.getElementById('sl-nm'); if(sn) sn.value=(S.salaoNome||'').toUpperCase();
@@ -1929,7 +1950,7 @@ async function entrarSalao(m){
   if(window.innerWidth<768) document.getElementById('mob-b').style.display='flex';
   goTo('dashboard', document.querySelector('.ni.active'));
   iniciarRelatorioDiario();
-  if(user.role==='admin') msgStart();
+  if(user.role==='admin'){ msgStart(); serieGerar(); }
   if(!window.__waCh){
     window.__waCh=sb.channel('wa-updates')
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'agendamentos'},payload=>{
@@ -2399,6 +2420,10 @@ function verAg(id){
   }
   if(ag.status==='concluido'){
     addB('↩ Reabrir','ol',()=>{ closeModal('m-ver'); reabrirComanda(id); });
+  }
+  if(S.user?.role==='admin'&&!isCancelado(ag)){
+    if(ag.serie_id) addB('🔁 Repete todo mês','ol',()=>{ closeModal('m-ver'); goTo('config',[...document.querySelectorAll('.ni')].find(x=>(x.getAttribute('onclick')||'').includes("'config'"))); });
+    else addB('🔁 Repetir','ol',()=>{ closeModal('m-ver'); serieAbrir(id); });
   }
   if(isCanc(ag)){
     addB('↩ Reativar','gr',()=>{ closeModal('m-ver'); reativarAg(id); });
@@ -3716,6 +3741,97 @@ function relPeriodoLabel(){
   return f==='hoje'?fBR(day):f==='semana'?`${fBR(wStart)} a ${fBR(wEnd)}`:f==='mes'?`${REL_MESES_LONG[mo]} de ${yr}`:`Ano de ${yr}`;
 }
 // Painel financeiro: previsto x realizado, recebido, despesas e clientes com pagamento pendente
+
+// ============================================================
+// CLIENTES E SERVIÇOS — avaliação, sumidas e ritmo de cada cliente
+// ============================================================
+function diasEntre(a,b){ return Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000); }
+function mediana(v){ if(!v.length) return 0; const a=[...v].sort((x,y)=>x-y); const m=Math.floor(a.length/2); return a.length%2?a[m]:(a[m-1]+a[m])/2; }
+// Estatística de cada cliente a partir do histórico (visita = comanda paga/concluída)
+function cliStats(svcId){
+  const hoje=dStr(new Date()); const lim=Number(WA_CFG.dias)||60;
+  const porCli={};
+  D.agendamentos.forEach(a=>{
+    const cid=cliId(a); if(!cid) return;
+    const o=porCli[cid]||(porCli[cid]={visitas:[],futura:false,faltas:0,canc:0});
+    const d=(a.data||'').substring(0,10);
+    if(a.status==='concluido'){ if(!svcId||(a.svcs||[]).includes(svcId)) o.visitas.push({d,v:gAgtot(a)}); }
+    else if(isCancelado(a)) o.canc++;
+    else if(isFaltou(a)) o.faltas++;
+    else if(d>=hoje&&(a.status==='pendente'||a.status==='confirmado')) o.futura=true;
+  });
+  return D.clientes.map(c=>{
+    const o=porCli[c.id]||{visitas:[],futura:false,faltas:0,canc:0};
+    const vs=o.visitas.sort((a,b)=>a.d<b.d?-1:1);
+    const n=vs.length; const total=vs.reduce((t,x)=>t+x.v,0);
+    const ultima=n?vs[n-1].d:null; const dias=ultima?diasEntre(ultima,hoje):null;
+    const ints=[]; for(let i=1;i<n;i++) ints.push(diasEntre(vs[i-1].d,vs[i].d));
+    const ritmo=ints.length?Math.round(mediana(ints)):0;
+    let sit='sem', lbl='—', cls='gy';
+    if(n){
+      if(o.futura){ sit='agendada'; lbl='📅 Agendada'; cls='bl'; }
+      else if(dias>lim){ sit='sumida'; lbl='🔴 Sumida'; cls='rd'; }
+      else if((ritmo&&dias>ritmo*1.5)||dias>lim*0.7){ sit='risco'; lbl='🟠 Em risco'; cls='wa-no'; }
+      else if(n===1){ sit='nova'; lbl='🆕 Nova'; cls='bl'; }
+      else if(n>=3){ sit='fiel'; lbl='💛 Fiel'; cls='gd'; }
+      else { sit='ativa'; lbl='🟢 Ativa'; cls='gr'; }
+    }
+    return {c,n,total,ticket:n?total/n:0,ultima,dias,ritmo,futura:o.futura,faltas:o.faltas,canc:o.canc,sit,lbl,cls};
+  });
+}
+function relCliSvc(v){ S.relSvc=v||''; renderRelCli(); }
+function relCliSit(v){ S.relSit=v||''; renderRelCli(); }
+function renderRelCli(){
+  const box=document.getElementById('rel-cli'); if(!box) return;
+  const {ok}=relRange();
+  const svcId=S.relSvc||''; const fSit=S.relSit||'';
+  const stats=cliStats(svcId).filter(x=>x.n>0);
+  const cnt=k=>stats.filter(x=>x.sit===k).length;
+  const lim=Number(WA_CFG.dias)||60;
+  // serviços no período
+  const sv={};
+  D.agendamentos.filter(a=>ok(a.data)).forEach(a=>{
+    (a.svcs||[]).forEach(id=>{
+      const o=sv[id]||(sv[id]={n:0,rec:0,cli:new Set(),perd:0,tot:0});
+      o.tot++;
+      if(a.status==='concluido'){ o.n++; o.cli.add(cliId(a)); const k=(a.svcs||[]).length||1; o.rec+=gAgtot(a)/k; }
+      else if(isCancelado(a)||isFaltou(a)) o.perd++;
+    });
+  });
+  const svcRows=Object.entries(sv).map(([id,o])=>({nome:(D.servicos.find(x=>x.id===id)||{}).nome||'—',...o,cli:o.cli.size})).sort((a,b)=>b.rec-a.rec);
+  let lista=stats.slice();
+  if(fSit) lista=lista.filter(x=>x.sit===fSit);
+  lista.sort((a,b)=>fSit==='sumida'||fSit==='risco'?(a.dias-b.dias)*-1:b.total-a.total);
+  const optSvc='<option value="">Todos os serviços</option>'+D.servicos.map(x=>`<option value="${x.id}" ${x.id===svcId?'selected':''}>${relEsc(x.nome)}</option>`).join('');
+  const sits=[['','Todas'],['fiel','💛 Fiéis'],['ativa','🟢 Ativas'],['nova','🆕 Novas'],['agendada','📅 Agendadas'],['risco','🟠 Em risco'],['sumida','🔴 Sumidas']];
+  const optSit=sits.map(([v,l])=>`<option value="${v}" ${v===fSit?'selected':''}>${l}</option>`).join('');
+  const pill=(k,l)=>`<div class="sc" style="cursor:pointer" onclick="relCliSit('${k}')"><div class="sc-l">${l}</div><div class="sc-v">${cnt(k)}</div></div>`;
+  box.innerHTML=`
+    <div class="sh" style="margin:6px 0 10px;flex-wrap:wrap;gap:8px"><div style="font-family:var(--f2);font-size:15px;color:var(--gold);letter-spacing:1px">👥 CLIENTES E SERVIÇOS</div><div class="sh-sp"></div>
+      <select onchange="relCliSvc(this.value)" style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:7px 9px;color:var(--text);font-size:12px">${optSvc}</select></div>
+    <div class="cr">${pill('fiel','FIÉIS')}${pill('ativa','ATIVAS')}${pill('nova','NOVAS')}${pill('risco','EM RISCO')}${pill('sumida','SUMIDAS (+'+lim+' dias)')}</div>
+    <div class="tw" style="margin-bottom:14px"><div class="th2"><span class="th2-t">🧴 SERVIÇOS NO PERÍODO</span></div>
+      <table class="rt"><thead><tr><th>SERVIÇO</th><th>ATENDIM.</th><th>RECEITA</th><th>CLIENTES</th><th>FALTAS/CANCEL.</th></tr></thead><tbody>
+      ${svcRows.length?svcRows.map(r=>`<tr><td><strong>${relEsc(r.nome)}</strong></td><td>${r.n}</td><td style="color:var(--gold);font-weight:700">${Rf(r.rec)}</td><td>${r.cli}</td><td>${r.perd}${r.tot?` <span style="color:var(--text3);font-size:11px">(${Math.round(r.perd/r.tot*100)}%)</span>`:''}</td></tr>`).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:18px">Sem dados no período</td></tr>'}
+      </tbody></table></div>
+    <div class="tw"><div class="th2"><span class="th2-t">⭐ AVALIAÇÃO DAS CLIENTES ${svcId?'— '+relEsc((D.servicos.find(x=>x.id===svcId)||{}).nome||''):''}</span><div class="tb-sp"></div>
+      <select onchange="relCliSit(this.value)" style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:6px 8px;color:var(--text);font-size:12px">${optSit}</select></div>
+      <table class="rt"><thead><tr><th>CLIENTE</th><th>SITUAÇÃO</th><th>VISITAS</th><th>GASTOU</th><th>ÚLTIMA VISITA</th><th>RITMO</th><th>AÇÕES</th></tr></thead><tbody>
+      ${lista.length?lista.slice(0,200).map(x=>`<tr><td><strong>${relEsc(x.c.nome)}</strong></td><td><span class="bd ${x.cls}">${x.lbl}</span></td><td>${x.n}</td><td style="color:var(--gold);font-weight:700">${Rf(x.total)}</td><td>${x.ultima?fBR(x.ultima):'—'} <span style="color:var(--text3);font-size:11px">(${x.dias}d)</span></td><td>${x.ritmo?'a cada '+x.ritmo+' dias':'—'}</td><td>${x.c.whatsapp?`<button class="btn gd xs" onclick="chamarCliente('${x.c.id}')">💬 Chamar</button>`:''}</td></tr>`).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:18px">Nenhuma cliente nesta situação</td></tr>'}
+      </tbody></table></div>`;
+  try{ box.querySelectorAll('table.rt').forEach(rtLabel); }catch(e){}
+}
+// Abre a conversa com a cliente já com o convite para voltar
+function chamarCliente(cid){
+  const c=D.clientes.find(x=>x.id===cid); if(!c) return;
+  goTo('mensagens',[...document.querySelectorAll('.ni')].find(x=>(x.getAttribute('onclick')||'').includes("'mensagens'")));
+  setTimeout(()=>{ msgNovaEscolher(cid); const i=document.getElementById('msg-inp'); if(i) i.value=reativarTexto(c); },350);
+}
+function reativarTexto(c){
+  const t=WA_CFG.reativarMsg||'Oi {nome}! Tudo bem? 💛 Sentimos sua falta por aqui no {salao}. Vamos marcar o seu horário? É só me responder por aqui!';
+  return t.replace(/\{nome\}/g,(c.nome||'').split(' ')[0]).replace(/\{salao\}/g,S.salaoNome||'salão');
+}
+
 function renderRelFin(){
   const el=document.getElementById('rel-fin'); if(!el) return;
   const {ok}=relRange();
@@ -3852,6 +3968,7 @@ function renderRelFin(){
 function renderRel(){
   renderRelCal();
   try{ renderRelFin(); }catch(e){ console.error('renderRelFin',e); }
+  try{ renderRelCli(); }catch(e){ console.error('renderRelCli',e); }
   const {ok,yr,mo,mth,day,wStart,wEnd}=relRange();
   const f=S.filter;
   // ✅ FONTE ÚNICA: caixa (valores reais)
@@ -4034,6 +4151,7 @@ function renderConfig(){
   document.getElementById('cfg-cr').value=D.cfg.taxaCred; document.getElementById('cfg-db').value=D.cfg.taxaDeb;
   document.getElementById('cfg-ab').value=D.cfg.abertura; document.getElementById('cfg-fe').value=D.cfg.fechamento;
   renderConfigWA();
+  try{ renderSeries(); renderReativ(); }catch(e){ console.error(e); }
   renderCatConfig();
   document.getElementById('tb-prof').innerHTML=D.profs.length?D.profs.map(p=>`<tr>
     <td><div style="font-weight:600">${p.nome}</div><div style="font-size:11px;color:var(--text3)">${p.email}</div></td>
@@ -4105,8 +4223,147 @@ async function salvarBlk(){
 // WHATSAPP DO DIA
 // ============================================================
 // ── WhatsApp API Config ──────────────────────────────────────
-const WA_CFG = { url:'', inst:'', key:'', dono:'', relhr:'07:00', ultimo:'' };
+const WA_CFG = { url:'', inst:'', key:'', dono:'', relhr:'07:00', ultimo:'', dias:60, reativarOn:false, reativarMsg:'', reativarMax:8 };
 // A conexão do WhatsApp é do SALÃO (tabela salao_whatsapp): configura uma vez e vale em todos os aparelhos
+
+// ============================================================
+// REPETIÇÃO MÊS A MÊS (ex.: laser no último sábado, sem dezembro)
+// ============================================================
+D.series=D.series||[];
+const MESES_ABR=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const DIAS_SEM=['domingo','segunda','terça','quarta','quinta','sexta','sábado'];
+async function serieCarregar(){
+  if(S.user?.role!=='admin') return;
+  try{ const {data,error}=await sb.from('agendamento_series').select('*').order('created_at'); D.series=error?[]:(data||[]); }catch(e){ D.series=[]; }
+}
+// data da ocorrência no mês m (0-11) do ano y. nth: 1..4 ou -1 (último)
+function serieData(nth,dow,y,m){
+  if(nth===-1){ const ult=new Date(y,m+1,0); const d=new Date(y,m,ult.getDate()-((ult.getDay()-dow+7)%7)); return dStr(d); }
+  const prim=new Date(y,m,1); const off=(dow-prim.getDay()+7)%7; const dia=1+off+(nth-1)*7;
+  const d=new Date(y,m,dia); return d.getMonth()===m?dStr(d):null;
+}
+function serieProxima(se){
+  const hoje=dStr(new Date()); const now=new Date();
+  for(let i=0;i<30;i++){
+    const dt=new Date(now.getFullYear(),now.getMonth()+i,1);
+    if((se.meses_pulados||[]).includes(dt.getMonth()+1)) continue;
+    const d=serieData(se.nth,se.dow,dt.getFullYear(),dt.getMonth());
+    if(d&&d>=hoje&&(!se.ultima_gerada||d>String(se.ultima_gerada).substring(0,10))) return d;
+  }
+  return null;
+}
+function serieTexto(se){
+  const n=se.nth===-1?'último':se.nth+'º'; const pul=(se.meses_pulados||[]).map(m=>MESES_ABR[m-1]).join(', ');
+  return `todo ${n} ${DIAS_SEM[se.dow]} do mês${pul?' (menos '+pul+')':''}`;
+}
+// Cria só o PRÓXIMO agendamento de cada série, depois que o anterior passou
+let _serieBusy=false;
+async function serieGerar(){
+  if(_serieBusy||S.user?.role!=='admin') return; _serieBusy=true;
+  try{
+    const hoje=dStr(new Date()); let criou=0;
+    for(const se of (D.series||[])){
+      if(!se.ativa) continue;
+      if(se.ultima_gerada&&String(se.ultima_gerada).substring(0,10)>=hoje) continue; // ainda tem um futuro
+      const d=serieProxima(se); if(!d) continue;
+      if(D.agendamentos.some(a=>a.serie_id===se.id&&(a.data||'').substring(0,10)===d)){ continue; }
+      const {data:ins,error}=await sb.from('agendamentos').insert({cliente_id:se.cliente_id,profissional_id:se.profissional_id,data:d,hora:se.hora,duracao_total:se.duracao_total||30,status:'pendente',observacoes:se.observacoes||null,forcar:true,saldo_devedor:null,serie_id:se.id}).select().single();
+      if(error||!ins){ if(!/duplicate|unique/i.test(error?.message||'')) console.warn('serie',error); continue; }
+      const sv=Array.isArray(se.servicos)?se.servicos:[];
+      if(sv.length) await sb.from('agendamento_servicos').insert(sv.map(sid=>({agendamento_id:ins.id,servico_id:sid})));
+      await sb.from('agendamento_series').update({ultima_gerada:d}).eq('id',se.id); se.ultima_gerada=d; criou++;
+    }
+    if(criou){ await reloadSection('agendamentos'); renderAgenda(); toast(`🔁 ${criou} agendamento(s) repetido(s) criado(s)`); }
+  }catch(e){ console.warn('serieGerar',e); }
+  _serieBusy=false;
+}
+let _serieAg=null;
+function serieAbrir(agId){
+  const ag=D.agendamentos.find(a=>a.id===agId); if(!ag) return; _serieAg=agId;
+  const d=new Date((ag.data||'').substring(0,10)+'T12:00:00');
+  const dow=d.getDay(); const ult=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+  const nth=(d.getDate()+7>ult)?-1:Math.ceil(d.getDate()/7);
+  document.getElementById('sr-nth').value=String(nth); document.getElementById('sr-dow').value=String(dow);
+  const sv=(ag.svcs||[]).map(id=>(D.servicos.find(x=>x.id===id)||{}).nome).filter(Boolean).join(' + ')||'—';
+  document.getElementById('sr-info').innerHTML=`<b>${relEsc(gCNm2(ag))}</b> · ${relEsc(sv)}<br><span style="color:var(--text3)">${fBR((ag.data||'').substring(0,10))} às ${ag.hora} com ${relEsc(gPNm(profId(ag)))}</span>`;
+  document.getElementById('sr-meses').innerHTML=MESES_ABR.map((m,i)=>`<label style="display:flex;align-items:center;gap:6px;padding:8px;border:var(--brd);border-radius:8px;font-size:13px"><input type="checkbox" class="sr-mes" value="${i+1}">${m}</label>`).join('');
+  openModal('m-serie');
+}
+async function serieSalvar(){
+  const ag=D.agendamentos.find(a=>a.id===_serieAg); if(!ag) return;
+  const pul=[...document.querySelectorAll('.sr-mes:checked')].map(x=>Number(x.value));
+  if(pul.length>=12){ toast('Não dá para pular todos os meses','e'); return; }
+  showLoad('Criando repetição...');
+  const row={cliente_id:cliId(ag),profissional_id:profId(ag),servicos:ag.svcs||[],hora:ag.hora,duracao_total:ag.duracao_total||30,nth:Number(document.getElementById('sr-nth').value),dow:Number(document.getElementById('sr-dow').value),meses_pulados:pul,ativa:true,ultima_gerada:(ag.data||'').substring(0,10),observacoes:ag.observacoes||null};
+  const {data,error}=await sb.from('agendamento_series').insert(row).select().single();
+  if(error){ hideLoad(); toast('Não consegui criar: '+error.message,'e'); return; }
+  await sb.from('agendamentos').update({serie_id:data.id}).eq('id',ag.id); ag.serie_id=data.id;
+  D.series.push({...row,...data}); hideLoad(); closeModal('m-serie');
+  toast('🔁 Repetição criada: '+serieTexto(data)); await serieGerar();
+}
+function renderSeries(){
+  const el=document.getElementById('cfg-series'); if(!el) return;
+  if(S.user?.role!=='admin'){ el.style.display='none'; return; } el.style.display='';
+  const l=D.series||[];
+  el.innerHTML=`<div class="th2"><span class="th2-t">🔁 AGENDAMENTOS QUE SE REPETEM</span></div>`+(l.length?`<table class="rt"><thead><tr><th>CLIENTE</th><th>REGRA</th><th>PRÓXIMO</th><th>AÇÕES</th></tr></thead><tbody>${l.map(se=>{
+    const sv=(se.servicos||[]).map(id=>(D.servicos.find(x=>x.id===id)||{}).nome).filter(Boolean).join(' + ');
+    const prox=(D.agendamentos.filter(a=>a.serie_id===se.id&&!isCancelado(a)&&a.status!=='concluido').map(a=>(a.data||'').substring(0,10)).sort()[0])||'';
+    return `<tr><td><strong>${relEsc(gCNm(se.cliente_id))}</strong><div style="font-size:11px;color:var(--text3)">${relEsc(sv)} · ${se.hora}</div></td><td>${serieTexto(se)}</td><td>${se.ativa?(prox?fBR(prox):'após o atual passar'):'⏸ pausada'}</td><td style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn ol xs" onclick="seriePausar('${se.id}')">${se.ativa?'⏸ Pausar':'▶ Retomar'}</button><button class="btn rd xs" onclick="serieExcluir('${se.id}')">🗑</button></td></tr>`;}).join('')}</tbody></table>`:`<div style="padding:16px;color:var(--text3);font-size:13px">Nenhuma repetição ainda. Abra um agendamento (Ver) e toque em <b>🔁 Repetir</b>.</div>`);
+  try{ el.querySelectorAll('table.rt').forEach(rtLabel); }catch(e){}
+}
+async function seriePausar(id){
+  const se=D.series.find(x=>x.id===id); if(!se) return;
+  const {error}=await sb.from('agendamento_series').update({ativa:!se.ativa}).eq('id',id);
+  if(error){ toast(error.message,'e'); return; } se.ativa=!se.ativa; renderSeries(); if(se.ativa) serieGerar();
+}
+function serieExcluir(id){
+  confirm2('🗑','EXCLUIR REPETIÇÃO','Os agendamentos já criados continuam; só deixa de criar novos.',async()=>{
+    const {error}=await sb.from('agendamento_series').delete().eq('id',id);
+    if(error){ toast(error.message,'e'); return; } D.series=D.series.filter(x=>x.id!==id); renderSeries(); toast('Repetição excluída','w');
+  },'EXCLUIR','rd');
+}
+
+
+// ============================================================
+// REATIVAÇÃO AUTOMÁTICA (o servidor do WhatsApp envia; aqui você liga e ajusta)
+// ============================================================
+D.reativ=D.reativ||[];
+async function reativCarregar(){
+  if(S.user?.role!=='admin') return;
+  try{ const {data}=await sb.from('reativacoes').select('cliente_id,enviado_em').order('enviado_em',{ascending:false}).limit(500); D.reativ=data||[]; }catch(e){ D.reativ=[]; }
+}
+function reativCandidatas(){
+  const hoje=dStr(new Date());
+  return cliStats().filter(x=>x.sit==='sumida'&&x.c.whatsapp&&!x.c.nao_contatar&&!D.reativ.some(r=>r.cliente_id===x.c.id&&diasEntre(String(r.enviado_em).substring(0,10),hoje)<90))
+    .sort((a,b)=>b.n-a.n||a.dias-b.dias);
+}
+function renderReativ(){
+  const el=document.getElementById('cfg-reativ'); if(!el) return;
+  if(S.user?.role!=='admin'){ el.style.display='none'; return; } el.style.display='';
+  const cand=reativCandidatas(); const max=Number(WA_CFG.reativarMax)||8;
+  const ult=D.reativ[0]?fBR(String(D.reativ[0].enviado_em).substring(0,10)):'nunca';
+  el.innerHTML=`
+    <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:6px">💌 CHAMAR DE VOLTA CLIENTES QUE SUMIRAM (automático)</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Se a cliente não volta há mais dias que o prazo abaixo (e não tem horário marcado), o servidor do WhatsApp manda o convite sozinho, em dias úteis e horário comercial, com pausa entre as mensagens. Cada cliente recebe no máximo uma vez a cada 90 dias. Quem responde "parar" não recebe mais.</div>
+    <label style="display:flex;align-items:center;gap:8px;font-weight:700;margin-bottom:12px"><input type="checkbox" id="rv-on" ${WA_CFG.reativarOn?'checked':''}> Envio automático LIGADO</label>
+    <div class="fg fg2">
+      <div class="fgr"><label>SUMIU HÁ MAIS DE (dias)</label><select id="rv-dias">${[45,60,75,90,120].map(d=>`<option value="${d}" ${Number(WA_CFG.dias)===d?'selected':''}>${d} dias</option>`).join('')}</select></div>
+      <div class="fgr"><label>NO MÁXIMO POR DIA</label><input type="number" id="rv-max" min="1" max="30" value="${max}"></div>
+    </div>
+    <div class="fgr" style="margin-top:10px"><label>MENSAGEM ({nome} e {salao} são trocados)</label><textarea id="rv-msg" rows="3" style="width:100%">${relEsc(WA_CFG.reativarMsg||'Oi {nome}! Tudo bem? 💛 Sentimos sua falta por aqui no {salao}. Vamos marcar o seu horário? É só me responder por aqui!')}</textarea></div>
+    <div style="margin-top:12px"><button class="btn gd sm" onclick="salvarReativ()">SALVAR</button> <span style="font-size:12px;color:var(--text3);margin-left:8px">Último envio: ${ult}</span></div>
+    <div style="margin-top:14px;font-size:12px"><b>${cand.length}</b> cliente(s) seriam chamadas (até ${max} por dia)${cand.length?': '+cand.slice(0,6).map(x=>relEsc(x.c.nome.split(' ')[0])+' ('+x.dias+'d)').join(', ')+(cand.length>6?'…':''):''}</div>`;
+}
+async function salvarReativ(){
+  WA_CFG.reativarOn=document.getElementById('rv-on').checked;
+  WA_CFG.dias=Number(document.getElementById('rv-dias').value)||60;
+  WA_CFG.reativarMax=Math.max(1,Math.min(30,Number(document.getElementById('rv-max').value)||8));
+  WA_CFG.reativarMsg=document.getElementById('rv-msg').value.trim();
+  const {error}=await waSalvarDB();
+  if(error){ toast('Não consegui salvar: '+error.message,'e'); return; }
+  toast(WA_CFG.reativarOn?'✅ Envio automático ligado':'Envio automático desligado','ok'); renderReativ();
+}
+
 async function waCarregar(){
   if(!S.user||S.user.role!=='admin') return;
   try{
@@ -4114,6 +4371,7 @@ async function waCarregar(){
     if(data){
       WA_CFG.url=data.wa_url||''; WA_CFG.inst=data.wa_inst||''; WA_CFG.key=data.wa_key||'';
       WA_CFG.dono=data.wa_dono||''; WA_CFG.relhr=data.wa_rel_hora||'07:00'; WA_CFG.ultimo=data.wa_rel_ultimo||'';
+      WA_CFG.reativarOn=!!data.reativar_on; WA_CFG.dias=Number(data.reativar_dias)||60; WA_CFG.reativarMsg=data.reativar_msg||''; WA_CFG.reativarMax=Number(data.reativar_max)||8; WA_CFG.reativarUltimo=data.reativar_ultimo||'';
     } else {
       // primeira vez: aproveita o que estava salvo neste aparelho
       const g=k=>{ try{return localStorage.getItem(k)||'';}catch(e){return '';} };
@@ -4126,7 +4384,12 @@ async function waCarregar(){
   }catch(e){}
 }
 async function waSalvarDB(){
-  return sb.from('salao_whatsapp').upsert({salao_id:S.salaoId,wa_url:WA_CFG.url,wa_inst:WA_CFG.inst,wa_key:WA_CFG.key,wa_dono:WA_CFG.dono,wa_rel_hora:WA_CFG.relhr,wa_rel_ultimo:WA_CFG.ultimo,updated_at:new Date().toISOString()},{onConflict:'salao_id'});
+  const base={salao_id:S.salaoId,wa_url:WA_CFG.url,wa_inst:WA_CFG.inst,wa_key:WA_CFG.key,wa_dono:WA_CFG.dono,wa_rel_hora:WA_CFG.relhr,wa_rel_ultimo:WA_CFG.ultimo,updated_at:new Date().toISOString()};
+  const rv={reativar_on:!!WA_CFG.reativarOn,reativar_dias:Number(WA_CFG.dias)||60,reativar_msg:WA_CFG.reativarMsg||'',reativar_max:Number(WA_CFG.reativarMax)||8};
+  let r=await sb.from('salao_whatsapp').upsert({...base,...rv},{onConflict:'salao_id'});
+  // banco ainda sem as colunas novas (recorrencia-reativacao.sql não rodou): salva o resto
+  if(r.error&&/reativar/i.test(r.error.message||'')) r=await sb.from('salao_whatsapp').upsert(base,{onConflict:'salao_id'});
+  return r;
 }
 async function saveConfigWA(){
   WA_CFG.url=(document.getElementById('cfg-wa-url')?.value||'').trim().replace(/\/$/,'');

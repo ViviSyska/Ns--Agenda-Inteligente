@@ -5,6 +5,18 @@ export function createSupabase(url, serviceKey) {
   return createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+// Lê todas as linhas (o Supabase devolve no máximo 1000 por consulta)
+async function fetchAll(make) {
+  const out = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await make().range(from, from + 999);
+    if (error) throw error;
+    out.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
 export function createDb(sb) {
   return {
     /** Clientes com WhatsApp: [{ id, nome, whatsapp }] */
@@ -68,6 +80,43 @@ export function createDb(sb) {
 
     async updateAgendamento(id, fields) {
       const { error } = await sb.from('agendamentos').update(fields).eq('id', id);
+      if (error) throw error;
+    },
+
+    // ---------- reativação de clientes sumidas ----------
+    async getReativacaoCfg(salaoId) {
+      let q = sb.from('salao_whatsapp').select('*');
+      q = salaoId ? q.eq('salao_id', salaoId) : q.eq('reativar_on', true);
+      const { data, error } = await q.order('updated_at', { ascending: true }).limit(1);
+      if (error) throw error;
+      return (data && data[0]) || null;
+    },
+    async setReativarUltimo(salaoId, dia) {
+      const { error } = await sb.from('salao_whatsapp').update({ reativar_ultimo: dia }).eq('salao_id', salaoId);
+      if (error) throw error;
+    },
+    listClientesSalao(salaoId) {
+      return fetchAll(() => sb.from('clientes').select('id,nome,whatsapp,nao_contatar').eq('salao_id', salaoId).not('whatsapp', 'is', null).order('id'));
+    },
+    listAgendamentosSalao(salaoId) {
+      return fetchAll(() => sb.from('agendamentos').select('id,cliente_id,data,status').eq('salao_id', salaoId).order('id'));
+    },
+    async listReativacoes(salaoId) {
+      const { data, error } = await sb.from('reativacoes').select('cliente_id,enviado_em').eq('salao_id', salaoId).order('enviado_em', { ascending: false }).limit(2000);
+      if (error) throw error;
+      return data || [];
+    },
+    async insertReativacao(row) {
+      const { error } = await sb.from('reativacoes').insert(row);
+      if (error) throw error;
+    },
+    async getSalaoNome(salaoId) {
+      const { data } = await sb.from('saloes').select('nome').eq('id', salaoId).maybeSingle();
+      return data?.nome || '';
+    },
+    async setNaoContatar(ids) {
+      if (!ids.length) return;
+      const { error } = await sb.from('clientes').update({ nao_contatar: true }).in('id', ids);
       if (error) throw error;
     },
   };
