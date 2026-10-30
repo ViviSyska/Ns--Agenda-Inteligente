@@ -2,7 +2,13 @@
 <html lang="pt-BR" data-theme="light">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<meta name="theme-color" content="#FFD700">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="NS Agenda">
+<link rel="apple-touch-icon" href="data:image/png;base64,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">
 <title>NS Agenda Inteligente</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -578,6 +584,62 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
   .msg-back{display:inline-flex}
   .msg-b{max-width:88%}
 }
+
+/* ===== NAVEGAÇÃO MOBILE: barra inferior + botão + ===== */
+#bnav{display:none}
+@media(max-width:768px){
+  #bnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:700;align-items:flex-end;justify-content:space-around;
+    background:var(--card);border-top:var(--brd);padding:6px 6px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -4px 18px rgba(0,0,0,.12)}
+  #app[style*="none"] ~ #bnav,#ls:not([style*="none"]) ~ #bnav{display:none}
+  .bn{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;border:none;background:none;color:var(--text3);padding:6px 2px;border-radius:12px;cursor:pointer;font-family:inherit;min-width:0;-webkit-tap-highlight-color:transparent}
+  .bn-i{font-size:20px;line-height:1;filter:grayscale(1);opacity:.7;transition:transform .15s}
+  .bn-t{font-size:10px;font-weight:600;letter-spacing:.2px;white-space:nowrap}
+  .bn.active{color:var(--text)}
+  .bn.active .bn-i{filter:none;opacity:1;transform:translateY(-1px) scale(1.08)}
+  .bn.active .bn-t{color:var(--gold3)}
+  .bn:active{transform:scale(.94)}
+  .bn-bdg{position:absolute;top:1px;left:calc(50% + 6px);min-width:17px;height:17px;padding:0 5px;border-radius:9px;background:#25d366;color:#fff;font-size:10px;font-weight:700;align-items:center;justify-content:center}
+  .bn-plus{flex:0 0 58px;width:58px;height:58px;margin:-22px 6px 2px;border-radius:50%;border:4px solid var(--card);background:var(--gold);color:#000;font-size:30px;line-height:1;cursor:pointer;box-shadow:0 6px 16px rgba(255,215,0,.45);display:flex;align-items:center;justify-content:center;transition:transform .15s;-webkit-tap-highlight-color:transparent}
+  .bn-plus:active{transform:scale(.92)}
+  #tb-act{display:none !important}                    /* o + central faz esse papel */
+  #ct{padding-bottom:calc(96px + env(safe-area-inset-bottom)) !important}
+  #tw{left:12px !important;right:12px !important;bottom:calc(84px + env(safe-area-inset-bottom)) !important}
+  .burger{display:none !important}                    /* "Mais" abre o menu */
+  #tb{min-height:50px}
+  #tb .tb-h1{font-size:17px;max-width:none}
+  #tb .tb-sp{display:none}
+  /* grades de 2 colunas (gráficos, configurações) viram 1 coluna */
+  .sec div[style*="grid-template-columns:1fr 1fr"],.sec div[style*="grid-template-columns:2fr 1fr"]{grid-template-columns:1fr !important}
+  #sec-config input,#sec-config select{max-width:100%}
+
+  /* Início/Caixa/Despesas: cartões lado a lado em vez de uma lista enorme */
+  .cr{grid-template-columns:repeat(2,1fr) !important;gap:9px !important}
+  .sc{padding:12px !important}
+  .sc-v{font-size:17px !important}
+  .sc-l{font-size:9.5px !important}
+
+  /* Janelas sobem de baixo (bottom sheet) */
+  .ov{align-items:flex-end;padding:0}
+  .md,.md.w{max-width:100% !important;width:100%;max-height:92dvh;border-radius:20px 20px 0 0;border-bottom:none;animation:sheetUp .25s cubic-bezier(.2,.8,.2,1);padding-bottom:env(safe-area-inset-bottom)}
+  .md::before{content:'';display:block;width:42px;height:4px;border-radius:2px;background:var(--bc);margin:8px auto 0}
+  .conf-md{border-radius:20px !important}
+
+  /* Tabelas viram cartões */
+  .tw table.rt{min-width:0 !important;display:block;width:100%}
+  table.rt thead{display:none}
+  table.rt tbody{display:block}
+  table.rt tr{display:block;background:var(--card);border:var(--brd);border-radius:12px;margin:10px;padding:8px 12px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  table.rt td{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:6px 0 !important;border:none !important;white-space:normal !important;text-align:right;font-size:13px}
+  table.rt td::before{content:attr(data-l);color:var(--text3);font-size:10px;font-weight:600;letter-spacing:.5px;text-align:left;flex-shrink:0}
+  table.rt td:first-child{font-size:15px;font-weight:700;padding-top:2px !important}
+  table.rt td[data-l="AÇÕES"]{justify-content:flex-end;gap:8px;margin-top:4px;padding-top:10px !important;border-top:var(--brd) !important;flex-wrap:wrap}
+  table.rt td[data-l="AÇÕES"]::before{display:none}
+  table.rt td[colspan]{display:block;text-align:center}
+  table.rt td[colspan]::before{display:none}
+  table.rt tr:hover td{background:none}
+}
+@keyframes sheetUp{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms !important;transition-duration:.01ms !important}}
 </style>
 </head>
 <body>
@@ -1349,6 +1411,14 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
   </div>
 </div>
 
+<nav id="bnav" aria-label="Navegação principal">
+  <button class="bn" data-sec="dashboard" onclick="bnGo('dashboard')"><span class="bn-i">📊</span><span class="bn-t">Início</span></button>
+  <button class="bn" data-sec="agenda" onclick="bnGo('agenda')"><span class="bn-i">📅</span><span class="bn-t">Agenda</span></button>
+  <button class="bn-plus" onclick="bnPlus()" aria-label="Novo"><span>＋</span></button>
+  <button class="bn" id="bn-msg" data-sec="mensagens" onclick="bnGo('mensagens')"><span class="bn-i">💬</span><span class="bn-t">Mensagens</span><span class="bn-bdg" id="bn-badge" style="display:none">0</span></button>
+  <button class="bn" id="bn-cli" data-sec="clientes" onclick="bnGo('clientes')" style="display:none"><span class="bn-i">👥</span><span class="bn-t">Clientes</span></button>
+  <button class="bn" id="bn-more" data-sec="_mais" onclick="bnMais()"><span class="bn-i">☰</span><span class="bn-t">Mais</span></button>
+</nav>
 <div id="tw"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1633,6 +1703,7 @@ async function doLogin(){
   if(user.role==='prof'){
     ['n-cfg','n-rel','n-cx','n-dp','n-msg'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none'});
   }
+  bnPerfil();
   if(window.innerWidth<768) document.getElementById('mob-b').style.display='flex';
   goTo('dashboard', document.querySelector('.ni.active'));
   iniciarRelatorioDiario(); // inicia verificador de relatório diário
@@ -1674,7 +1745,7 @@ function goTo(sec,el){
   if(el) el.classList.add('active');
   document.getElementById('pg-t').textContent=PGT[sec]||sec;
   document.getElementById('fbar').style.display=FLT_SECS.includes(sec)?'flex':'none';
-  setTbAct(sec);
+  setTbAct(sec); bnMarcar(sec);
   const rend={dashboard:renderDash,agenda:renderAgenda,clientes:renderClientes,comandas:renderComandas,caixa:renderCaixa,despesas:renderDesp,servicos:renderSvc,pacotes:renderPkg,relatorios:renderRel,mensagens:renderMsgs,config:renderConfig};
   if(rend[sec]) rend[sec]();
   if(window.innerWidth<768) document.getElementById('sb').classList.remove('mo');
@@ -3728,6 +3799,46 @@ async function testarWA(){
   }catch(e){hideLoad();toast('❌ Erro: '+e.message,'e');}
 }
 // ============================================================
+// MOBILE — barra inferior, botão +, tabelas em cartões
+// ============================================================
+function bnGo(sec){
+  const el=[...document.querySelectorAll('.ni')].find(x=>(x.getAttribute('onclick')||'').includes("'"+sec+"'"));
+  goTo(sec,el);
+  window.scrollTo({top:0});
+}
+function bnPlus(){
+  const b=document.getElementById('tb-act');
+  if(b&&b.style.display!=='none'&&typeof b.onclick==='function'&&b.textContent.trim()) b.onclick(); else abrirAg();
+}
+function bnMais(){
+  const sb=document.getElementById('sb'),o=document.getElementById('sb-ovl');
+  sb.classList.toggle('mo'); if(o) o.style.display=sb.classList.contains('mo')?'block':'none';
+}
+function bnMarcar(sec){
+  let achou=false;
+  document.querySelectorAll('#bnav .bn').forEach(b=>{ const on=b.dataset.sec===sec; if(on) achou=true; b.classList.toggle('active',on); });
+  const m=document.getElementById('bn-more'); if(m) m.classList.toggle('active',!achou);
+}
+function bnPerfil(){
+  const prof=S.user?.role==='prof';
+  const m=document.getElementById('bn-msg'), c=document.getElementById('bn-cli');
+  if(m) m.style.display=prof?'none':''; if(c) c.style.display=prof?'':'none';
+}
+// Tabelas viram cartões no celular: cada célula ganha o rótulo da coluna
+function rtLabel(t){
+  const heads=[...t.querySelectorAll('thead th')].map(h=>h.textContent.trim());
+  t.querySelectorAll('tbody tr').forEach(tr=>{ [...tr.children].forEach((td,i)=>{ if(td.tagName==='TD'&&!td.dataset.l&&heads[i]) td.dataset.l=heads[i]; }); });
+}
+function rtInit(){
+  document.querySelectorAll('table').forEach(t=>{
+    if(t.closest('#svc-tw')||t.dataset.rt) return;
+    t.dataset.rt='1'; t.classList.add('rt'); rtLabel(t);
+    const tb=t.querySelector('tbody'); if(tb) new MutationObserver(()=>rtLabel(t)).observe(tb,{childList:true});
+  });
+}
+document.addEventListener('DOMContentLoaded',rtInit); if(document.readyState!=='loading') rtInit();
+
+// ============================================================
 // CAIXA DE MENSAGENS (WhatsApp) — conversas e resposta pelo sistema
 // ============================================================
 const MSG={chats:[],unread:0,cur:null,curNome:'',msgs:[],timer:null,seen:null,state:'',err:'',busy:false};
@@ -3782,6 +3893,7 @@ async function msgPoll(){
 function msgBadge(){
   const b=document.getElementById('msg-badge'); if(b){ b.textContent=MSG.unread>99?'99+':MSG.unread; b.style.display=MSG.unread>0?'inline-flex':'none'; }
   document.title=(MSG.unread>0?`(${MSG.unread}) `:'')+'NS Agenda Inteligente';
+  const bb=document.getElementById('bn-badge'); if(bb){ bb.textContent=MSG.unread>99?'99+':MSG.unread; bb.style.display=MSG.unread>0?'flex':'none'; }
 }
 function msgLoop(){
   clearTimeout(MSG.timer);
