@@ -147,7 +147,7 @@ export function createApp({ cfg, db, wa, log = console, sleep = defaultSleep }) 
           job.sent++;
           if (item.agId) {
             try {
-              await db.updateAgendamento(item.agId, { wa_status: 'aguardando' });
+              await db.updateAgendamento(item.agId, { wa_status: 'aguardando', wa_enviado_em: new Date().toISOString() });
             } catch (e) {
               item.dbError = String(e?.message || e);
               log.error?.({ err: item.dbError, agId: item.agId }, 'falha ao marcar aguardando');
@@ -434,8 +434,36 @@ export function createApp({ cfg, db, wa, log = console, sleep = defaultSleep }) 
     const clientes = await findClientes(key);
     if (!clientes.length) return { handled: false, reason: 'cliente_nao_encontrada', verdict };
 
-    const aguardando = await db.listAguardando(clientes.map((c) => c.id));
+    let aguardando = await db.listAguardando(clientes.map((c) => c.id));
     if (!aguardando.length) return { handled: false, reason: 'sem_agendamento_aguardando', verdict };
+
+    // Só vale como resposta ao lembrete a PRIMEIRA mensagem da cliente depois dele (até 48h).
+    // Qualquer outra conversa ("não, obrigada" sobre outro assunto) não cancela nada.
+    const recebidaEm = Date.parse(tsOf(msg.messageTimestamp)) || Date.now();
+    let historico = null;
+    if (db.listChatMessages) {
+      try { historico = await db.listChatMessages(key, 40); } catch (_) { historico = null; }
+    }
+    const meuId = msg.key?.id;
+    aguardando = aguardando.filter((ag) => {
+      const enviadoEm = ag.wa_enviado_em ? Date.parse(ag.wa_enviado_em) : null;
+      if (enviadoEm) {
+        if (recebidaEm < enviadoEm - 60000 || recebidaEm > enviadoEm + 48 * 3600 * 1000) return false;
+        if (historico) {
+          const antes = historico.some((m) => m.direction === 'in' && m.wa_id !== meuId && Date.parse(m.ts) > enviadoEm && Date.parse(m.ts) < recebidaEm);
+          if (antes) return false; // ela já tinha respondido alguma coisa depois do lembrete
+        }
+        return true;
+      }
+      // lembrete antigo, sem horário registrado: só vale se a mensagem anterior da conversa foi nossa
+      if (historico) {
+        const anteriores = historico.filter((m) => m.wa_id !== meuId && Date.parse(m.ts) <= recebidaEm);
+        const ultima = anteriores[anteriores.length - 1];
+        return !!ultima && ultima.direction === 'out' && recebidaEm - Date.parse(ultima.ts) < 48 * 3600 * 1000;
+      }
+      return true;
+    });
+    if (!aguardando.length) return { handled: false, reason: 'nao_e_resposta_ao_lembrete', verdict };
 
     // confirma/cancela o(s) horário(s) mais próximo(s) — todos os do mesmo dia
     const dia = String(aguardando[0].data).substring(0, 10);

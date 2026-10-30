@@ -28,7 +28,7 @@ const cfg = {
     process.env.REPLY_CONFIRMOU || 'Perfeito, {nome}! Sua presença está confirmada para {data} às {hora}. Te esperamos! 💛',
   replyRecusou:
     process.env.REPLY_RECUSOU ||
-    'Tudo bem, {nome}! Cancelamos seu horário de {data} às {hora}. Quando quiser remarcar é só chamar. 💛',
+    'Tudo bem, {nome}! Anotamos que você não vai poder vir em {data} às {hora}. Quando quiser remarcar é só chamar. 💛',
 };
 const session = process.env.WA_SESSION || 'salao';
 

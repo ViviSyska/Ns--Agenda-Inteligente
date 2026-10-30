@@ -4710,7 +4710,9 @@ async function waSetStatus(agId, status){
   // Se cliente confirmou → também confirma o agendamento na agenda
   const updates={wa_status:status};
   if(status==='confirmou') updates.status='confirmado';
-  await sb.from('agendamentos').update(updates).eq('id',agId);
+  if(status==='aguardando') updates.wa_enviado_em=new Date().toISOString(); // só a 1ª resposta depois do lembrete vale
+  let r=await sb.from('agendamentos').update(updates).eq('id',agId);
+  if(r&&r.error&&/wa_enviado_em/.test(r.error.message||'')){ const {wa_enviado_em,...resto}=updates; await sb.from('agendamentos').update(resto).eq('id',agId); }
   const ag=D.agendamentos.find(a=>a.id===agId);
   if(ag){ Object.assign(ag, updates); }
   renderAgenda(); renderComandas();

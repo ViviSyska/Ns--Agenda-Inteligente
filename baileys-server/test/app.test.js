@@ -188,3 +188,50 @@ test('AUTO_REPLY=false não responde, mas registra', async () => {
   assert.equal(updates.length, 1);
   assert.equal(sent.length, 0);
 });
+
+// ---------- só a primeira mensagem depois do lembrete vale ----------
+function setupResposta({ enviadoEm, historico }) {
+  const sent = []; const updates = [];
+  const sock = { sendMessage: async (jid, msg) => { sent.push({ jid, text: msg.text }); return { key: { id: 'r' } }; }, signalRepository: { lidMapping: { getPNForLID: async () => null } } };
+  const wa = { getStatus: () => 'open', getSock: () => sock, getQR: () => null, getUser: () => null, logout: async () => {} };
+  const db = {
+    listClientes: async () => [{ id: 'c1', nome: 'Ana Souza', whatsapp: '11988887777' }],
+    listAguardando: async () => [{ id: 'a1', cliente_id: 'c1', data: '2026-10-31', hora: '14:00', status: 'pendente', wa_status: 'aguardando', wa_enviado_em: enviadoEm }],
+    updateAgendamento: async (id, f) => { updates.push({ id, ...f }); },
+    listChatMessages: async () => historico,
+    insertMessage: async () => {},
+  };
+  const api = createApp({ cfg: { ...baseCfg }, db, wa, log: silent, sleep: async () => {} });
+  return { api, sent, updates };
+}
+const mensagem = (texto, ts) => ({ key: { remoteJid: '5511988887777@s.whatsapp.net', id: 'M1', fromMe: false }, message: { conversation: texto }, messageTimestamp: Math.floor(Date.parse(ts) / 1000) });
+
+test('primeira resposta depois do lembrete: registra o NÃO', async () => {
+  const { api, updates } = setupResposta({ enviadoEm: '2026-10-30T12:00:00Z', historico: [{ direction: 'out', ts: '2026-10-30T12:00:00Z', wa_id: 'L1' }, { direction: 'in', ts: '2026-10-30T13:00:00Z', wa_id: 'M1' }] });
+  const r = await api.handleIncoming(mensagem('não', '2026-10-30T13:00:00Z'));
+  assert.equal(r.handled, true);
+  assert.deepEqual(updates, [{ id: 'a1', wa_status: 'recusou' }]);
+});
+
+test('"não" numa conversa que já teve resposta depois do lembrete NÃO cancela nada', async () => {
+  const { api, updates, sent } = setupResposta({ enviadoEm: '2026-10-30T12:00:00Z', historico: [
+    { direction: 'out', ts: '2026-10-30T12:00:00Z', wa_id: 'L1' },
+    { direction: 'in', ts: '2026-10-30T12:30:00Z', wa_id: 'M0' },   // ela já respondeu antes (qualquer mensagem)
+    { direction: 'in', ts: '2026-10-30T18:00:00Z', wa_id: 'M1' },
+  ] });
+  const r = await api.handleIncoming(mensagem('não', '2026-10-30T18:00:00Z'));
+  assert.equal(r.handled, false); assert.equal(r.reason, 'nao_e_resposta_ao_lembrete');
+  assert.deepEqual(updates, []); assert.deepEqual(sent, []);
+});
+
+test('"não" dois dias depois do lembrete não vale', async () => {
+  const { api, updates } = setupResposta({ enviadoEm: '2026-10-27T12:00:00Z', historico: [{ direction: 'out', ts: '2026-10-27T12:00:00Z', wa_id: 'L1' }, { direction: 'in', ts: '2026-10-30T13:00:00Z', wa_id: 'M1' }] });
+  const r = await api.handleIncoming(mensagem('não', '2026-10-30T13:00:00Z'));
+  assert.equal(r.handled, false); assert.deepEqual(updates, []);
+});
+
+test('lembrete antigo sem horário: só vale se a mensagem anterior foi nossa', async () => {
+  const { api, updates } = setupResposta({ enviadoEm: null, historico: [{ direction: 'in', ts: '2026-10-30T12:00:00Z', wa_id: 'M0' }, { direction: 'in', ts: '2026-10-30T13:00:00Z', wa_id: 'M1' }] });
+  const r = await api.handleIncoming(mensagem('não', '2026-10-30T13:00:00Z'));
+  assert.equal(r.handled, false); assert.deepEqual(updates, []);
+});

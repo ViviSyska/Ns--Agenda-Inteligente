@@ -29,14 +29,16 @@ export function createDb(sb) {
     /** Agendamentos aguardando resposta dessas clientes (ainda ativos), do mais próximo pro mais distante. */
     async listAguardando(clienteIds) {
       if (!clienteIds.length) return [];
-      const { data, error } = await sb
+      const run = (cols) => sb
         .from('agendamentos')
-        .select('id,cliente_id,data,hora,status,wa_status')
+        .select(cols)
         .in('cliente_id', clienteIds)
         .eq('wa_status', 'aguardando')
         .in('status', ['pendente', 'confirmado'])
         .order('data', { ascending: true })
         .order('hora', { ascending: true });
+      let { data, error } = await run('id,cliente_id,data,hora,status,wa_status,wa_enviado_em');
+      if (error && /wa_enviado_em/.test(error.message || '')) ({ data, error } = await run('id,cliente_id,data,hora,status,wa_status'));
       if (error) throw error;
       return data || [];
     },
@@ -65,7 +67,7 @@ export function createDb(sb) {
     async listChatMessages(chatKey, limit = 150) {
       const { data, error } = await sb
         .from('wa_msgs')
-        .select('id,direction,text,ts,jid,phone,nome,lida')
+        .select('id,direction,text,ts,jid,phone,nome,lida,wa_id')
         .eq('chat_key', chatKey)
         .order('ts', { ascending: false })
         .limit(limit);
@@ -79,7 +81,12 @@ export function createDb(sb) {
     },
 
     async updateAgendamento(id, fields) {
-      const { error } = await sb.from('agendamentos').update(fields).eq('id', id);
+      let { error } = await sb.from('agendamentos').update(fields).eq('id', id);
+      // banco ainda sem a coluna wa_enviado_em: grava o resto
+      if (error && 'wa_enviado_em' in fields && /wa_enviado_em/.test(error.message || '')) {
+        const { wa_enviado_em, ...resto } = fields;
+        ({ error } = await sb.from('agendamentos').update(resto).eq('id', id));
+      }
       if (error) throw error;
     },
 
