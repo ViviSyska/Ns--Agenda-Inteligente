@@ -2091,6 +2091,24 @@ function syncDatePicker(){ const p=document.getElementById('ag-date-pick'); if(p
 // ============================================================
 // VER AGENDAMENTO
 // ============================================================
+// Cancelar comanda: 1 toque + 1 confirmação, direto da lista, da agenda ou da janela da comanda
+function cancelarAg(id){
+  const ag=D.agendamentos.find(a=>a.id===id); if(!ag) return;
+  if(isCanc(ag)){ toast('Já está cancelada','w'); return; }
+  if(ag.status==='concluido'){ toast('Comanda já paga — toque em ↩ Reabrir antes de cancelar','w'); return; }
+  const pago=D.caixa.filter(x=>x.agendamento_id===id&&x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
+  const aviso=pago>0.009?` Já foram pagos ${Rf(pago)} — esse valor continua no caixa.`:'';
+  const quando=`${fBR((ag.data||'').substring(0,10)).slice(0,5)} ${ag.hora||''}`;
+  confirm2('❌','CANCELAR COMANDA',`Cancelar a comanda de ${gCNm2(ag)} (${quando})?${aviso}`,async()=>{
+    showLoad('Cancelando...');
+    const {error}=await sb.from('agendamentos').update({status:'cancelado'}).eq('id',id);
+    hideLoad();
+    if(error){ toast('Não consegui cancelar: '+error.message,'e'); return; }
+    ag.status='cancelado';
+    renderAgenda(); renderComandas(); try{renderDash();}catch(e){}
+    toast('❌ Comanda cancelada','w');
+  },'SIM, CANCELAR','rd');
+}
 async function reativarAg(id){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag) return;
   const upd={status:'pendente',wa_status:null};
@@ -2217,8 +2235,9 @@ function verAg(id){
   const addB=(lbl,cls,fn)=>{ const b=document.createElement('button'); b.className=`btn ${cls}`; b.textContent=lbl; b.onclick=fn; foot.appendChild(b); };
   addB('Fechar','gh',()=>closeModal('m-ver'));
   addB('✏ Editar','ol',()=>{ closeModal('m-ver'); editAg(id); });
-  if(ag.status!=='concluido'&&ag.status!=='cancelado'){
+  if(ag.status!=='concluido'&&!isCanc(ag)){
     addB('💰 Faturar','gr',()=>{ closeModal('m-ver'); abrirFat(id); });
+    addB('✕ Cancelar comanda','rd',()=>{ closeModal('m-ver'); cancelarAg(id); });
   }
   if(ag.status==='concluido'){
     addB('↩ Reabrir','ol',()=>{ closeModal('m-ver'); reabrirComanda(id); });
@@ -2669,6 +2688,8 @@ function renderComandas(){
     <td style="display:flex;gap:4px;flex-wrap:wrap">
       ${['pendente','confirmado','atendimento'].includes(efStatus(a))||saldoDev>0.01?`<button class="btn gr xs" onclick="abrirFat('${a.id}')">${saldoDev>0.01?'✓ Receber saldo':'✓ Faturar'}</button>`:''}
       ${a.status==='concluido'&&saldoDev<=0.01?`<button class="btn ol xs" style="color:var(--purple);border-color:var(--purple)" onclick="reabrirComanda('${a.id}')">↩ Reabrir</button>`:''}
+      ${canc?`<button class="btn gr xs" onclick="reativarAg('${a.id}')">↩ Reativar</button>`:''}
+      ${(!canc&&a.status!=='concluido')?`<button class="btn ol xs" style="color:var(--red);border-color:var(--red)" onclick="cancelarAg('${a.id}')">✕ Cancelar</button>`:''}
       <button class="btn ol xs" onclick="editAg('${a.id}')">✏</button>
       <button class="btn gh xs" onclick="verAg('${a.id}')">Ver</button>
     </td>
