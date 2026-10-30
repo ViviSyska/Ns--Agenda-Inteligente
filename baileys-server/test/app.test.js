@@ -149,7 +149,7 @@ test('resposta "Não" cancela', async () => {
   });
   const r = await api.handleIncoming(msg('5511999991111@s.whatsapp.net', 'Não vou conseguir'));
   assert.equal(r.verdict, 'recusou');
-  assert.deepEqual(updates, [{ id: 'a1', wa_status: 'recusou', status: 'cancelado' }]);
+  assert.deepEqual(updates, [{ id: 'a1', wa_status: 'recusou' }]);
   assert.match(sent[0].text, /cancelado 03\/11 14:00/);
 });
 

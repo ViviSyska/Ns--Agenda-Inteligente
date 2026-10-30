@@ -429,7 +429,7 @@ export function createApp({ cfg, db, wa, log = console, sleep = defaultSleep }) 
     for (const ag of alvos) {
       const fields = { wa_status: verdict };
       if (verdict === 'confirmou' && ag.status === 'pendente') fields.status = 'confirmado';
-      if (verdict === 'recusou' && (ag.status === 'pendente' || ag.status === 'confirmado')) fields.status = 'cancelado';
+      // 'recusou' só marca wa_status: o app mostra "Faltou". Cancelar é decisão da dona.
       await db.updateAgendamento(ag.id, fields);
     }
 
