@@ -473,6 +473,69 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
   .ag-w{max-height:calc(100vh - 160px)}
   #tb{height:48px}
 }
+
+/* ===== RELATÓRIO FINANCEIRO DO PERÍODO ===== */
+.fin-head{display:flex;align-items:flex-end;justify-content:space-between;margin:2px 0 12px}
+.fin-ttl{font-family:var(--f2);font-size:20px;letter-spacing:1px;color:var(--text)}
+.fin-sub{font-size:12px;color:var(--text3);margin-top:2px}
+.fin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-bottom:12px}
+.fin-card{background:var(--card);border:var(--brd);border-radius:var(--r);padding:14px 15px;border-left:3px solid var(--bc)}
+.fin-card.ok{border-left-color:var(--green)}.fin-card.bad{border-left-color:var(--red)}.fin-card.warn{border-left-color:#f59e0b}.fin-card.info{border-left-color:var(--blue)}
+.fin-l{font-size:10px;color:var(--text3);letter-spacing:.7px;font-weight:600;text-transform:uppercase}
+.fin-v{font-family:var(--fm);font-size:21px;font-weight:600;color:var(--text);margin-top:5px;line-height:1.1;font-variant-numeric:tabular-nums}
+.fin-card.bad .fin-v{color:var(--red)}.fin-card.warn .fin-v{color:#f59e0b}
+.fin-s{font-size:11px;color:var(--text3);margin-top:4px}
+.fin-prog{background:var(--card);border:var(--brd);border-radius:var(--r);padding:14px 16px;margin-bottom:12px}
+.fin-prog-top{display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:8px}
+.fin-prog-top b{font-family:var(--fm);color:var(--gold)}
+.fin-bar{height:8px;background:var(--bg3);border-radius:6px;overflow:hidden}
+.fin-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold3),var(--gold));border-radius:6px;transition:width .5s}
+.fin-res{font-size:12px;color:var(--text2);margin-top:10px;padding-top:10px;border-top:var(--brd)}
+.fin-res.pos b{color:var(--green)}.fin-res.neg b{color:var(--red)}
+.fin-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.fin-box{overflow:hidden}
+.fin-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 15px;border-bottom:var(--brd)}
+.fin-row:last-of-type{border-bottom:none}
+.fin-row-main{min-width:0;flex:1}
+.fin-row-n{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fin-row-d{font-size:11px;color:var(--text3);margin-top:3px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.fin-row-v{font-family:var(--fm);font-size:13px;font-weight:700;flex-shrink:0;font-variant-numeric:tabular-nums}
+.fin-row-v.neg{color:var(--red)}
+.fin-empty{padding:26px 16px;text-align:center;color:var(--text3);font-size:12px}
+.fin-note{padding:9px 15px;font-size:11px;color:var(--text3);background:var(--bg3);border-top:var(--brd)}
+.fin-note b{color:var(--text2)}
+@media(max-width:900px){.fin-grid{grid-template-columns:repeat(2,1fr)}.fin-cols{grid-template-columns:1fr}}
+@media(max-width:420px){.fin-grid{gap:8px}.fin-card{padding:12px}.fin-v{font-size:17px}.fin-l{font-size:9px}}
+@media print{#tb,#sb,#fbar,.rel-cal,.sh .btn{display:none !important}.fin-card,.fin-box,.fin-prog{break-inside:avoid}}
+
+/* ===== ACABAMENTO PROFISSIONAL + MOBILE ===== */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overscroll-behavior-y:none}
+.sc,.tw,.fin-card,.c-card,.pk-card,.rel-cal{box-shadow:0 1px 2px rgba(0,0,0,.18)}
+[data-theme="light"] .sc,[data-theme="light"] .tw,[data-theme="light"] .fin-card,[data-theme="light"] .c-card,[data-theme="light"] .pk-card,[data-theme="light"] .rel-cal{box-shadow:0 1px 3px rgba(20,20,40,.07)}
+.sc-v,.sc-s,td,.bd{font-variant-numeric:tabular-nums}
+.btn:focus-visible,.fb:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.btn:active{transform:scale(.97)}
+thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
+@media(max-width:768px){
+  /* iOS não dá zoom automático ao tocar nos campos */
+  input,select,textarea{font-size:16px !important}
+  .btn{min-height:40px}
+  .btn.xs,.btn.sm{min-height:36px}
+  #ct{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+  #tb{padding-top:env(safe-area-inset-top)}
+  .md{max-height:calc(100dvh - 24px)}
+  .rel-cal{padding:12px}
+  .rel-cal-d{min-height:34px;padding:8px 2px;font-size:13px}
+  .rel-cal-arr{width:38px;height:38px}
+  /* barra do topo: filtros (Hoje/Semana/Mês/Ano) numa segunda linha, sem cortar */
+  #tb{flex-wrap:wrap;height:auto;min-height:54px;padding-bottom:8px;row-gap:8px;align-items:center}
+  #tb .tb-h1{flex:1;max-width:none;min-width:0}
+  #fbar{order:10;flex:1 0 100%}
+  .fb{flex:1;white-space:nowrap;padding:8px 4px;text-align:center}
+  .sh{flex-wrap:wrap}
+  .tw table{min-width:520px}
+}
 </style>
 </head>
 <body>
@@ -679,6 +742,8 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
         </div>
         <!-- Calendário -->
         <div class="rel-cal"><div id="rel-cal-body"></div></div>
+        <!-- Painel financeiro do período: previsto x realizado, despesas, pendências -->
+        <div id="rel-fin"></div>
         <!-- Cards KPI -->
         <div class="cr" id="rel-cards"></div>
         <!-- Gráfico evolução + formas de pagamento -->
@@ -3167,8 +3232,148 @@ function relPickDay(y,m,d){
   S.relDate=new Date(y,m,d); renderRelCal(); renderRel();
 }
 
+function relEsc(t){ return String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function relPeriodoLabel(){
+  const f=S.filter; const {day,wStart,wEnd,yr,mo}=relRange();
+  return f==='hoje'?fBR(day):f==='semana'?`${fBR(wStart)} a ${fBR(wEnd)}`:f==='mes'?`${REL_MESES_LONG[mo]} de ${yr}`:`Ano de ${yr}`;
+}
+// Painel financeiro: previsto x realizado, recebido, despesas e clientes com pagamento pendente
+function renderRelFin(){
+  const el=document.getElementById('rel-fin'); if(!el) return;
+  const {ok}=relRange();
+  const pagoDe=a=>D.caixa.filter(x=>x.agendamento_id===a.id&&x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
+  const ags=D.agendamentos.filter(a=>a.status!=='cancelado'&&ok(a.data));
+  const previsto=ags.reduce((t,a)=>t+gAgtot(a),0);
+  const concl=ags.filter(a=>a.status==='concluido');
+  const faturado=concl.reduce((t,a)=>t+gAgtot(a),0);
+  const futuras=ags.filter(a=>a.status!=='concluido'&&(a.data||'').substring(0,10)>=TODAY);
+  const aAgendar=futuras.reduce((t,a)=>t+gAgtot(a),0);
+  const cxP=D.caixa.filter(x=>ok(x.data));
+  const recebido=cxP.filter(x=>x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
+  const despPagas=cxP.filter(x=>x.tipo==='saida').reduce((t,x)=>t+Number(x.valor),0);
+  const despAPagar=D.despesas.filter(d=>d.status!=='pago'&&ok(d.data));
+  const totAPagar=despAPagar.reduce((t,d)=>t+Number(d.valor),0);
+  const resultado=recebido-despPagas;
+  const pct=previsto>0?Math.min(100,faturado/previsto*100):0;
+
+  // Pendências por cliente
+  const grupos={};
+  let totPend=0, nPend=0;
+  ags.forEach(a=>{
+    const dt=(a.data||'').substring(0,10);
+    const total=gAgtot(a); if(total<=0.009) return;
+    const pago=pagoDe(a);
+    const saldo=gAgSaldo(a); if(saldo<=0.01) return;
+    let tipo=null;
+    if(a.status==='concluido'||pago>0) tipo='parcial';          // foi faturada e faltou valor
+    else if(dt<TODAY) tipo='naofat';                           // dia já passou e ainda não foi cobrada
+    if(!tipo) return;                                          // comanda futura não é pendência
+    const cid=cliId(a); const nome=gCNm(cid);
+    const g=grupos[cid]||(grupos[cid]={nome,saldo:0,parcial:0,naofat:0,datas:[]});
+    g.saldo+=saldo; g[tipo]+=saldo; g.datas.push(dt);
+    totPend+=saldo; nPend++;
+  });
+  const lista=Object.values(grupos).sort((a,b)=>b.saldo-a.saldo);
+  const totPendParcial=lista.reduce((t,g)=>t+g.parcial,0);
+  const totPendNaoFat=lista.reduce((t,g)=>t+g.naofat,0);
+
+  // Pendência geral (todas as datas), só para referência
+  let totGeral=0;
+  D.agendamentos.forEach(a=>{
+    if(a.status==='cancelado') return;
+    const saldo=gAgSaldo(a); if(saldo<=0.01||gAgtot(a)<=0.009) return;
+    const dt=(a.data||'').substring(0,10);
+    if(a.status==='concluido'||pagoDe(a)>0||dt<TODAY) totGeral+=saldo;
+  });
+
+  // Despesas do período (pagas no caixa + a pagar)
+  const linhasDesp=[
+    ...cxP.filter(x=>x.tipo==='saida').map(x=>({data:(x.data||'').substring(0,10),desc:x.descricao||'Despesa',valor:Number(x.valor),pago:true})),
+    ...despAPagar.map(d=>({data:(d.data||'').substring(0,10),desc:d.descricao||'Despesa',valor:Number(d.valor),pago:false}))
+  ].sort((a,b)=>b.data.localeCompare(a.data));
+
+  const dm=d=>{const[y,m,dd]=d.split('-');return dd+'/'+m;};
+  el.innerHTML=`
+  <div class="fin-head">
+    <div>
+      <div class="fin-ttl">Resumo financeiro</div>
+      <div class="fin-sub">${relEsc(relPeriodoLabel())}</div>
+    </div>
+  </div>
+
+  <div class="fin-grid">
+    <div class="fin-card">
+      <div class="fin-l">Previsto</div>
+      <div class="fin-v">${Rf(previsto)}</div>
+      <div class="fin-s">${ags.length} comanda(s) no período</div>
+    </div>
+    <div class="fin-card ok">
+      <div class="fin-l">Realizado (faturado)</div>
+      <div class="fin-v">${Rf(faturado)}</div>
+      <div class="fin-s">${concl.length} atendimento(s) concluído(s)</div>
+    </div>
+    <div class="fin-card ${aAgendar>0?'info':''}">
+      <div class="fin-l">Ainda por realizar</div>
+      <div class="fin-v">${Rf(aAgendar)}</div>
+      <div class="fin-s">${futuras.length} agendada(s) daqui pra frente</div>
+    </div>
+    <div class="fin-card ok">
+      <div class="fin-l">Recebido no caixa</div>
+      <div class="fin-v">${Rf(recebido)}</div>
+      <div class="fin-s">entradas do período</div>
+    </div>
+    <div class="fin-card bad">
+      <div class="fin-l">Despesas pagas</div>
+      <div class="fin-v">${Rf(despPagas)}</div>
+      <div class="fin-s">${totAPagar>0?'+ '+Rf(totAPagar)+' a pagar':'nada a pagar'}</div>
+    </div>
+    <div class="fin-card ${totPend>0.01?'warn':''}">
+      <div class="fin-l">Pendente de clientes</div>
+      <div class="fin-v">${Rf(totPend)}</div>
+      <div class="fin-s">${lista.length} cliente(s)</div>
+    </div>
+  </div>
+
+  <div class="fin-prog">
+    <div class="fin-prog-top"><span>Realizado do previsto</span><b>${pct.toFixed(0)}%</b></div>
+    <div class="fin-bar"><i style="width:${pct.toFixed(1)}%"></i></div>
+    <div class="fin-res ${resultado>=0?'pos':'neg'}">Resultado do período (recebido − despesas): <b>${Rf(resultado)}</b></div>
+  </div>
+
+  <div class="fin-cols">
+    <div class="tw fin-box">
+      <div class="th2"><span class="th2-t">CLIENTES COM PAGAMENTO PENDENTE</span><div class="tb-sp"></div><span class="bd ${totPend>0.01?'rd':'gr'}">${Rf(totPend)}</span></div>
+      ${lista.length?lista.map(g=>`
+        <div class="fin-row">
+          <div class="fin-row-main">
+            <div class="fin-row-n">${relEsc(g.nome)}</div>
+            <div class="fin-row-d">${[...new Set(g.datas)].sort().slice(0,4).map(dm).join(', ')}${g.datas.length>4?' +'+(g.datas.length-4):''}
+              ${g.parcial>0.01?'<span class="bd gd">faltou pagar</span>':''}${g.naofat>0.01?'<span class="bd gy">não faturada</span>':''}</div>
+          </div>
+          <div class="fin-row-v neg">${Rf(g.saldo)}</div>
+        </div>`).join(''):'<div class="fin-empty">🎉 Nenhum cliente com pendência neste período</div>'}
+      ${(totPendParcial>0.01&&totPendNaoFat>0.01)?`<div class="fin-note">Faltou pagar: ${Rf(totPendParcial)} · Não faturadas: ${Rf(totPendNaoFat)}</div>`:''}
+      <div class="fin-note">Pendência total de todas as datas: <b>${Rf(totGeral)}</b></div>
+    </div>
+
+    <div class="tw fin-box">
+      <div class="th2"><span class="th2-t">DESPESAS DO PERÍODO</span><div class="tb-sp"></div><span class="bd rd">${Rf(despPagas+totAPagar)}</span></div>
+      ${linhasDesp.length?linhasDesp.slice(0,40).map(d=>`
+        <div class="fin-row">
+          <div class="fin-row-main">
+            <div class="fin-row-n">${relEsc(d.desc)}</div>
+            <div class="fin-row-d">${d.data?dm(d.data):'—'} <span class="bd ${d.pago?'gr':'gd'}">${d.pago?'paga':'a pagar'}</span></div>
+          </div>
+          <div class="fin-row-v">${Rf(d.valor)}</div>
+        </div>`).join(''):'<div class="fin-empty">Sem despesas neste período</div>'}
+      ${linhasDesp.length>40?`<div class="fin-note">Mostrando as 40 mais recentes de ${linhasDesp.length}</div>`:''}
+    </div>
+  </div>`;
+}
+
 function renderRel(){
   renderRelCal();
+  try{ renderRelFin(); }catch(e){ console.error('renderRelFin',e); }
   const {ok,yr,mo,mth,day,wStart,wEnd}=relRange();
   const f=S.filter;
   // ✅ FONTE ÚNICA: caixa (valores reais)
