@@ -934,7 +934,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
         <div id="msg-banner" class="msg-banner" style="display:none"></div>
         <div class="msg-wrap" id="msg-wrap">
           <div class="msg-side tw">
-            <div class="th2"><span class="th2-t">CONVERSAS</span><div class="tb-sp"></div><button class="btn gh xs" onclick="msgAtivarAvisos()" id="msg-notif-btn">🔔 Ativar avisos</button></div>
+            <div class="th2"><span class="th2-t">CONVERSAS</span><div class="tb-sp"></div><button class="btn gh xs" onclick="msgAtivarAvisos()" id="msg-notif-btn">🔔 Ativar avisos</button><button class="btn gd xs" onclick="msgNova()">+ Nova conversa</button></div>
             <div id="msg-list"></div>
           </div>
           <div class="msg-main tw">
@@ -1453,6 +1453,16 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <div class="fgr" style="margin-top:8px"><label>REPITA A NOVA SENHA</label><input type="password" id="ct-pw2" autocomplete="new-password"></div>
     </div>
     <div class="mf"><button class="btn rd" onclick="closeModal('m-conta');openModal('m-logout')">Sair</button><button class="btn gd" onclick="trocarSenha()">SALVAR SENHA</button></div>
+  </div>
+</div>
+
+<div class="ov" id="m-novamsg">
+  <div class="md">
+    <div class="mh"><div class="mt">NOVA CONVERSA</div><button class="mx" onclick="closeModal('m-novamsg')">✕</button></div>
+    <div class="mb">
+      <div class="fgr"><label>BUSCAR CLIENTE</label><input id="nm-q" placeholder="Nome ou telefone" oninput="msgNovaLista()"></div>
+      <div id="nm-lista" style="margin-top:10px;max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px"></div>
+    </div>
   </div>
 </div>
 <div class="ov" id="m-logout">
@@ -4294,7 +4304,7 @@ function renderMsgs(soLista){
     </div>`).join(''):`<div class="fin-empty">${MSG.seen===null&&!MSG.err?'Carregando…':'Nenhuma conversa ainda.<br>Quando alguém te escrever, aparece aqui.'}</div>`;
 }
 async function msgAbrir(key){
-  MSG.cur=key;
+  MSG.cur=key; MSG.novoTel=null;
   const c=MSG.chats.find(x=>x.key===key); MSG.curNome=c?msgNomeChat(c):'';
   document.getElementById('msg-wrap').classList.add('open');
   document.getElementById('msg-top-n').textContent=MSG.curNome;
@@ -4308,7 +4318,7 @@ async function msgAbrir(key){
     msgBadge(); renderMsgs(true);
   }catch(e){}
 }
-function msgVoltar(){ MSG.cur=null; document.getElementById('msg-wrap').classList.remove('open'); renderMsgs(true); }
+function msgVoltar(){ MSG.cur=null; MSG.novoTel=null; document.getElementById('msg-wrap').classList.remove('open'); renderMsgs(true); }
 async function msgCarregar(key,silencioso){
   try{
     const r=await msgFetch(`/${encodeURIComponent(key)}/messages`);
@@ -4333,13 +4343,55 @@ function msgDesenhar(rolar){
   if(rolar||perto) el.scrollTop=el.scrollHeight;
 }
 function msgQuick(t){ const i=document.getElementById('msg-inp'); i.value=t; i.focus(); }
+
+// ---- Nova conversa: escolhe a cliente e manda a 1ª mensagem ----
+function msgChaveTel(raw){
+  let d=String(raw||'').replace(/\D/g,'');
+  if(d.startsWith('55')&&d.length>=12) d=d.slice(2);
+  if(d.length>=10) return d.slice(0,2)+d.slice(-8);
+  return d.length>=8?d.slice(-8):null;
+}
+function msgNova(){
+  if(!(WA_CFG.url&&WA_CFG.key)){ toast('Conecte o WhatsApp primeiro em Configurações','w'); return; }
+  document.getElementById('nm-q').value=''; msgNovaLista(); openModal('m-novamsg');
+  setTimeout(()=>{ try{document.getElementById('nm-q').focus();}catch(e){} },150);
+}
+function msgNovaLista(){
+  const q=(document.getElementById('nm-q').value||'').toLowerCase().trim();
+  const qd=q.replace(/\D/g,'');
+  let l=D.clientes.filter(c=>c.whatsapp&&String(c.whatsapp).replace(/\D/g,'').length>=8);
+  if(q) l=l.filter(c=>(c.nome||'').toLowerCase().includes(q)||(qd&&String(c.whatsapp).replace(/\D/g,'').includes(qd)));
+  l=l.slice(0,60);
+  document.getElementById('nm-lista').innerHTML=l.length?l.map(c=>`<button class="btn ol" style="justify-content:flex-start;gap:10px;padding:10px 12px;text-align:left" onclick="msgNovaEscolher('${c.id}')"><span class="c-av msg-av" style="flex-shrink:0">${relEsc(ini(c.nome||'?'))}</span><span style="min-width:0"><b style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${relEsc(c.nome)}</b><span style="font-size:11px;color:var(--text3)">${relEsc(c.whatsapp)}</span></span></button>`).join(''):'<div class="fin-empty">Nenhuma cliente com WhatsApp encontrada.</div>';
+}
+function msgNovaEscolher(cid){
+  const c=D.clientes.find(x=>x.id===cid); if(!c) return;
+  const key=msgChaveTel(c.whatsapp);
+  if(!key){ toast('Telefone da cliente inválido','e'); return; }
+  closeModal('m-novamsg');
+  const ex=MSG.chats.find(x=>x.key===key);
+  if(ex){ msgAbrir(key); return; }
+  // conversa nova: ainda não existe no servidor, a 1ª mensagem cria
+  MSG.cur=key; MSG.curNome=c.nome; MSG.novoTel=c.whatsapp; MSG.msgs=[];
+  document.getElementById('msg-wrap').classList.add('open');
+  document.getElementById('msg-top-n').textContent=c.nome;
+  document.getElementById('msg-send').style.display='flex';
+  document.getElementById('msg-quick').style.display='flex';
+  document.getElementById('msg-body').innerHTML='<div class="fin-empty">Conversa nova com '+relEsc(c.nome)+'.<br>Escreva a primeira mensagem abaixo.</div>';
+  try{ document.getElementById('msg-inp').focus(); }catch(e){}
+}
 async function msgSend(ev){
   if(ev&&ev.preventDefault) ev.preventDefault();
   const inp=document.getElementById('msg-inp'); const text=(inp.value||'').trim();
   if(!text||!MSG.cur||MSG.busy) return;
   MSG.busy=true; const btn=document.getElementById('msg-send-btn'); btn.disabled=true; btn.textContent='Enviando…';
   try{
-    const r=await msgFetch(`/${encodeURIComponent(MSG.cur)}/send`,{method:'POST',body:JSON.stringify({text})},60000);
+    let r;
+    if(MSG.novoTel){
+      const ok=await waEnviarAPI(MSG.novoTel,text);
+      r={ok:ok,status:ok?201:502,j:{}};
+      if(ok){ MSG.novoTel=null; }
+    } else r=await msgFetch(`/${encodeURIComponent(MSG.cur)}/send`,{method:'POST',body:JSON.stringify({text})},60000);
     if(r.ok){
       inp.value=''; inp.style.height='auto';
       MSG.msgs.push({id:'tmp'+Date.now(),direction:'out',text,ts:new Date().toISOString()});
