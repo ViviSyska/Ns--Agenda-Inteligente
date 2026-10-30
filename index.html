@@ -127,7 +127,7 @@ tr:hover td{background:rgba(255,215,0,.025)}
 [data-theme="light"] .ag-ap.recusou{background:#e5e7eb;border-color:#9ca3af;color:#6b7280;opacity:.65}
 .bd.wa-ag{background:#075e54;color:#fff}
 .bd.wa-ok{background:#25d366;color:#fff}
-.bd.wa-no{background:#6b7280;color:#fff}
+.bd.wa-no{background:#ea580c;color:#fff}
 
 /* FORMS */
 .fg{display:grid;gap:13px}
@@ -674,6 +674,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 .fin-row.cn .fin-row-n{text-decoration:line-through;opacity:.75}
 #dl-body{max-height:70vh;overflow-y:auto}
 .ag-ap.cancelada{left:2px;right:2px;z-index:1;background:rgba(239,68,68,.10);border:1px dashed var(--red);border-left:3px solid var(--red);color:var(--red);opacity:1}
+.ag-ap.faltou{background:rgba(234,88,12,.12);border:1px dashed #ea580c;border-left:3px solid #ea580c;color:#ea580c}
 .ag-ap.cancelada .cn-t{font-weight:700;font-size:10px;letter-spacing:.4px}
 .ag-ap.cancelada .cn-n{opacity:.9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ag-ap.cancelada .cn-s{font-size:10px;opacity:.85}
@@ -871,7 +872,8 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
             <option value="confirmado">🟡 Confirmado</option>
             <option value="atendimento">🟣 Em Atendimento</option>
             <option value="concluido">🟢 Pago</option>
-            <option value="cancelado">⬜ Cancelado</option>
+            <option value="cancelado">❌ Cancelado</option>
+            <option value="faltou">🚫 Faltou</option>
           </select>
           <label class="flt-dt"><span class="flt-l">De</span><input type="date" id="cmd-dt-ini" onchange="renderComandas()" style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:7px 9px;color:var(--text);font-size:12px;outline:none" title="Data início"></label>
           <span class="flt-ate" style="color:var(--text3);font-size:12px">até</span>
@@ -1646,13 +1648,19 @@ const SC = {
   concluido:   'gr',   // verde
   cancelado:   'rd',   // vermelho: cancelada
   recusou:     'gy',   // cinza apagado (visual do wa)
+  faltou:      'wa-no',
 };
 // efStatus: NUNCA muda status automaticamente — só lê o que está no banco
 // O "recusou" aparece como visual mas NÃO altera o status real
 // Cancelada de verdade OU cliente respondeu NÃO no WhatsApp (e ainda não foi atendida)
 const isCanc = ag => ag.status==='cancelado' || (ag.wa_status==='recusou' && ag.status!=='concluido' && ag.status!=='atendimento');
+// Cancelado = você cancelou (some da agenda, fica só no histórico/Comandas)
+// Faltou   = a cliente respondeu NÃO no WhatsApp (continua visível na agenda, marcado)
+const isCancelado = ag => ag.status==='cancelado';
+const isFaltou = ag => ag.wa_status==='recusou' && ag.status!=='concluido' && ag.status!=='atendimento' && ag.status!=='cancelado';
 const efStatus = ag => {
-  if(isCanc(ag)) return 'cancelado'; // cancelada OU cliente respondeu NÃO
+  if(isCancelado(ag)) return 'cancelado';
+  if(isFaltou(ag)) return 'faltou';
   if(ag.wa_status==='confirmou' && ag.status==='pendente') return 'confirmado';
   return ag.status;
 };
@@ -1662,7 +1670,8 @@ const efLabel = ag => ({
   atendimento: '🟣 Em Atendimento',
   concluido:   '💰 Pago',
   cancelado:   '❌ Cancelado',
-  recusou:     '🚫 Recusou',
+  faltou:      '🚫 Faltou',
+  recusou:     '🚫 Faltou',
 }[efStatus(ag)] || ag.status);
 
 // ============================================================
@@ -1915,7 +1924,7 @@ async function entrarSalao(m){
       const ws=n.wa_status;
       if(ws==='confirmou'||ws==='recusou'){
         const nm=gCNm(n.cliente_id||'');
-        toast(`${nm} respondeu: ${ws==='confirmou'?'✅ SIM — confirmado na agenda':'❌ NÃO — cancelado'}`, ws==='confirmou'?'ok':'w');
+        toast(`${nm} respondeu: ${ws==='confirmou'?'✅ SIM — confirmado na agenda':'🚫 NÃO — marcado como Faltou'}`, ws==='confirmou'?'ok':'w');
       }
     })
     .subscribe();
@@ -2075,7 +2084,7 @@ function renderDash(){
   // 6 indicadores: previsto, ganhei, despesas, ticket médio, agendadas e canceladas
   const todosPeriodo=fAgs();
   const previstoTotal=agsPeriodo.reduce((t,a)=>t+gAgtot(a),0);
-  const nCancel=todosPeriodo.filter(isCanc).length;
+  const nCancel=todosPeriodo.filter(isCancelado).length; const nFaltou=todosPeriodo.filter(isFaltou).length;
   const nAgend=agsPeriodo.length;
   const nFeitas=agsPeriodo.filter(a=>a.status==='concluido').length;
   const nPorVir=nAgend-nFeitas;
@@ -2092,7 +2101,7 @@ function renderDash(){
     <div class="sc" onclick="dashList('agendadas')"><div class="sc-l">AGENDADAS</div><div class="sc-v">${nAgend}</div>
       <div class="sc-s">${nFeitas} atendida(s) · ${nPorVir} por vir</div></div>
     <div class="sc cR" onclick="dashList('canceladas')"><div class="sc-l">CANCELADAS</div><div class="sc-v ${nCancel?'rd':''}">${nCancel}</div>
-      <div class="sc-s">${nCancel?pctCancel+'% das comandas':'nenhuma'}</div></div>`;
+      <div class="sc-s">${nFaltou?nFaltou+' faltou'+(nFaltou>1?'ram':''):(nCancel?pctCancel+'% das comandas':'nenhuma')}</div></div>`;
   // chart — usa caixa por mês (valores reais)
   const ch=document.getElementById('d-chart'); ch.innerHTML='';
   const meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -2178,12 +2187,12 @@ function renderAgenda(){
       // Agendamentos do profissional/dia
       const doDia=D.agendamentos.filter(a=>(a.profissional_id||a.profId)===prof.id && (a.data||'').substring(0,10)===ds);
       const profAgs=doDia.filter(a=>!isCanc(a));
-      // Canceladas continuam visíveis (com aviso) até você remover — não ocupam horário
-      doDia.filter(a=>isCanc(a)&&toMin(a.hora)>=t&&toMin(a.hora)<t+S.agIv).forEach(ag=>{
+      // Cancelado some da agenda (fica no histórico). Faltou (disse NÃO) fica marcado, sem ocupar horário
+      doDia.filter(a=>isFaltou(a)&&toMin(a.hora)>=t&&toMin(a.hora)<t+S.agIv).forEach(ag=>{
         const dur=(ag.duracao_total||ag.durTotal||30);
-        const dv=document.createElement('div'); dv.className='ag-ap cancelada';
+        const dv=document.createElement('div'); dv.className='ag-ap cancelada faltou';
         dv.style.top='2px'; dv.style.height=(Math.max(dur/S.agIv,1)*42-4)+'px';
-        dv.innerHTML=`<div class="cn-t">❌ CANCELADA</div><div class="cn-n"><s>${relEsc(gCNm2(ag))}</s>${ag.wa_status==='recusou'?' · disse NÃO':''}</div>`;
+        dv.innerHTML=`<div class="cn-t">🚫 FALTOU</div><div class="cn-n">${relEsc(gCNm2(ag))} · disse NÃO</div>`;
         dv.onclick=e=>{ e.stopPropagation(); verAg(ag.id); };
         sl.appendChild(dv);
       });
@@ -2225,12 +2234,12 @@ function syncDatePicker(){ const p=document.getElementById('ag-date-pick'); if(p
 // Cancelar comanda: 1 toque + 1 confirmação, direto da lista, da agenda ou da janela da comanda
 function cancelarAg(id){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag) return;
-  if(isCanc(ag)){ toast('Já está cancelada','w'); return; }
+  if(isCancelado(ag)){ toast('Já está cancelada','w'); return; }
   if(ag.status==='concluido'){ toast('Comanda já paga — toque em ↩ Reabrir antes de cancelar','w'); return; }
   const pago=D.caixa.filter(x=>x.agendamento_id===id&&x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
   const aviso=pago>0.009?` Já foram pagos ${Rf(pago)} — esse valor continua no caixa.`:'';
   const quando=`${fBR((ag.data||'').substring(0,10)).slice(0,5)} ${ag.hora||''}`;
-  confirm2('❌','CANCELAR COMANDA',`Cancelar a comanda de ${gCNm2(ag)} (${quando})?${aviso}`,async()=>{
+  confirm2('❌','CANCELAR COMANDA',`Cancelar a comanda de ${gCNm2(ag)} (${quando})? Ela sai da agenda e fica só no histórico (Comandas).${aviso}`,async()=>{
     showLoad('Cancelando...');
     const {error}=await sb.from('agendamentos').update({status:'cancelado'}).eq('id',id);
     hideLoad();
@@ -2278,7 +2287,8 @@ function dashRows(kind){
   if(kind==='agendadas'){ const l=ord([...ativos]); return {tit:'AGENDADAS',sub:`${l.length} no período`,tot:String(l.length),rows:l.map(rowAg)}; }
   if(kind==='canceladas'){
     const l=ord(ags.filter(isCanc));
-    return {tit:'CANCELADAS',sub:`${l.length} no período`,tot:String(l.length),rows:l.map(a=>({t:gCNm2(a),s:`${quando(a)} · ${svc(a)}`,v:Rf(gAgtot(a)),tag:a.wa_status==='recusou'?'🚫 respondeu NÃO':'❌ cancelada',id:a.id,cls:'cn'}))};
+    const nc=l.filter(isCancelado).length, nf=l.length-nc;
+    return {tit:'CANCELADAS E FALTAS',sub:`${nc} cancelada(s) · ${nf} faltou`,tot:String(l.length),rows:l.map(a=>({t:gCNm2(a),s:`${quando(a)} · ${svc(a)}`,v:Rf(gAgtot(a)),tag:isCancelado(a)?'❌ cancelada':'🚫 faltou (disse NÃO)',id:a.id,cls:'cn'}))};
   }
   if(kind==='ganhei'){ const l=cx.filter(x=>x.tipo==='entrada'); return {tit:'GANHEI',sub:`${l.length} recebimento(s)`,tot:Rf(l.reduce((t,x)=>t+Number(x.valor),0)),rows:l.map(x=>({t:nomeCx(x),s:`${dCx(x)} · ${(x.forma_pagamento||'—').toUpperCase()}`,v:Rf(x.valor)}))}; }
   if(kind==='despesas'){ const l=cx.filter(x=>x.tipo==='saida'); return {tit:'DESPESAS',sub:`${l.length} saída(s)`,tot:Rf(l.reduce((t,x)=>t+Number(x.valor),0)),rows:l.map(x=>({t:x.descricao||'Despesa',s:`${dCx(x)}${x.forma_pagamento?' · '+x.forma_pagamento.toUpperCase():''}`,v:Rf(x.valor)}))}; }
@@ -2366,8 +2376,8 @@ function verAg(id){
   const addB=(lbl,cls,fn)=>{ const b=document.createElement('button'); b.className=`btn ${cls}`; b.textContent=lbl; b.onclick=fn; foot.appendChild(b); };
   addB('Fechar','gh',()=>closeModal('m-ver'));
   addB('✏ Editar','ol',()=>{ closeModal('m-ver'); editAg(id); });
-  if(ag.status!=='concluido'&&!isCanc(ag)){
-    addB('💰 Faturar','gr',()=>{ closeModal('m-ver'); abrirFat(id); });
+  if(ag.status!=='concluido'&&!isCancelado(ag)){
+    if(!isFaltou(ag)) addB('💰 Faturar','gr',()=>{ closeModal('m-ver'); abrirFat(id); });
     addB('✕ Cancelar comanda','rd',()=>{ closeModal('m-ver'); cancelarAg(id); });
   }
   if(ag.status==='concluido'){
@@ -2792,7 +2802,8 @@ function renderComandas(){
   });
   // Filtro por status (inclui 'atendimento' como virtual)
   if(f==='atendimento') ags=ags.filter(a=>efStatus(a)==='atendimento');
-  else if(f==='cancelado') ags=ags.filter(isCanc);
+  else if(f==='cancelado') ags=ags.filter(isCancelado);
+  else if(f==='faltou') ags=ags.filter(isFaltou);
   else if(f) ags=ags.filter(a=>a.status===f&&!isCanc(a));
   // Pesquisa universal
   if(q) ags=ags.filter(a=>
@@ -2820,7 +2831,7 @@ function renderComandas(){
       ${['pendente','confirmado','atendimento'].includes(efStatus(a))||saldoDev>0.01?`<button class="btn gr xs" onclick="abrirFat('${a.id}')">${saldoDev>0.01?'✓ Receber saldo':'✓ Faturar'}</button>`:''}
       ${a.status==='concluido'&&saldoDev<=0.01?`<button class="btn ol xs" style="color:var(--purple);border-color:var(--purple)" onclick="reabrirComanda('${a.id}')">↩ Reabrir</button>`:''}
       ${canc?`<button class="btn gr xs" onclick="reativarAg('${a.id}')">↩ Reativar</button>`:''}
-      ${(!canc&&a.status!=='concluido')?`<button class="btn ol xs" style="color:var(--red);border-color:var(--red)" onclick="cancelarAg('${a.id}')">✕ Cancelar</button>`:''}
+      ${(!isCancelado(a)&&a.status!=='concluido')?`<button class="btn ol xs" style="color:var(--red);border-color:var(--red)" onclick="cancelarAg('${a.id}')">✕ Cancelar</button>`:''}
       <button class="btn ol xs" onclick="editAg('${a.id}')">✏</button>
       <button class="btn gh xs" onclick="verAg('${a.id}')">Ver</button>
     </td>
@@ -4357,7 +4368,6 @@ async function waSetStatus(agId, status){
   // Se cliente confirmou → também confirma o agendamento na agenda
   const updates={wa_status:status};
   if(status==='confirmou') updates.status='confirmado';
-  if(status==='recusou')   updates.status='cancelado';
   await sb.from('agendamentos').update(updates).eq('id',agId);
   const ag=D.agendamentos.find(a=>a.id===agId);
   if(ag){ Object.assign(ag, updates); }
