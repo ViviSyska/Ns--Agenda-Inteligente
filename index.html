@@ -127,7 +127,7 @@ tr:hover td{background:rgba(255,215,0,.025)}
 [data-theme="light"] .ag-ap.recusou{background:#e5e7eb;border-color:#9ca3af;color:#6b7280;opacity:.65}
 .bd.wa-ag{background:#075e54;color:#fff}
 .bd.wa-ok{background:#25d366;color:#fff}
-.bd.wa-no{background:#6b7280;color:#fff}
+.bd.wa-no{background:#ea580c;color:#fff}
 
 /* FORMS */
 .fg{display:grid;gap:13px}
@@ -674,6 +674,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 .fin-row.cn .fin-row-n{text-decoration:line-through;opacity:.75}
 #dl-body{max-height:70vh;overflow-y:auto}
 .ag-ap.cancelada{left:2px;right:2px;z-index:1;background:rgba(239,68,68,.10);border:1px dashed var(--red);border-left:3px solid var(--red);color:var(--red);opacity:1}
+.ag-ap.faltou{background:rgba(234,88,12,.12);border:1px dashed #ea580c;border-left:3px solid #ea580c;color:#ea580c}
 .ag-ap.cancelada .cn-t{font-weight:700;font-size:10px;letter-spacing:.4px}
 .ag-ap.cancelada .cn-n{opacity:.9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ag-ap.cancelada .cn-s{font-size:10px;opacity:.85}
@@ -731,12 +732,15 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <div style="font-size:10px;color:var(--text3);letter-spacing:3px;margin-top:2px">INTELIGENTE · GESTÃO DE SALÃO</div>
     </div>
     <div class="fg" style="gap:12px">
-      <div class="fgr"><label>EMAIL</label><input type="email" id="l-em" value="admin@salao.com" onkeydown="if(event.key==='Enter')doLogin()"></div>
-      <div class="fgr"><label>SENHA</label><input type="password" id="l-pw" value="admin123" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div class="fgr"><label>E-MAIL</label><input type="email" id="l-em" autocomplete="username" placeholder="seu@email.com" onkeydown="if(event.key==='Enter')loginEnviar()"></div>
+      <div class="fgr"><label>SENHA</label><input type="password" id="l-pw" autocomplete="current-password" placeholder="Sua senha" onkeydown="if(event.key==='Enter')loginEnviar()"></div>
     </div>
     <div style="height:1px;background:var(--bc);margin:18px 0"></div>
-    <button class="btn gd" style="width:100%;justify-content:center;padding:11px" onclick="doLogin()">ENTRAR</button>
-    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:12px">admin@salao.com · admin123</div>
+    <button class="btn gd" id="l-btn" style="width:100%;justify-content:center;padding:11px" onclick="loginEnviar()">ENTRAR</button>
+    <div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;margin-top:14px">
+      <a href="#" id="l-esq" onclick="loginEsqueci();return false" style="color:var(--text3)">Esqueci a senha</a>
+      <a href="#" id="l-modo" onclick="loginModo();return false" style="color:var(--gold);font-weight:700">Criar conta do meu salão</a>
+    </div>
   </div>
 </div>
 
@@ -772,7 +776,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
           <div class="u-nm" id="u-nm">Admin</div>
           <div class="u-rl" id="u-rl">ADMINISTRADOR</div>
         </div>
-        <button class="lo-btn" onclick="openModal('m-logout')" title="Sair">⏏</button>
+        <button class="lo-btn" onclick="abrirConta()" title="Minha conta">⚙</button>
       </div>
     </div>
   </div>
@@ -868,7 +872,8 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
             <option value="confirmado">🟡 Confirmado</option>
             <option value="atendimento">🟣 Em Atendimento</option>
             <option value="concluido">🟢 Pago</option>
-            <option value="cancelado">⬜ Cancelado</option>
+            <option value="cancelado">❌ Cancelado</option>
+            <option value="faltou">🚫 Faltou</option>
           </select>
           <label class="flt-dt"><span class="flt-l">De</span><input type="date" id="cmd-dt-ini" onchange="renderComandas()" style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:7px 9px;color:var(--text);font-size:12px;outline:none" title="Data início"></label>
           <span class="flt-ate" style="color:var(--text3);font-size:12px">até</span>
@@ -1249,8 +1254,8 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <input type="hidden" id="prf-eid">
       <div class="fg">
         <div class="fgr"><label>NOME *</label><input id="prf-nm" placeholder="Nome completo"></div>
-        <div class="fgr"><label>EMAIL (login) *</label><input type="email" id="prf-em" placeholder="email@exemplo.com"></div>
-        <div class="fgr"><label>SENHA *</label><input type="password" id="prf-pw" placeholder="Mínimo 6 caracteres"></div>
+        <div class="fgr"><label>E-MAIL (login) *</label><input type="email" id="prf-em" placeholder="email@exemplo.com"></div>
+        <div class="fgr"><label id="prf-pw-l">SENHA PROVISÓRIA *</label><input type="password" id="prf-pw" placeholder="Mínimo 6 caracteres — ela pode trocar depois"></div>
         <div class="fg fg2">
           <div class="fgr"><label>COMISSÃO (%)</label><input type="number" id="prf-cm" placeholder="40" min="0" max="100"></div>
           <div class="fgr"></div>
@@ -1411,6 +1416,38 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 </div>
 
 <!-- CONFIRM LOGOUT -->
+
+<div class="ov" id="m-novosalao">
+  <div class="md">
+    <div class="mh"><div class="mt">CRIAR MEU SALÃO</div></div>
+    <div class="mb">
+      <div style="font-size:13px;color:var(--text3);margin-bottom:12px">Você ainda não está em nenhum salão. Dê um nome ao seu — você será a administradora.</div>
+      <div class="fgr"><label>NOME DO SALÃO *</label><input id="ns-nome" placeholder="Ex.: Espaço Tela Viva"></div>
+    </div>
+    <div class="mf"><button class="btn gh" onclick="doLogout()">Sair</button><button class="btn gd" onclick="criarSalaoApp()">CRIAR SALÃO</button></div>
+  </div>
+</div>
+<div class="ov" id="m-escsalao">
+  <div class="md">
+    <div class="mh"><div class="mt">ESCOLHA O SALÃO</div></div>
+    <div class="mb" id="esc-lista" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div class="mf"><button class="btn gh" onclick="doLogout()">Sair</button></div>
+  </div>
+</div>
+<div class="ov" id="m-conta">
+  <div class="md">
+    <div class="mh"><div class="mt">MINHA CONTA</div><button class="mx" onclick="closeModal('m-conta')">✕</button></div>
+    <div class="mb">
+      <div style="font-size:12px;color:var(--text3)">Entrou como</div>
+      <div id="ct-email" style="font-weight:700;margin-bottom:4px"></div>
+      <div id="ct-salao" style="font-size:12px;color:var(--text3);margin-bottom:14px"></div>
+      <div id="ct-troca" style="margin-bottom:14px"></div>
+      <div class="fgr"><label>NOVA SENHA</label><input type="password" id="ct-pw" autocomplete="new-password" placeholder="Mínimo 6 caracteres"></div>
+      <div class="fgr" style="margin-top:8px"><label>REPITA A NOVA SENHA</label><input type="password" id="ct-pw2" autocomplete="new-password"></div>
+    </div>
+    <div class="mf"><button class="btn rd" onclick="closeModal('m-conta');openModal('m-logout')">Sair</button><button class="btn gd" onclick="trocarSenha()">SALVAR SENHA</button></div>
+  </div>
+</div>
 <div class="ov" id="m-logout">
   <div class="md conf-md">
     <div class="mb" style="text-align:center;padding:28px 20px">
@@ -1516,7 +1553,9 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 // ============================================================
 const SUPA_URL = 'https://nkoklcrrdbgaqzsjjhkg.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rb2tsY3JyZGJnYXF6c2pqaGtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTkyNjMsImV4cCI6MjA5MjM3NTI2M30.gDjXWQjkUYTLHHSz9djLi604ZgJjUNlKrN9AnrKRzrs';
-const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY, {
+  global:{ fetch:(u,o)=>{ o=o||{}; const h=new Headers(o.headers||{}); try{ if(S.salaoId) h.set('x-salao-id',S.salaoId); }catch(e){} return fetch(u,{...o,headers:h}); } }
+});
 
 // ============================================================
 // STATE
@@ -1609,13 +1648,19 @@ const SC = {
   concluido:   'gr',   // verde
   cancelado:   'rd',   // vermelho: cancelada
   recusou:     'gy',   // cinza apagado (visual do wa)
+  faltou:      'wa-no',
 };
 // efStatus: NUNCA muda status automaticamente — só lê o que está no banco
 // O "recusou" aparece como visual mas NÃO altera o status real
 // Cancelada de verdade OU cliente respondeu NÃO no WhatsApp (e ainda não foi atendida)
 const isCanc = ag => ag.status==='cancelado' || (ag.wa_status==='recusou' && ag.status!=='concluido' && ag.status!=='atendimento');
+// Cancelado = você cancelou (some da agenda, fica só no histórico/Comandas)
+// Faltou   = a cliente respondeu NÃO no WhatsApp (continua visível na agenda, marcado)
+const isCancelado = ag => ag.status==='cancelado';
+const isFaltou = ag => ag.wa_status==='recusou' && ag.status!=='concluido' && ag.status!=='atendimento' && ag.status!=='cancelado';
 const efStatus = ag => {
-  if(isCanc(ag)) return 'cancelado'; // cancelada OU cliente respondeu NÃO
+  if(isCancelado(ag)) return 'cancelado';
+  if(isFaltou(ag)) return 'faltou';
   if(ag.wa_status==='confirmou' && ag.status==='pendente') return 'confirmado';
   return ag.status;
 };
@@ -1625,7 +1670,8 @@ const efLabel = ag => ({
   atendimento: '🟣 Em Atendimento',
   concluido:   '💰 Pago',
   cancelado:   '❌ Cancelado',
-  recusou:     '🚫 Recusou',
+  faltou:      '🚫 Faltou',
+  recusou:     '🚫 Faltou',
 }[efStatus(ag)] || ag.status);
 
 // ============================================================
@@ -1716,6 +1762,7 @@ async function loadAll(){
       hora: a.hora?.substring(0,5)||'00:00',
     }));
     D.historico = hist.data || [];
+    D.cfgRow=cfg.data||null;
     loadCats();
     if(cfg.data){
       D.cfg = {
@@ -1768,58 +1815,146 @@ async function reloadSection(sec){
 // ============================================================
 // AUTH — LOGIN COM PROFISSIONAIS DO BANCO
 // ============================================================
-async function doLogin(){
-  const em = document.getElementById('l-em').value.trim();
-  const pw = document.getElementById('l-pw').value;
-  showLoad('Verificando credenciais...');
-  let user = null;
-  // Admin hardcoded (ou coloque em tabela separada)
-  if(em==='admin@salao.com' && pw==='admin123'){
-    user={email:em,role:'admin',nome:'Administrador',profId:null};
-  } else {
-    const {data}=await sb.from('profissionais').select('*').eq('email',em).eq('senha',pw).eq('ativo',true).single();
-    if(data) user={email:em,role:'prof',nome:data.nome,profId:data.id};
-  }
+let SALOES=[]; let LOGIN_CRIAR=false;
+function loginModo(){
+  LOGIN_CRIAR=!LOGIN_CRIAR;
+  document.getElementById('l-btn').textContent=LOGIN_CRIAR?'CRIAR CONTA':'ENTRAR';
+  document.getElementById('l-modo').textContent=LOGIN_CRIAR?'Já tenho conta':'Criar conta do meu salão';
+  document.getElementById('l-esq').style.display=LOGIN_CRIAR?'none':'';
+  document.getElementById('l-pw').placeholder=LOGIN_CRIAR?'Crie uma senha (mín. 6)':'Sua senha';
+}
+function loginEnviar(){ return LOGIN_CRIAR?criarConta():doLogin(); }
+async function criarConta(){
+  const em=document.getElementById('l-em').value.trim(), pw=document.getElementById('l-pw').value;
+  if(!em||pw.length<6){ toast('Informe o e-mail e uma senha de pelo menos 6 caracteres','e'); return; }
+  showLoad('Criando conta...');
+  const {data,error}=await sb.auth.signUp({email:em,password:pw});
   hideLoad();
-  if(!user){ toast('Email ou senha incorretos','e'); return; }
+  if(error){ toast(error.message,'e'); return; }
+  if(data.session){ await posLogin(); }
+  else { toast('Enviamos um e-mail de confirmação. Confirme e depois entre.','w'); loginModo(); }
+}
+async function loginEsqueci(){
+  const em=document.getElementById('l-em').value.trim();
+  if(!em){ toast('Digite seu e-mail e toque de novo em "Esqueci a senha"','w'); return; }
+  const {error}=await sb.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname});
+  toast(error?error.message:'Enviamos um link para criar uma nova senha no seu e-mail.',error?'e':'ok');
+}
+async function doLogin(){
+  const em=document.getElementById('l-em').value.trim();
+  const pw=document.getElementById('l-pw').value;
+  if(!em||!pw){ toast('Informe e-mail e senha','e'); return; }
+  showLoad('Entrando...');
+  const {error}=await sb.auth.signInWithPassword({email:em,password:pw});
+  hideLoad();
+  if(error){
+    const m=error.message||'';
+    toast(/invalid/i.test(m)?'E-mail ou senha incorretos':(/confirm/i.test(m)?'Confirme seu e-mail antes de entrar':m),'e'); return;
+  }
+  await posLogin();
+}
+async function posLogin(){
+  const {data:u}=await sb.auth.getUser();
+  if(!u||!u.user){ return; }
+  S.email=u.user.email;
+  showLoad('Carregando seus salões...');
+  const {data:ms,error}=await sb.from('membros').select('id,salao_id,papel,profissional_id,saloes(nome)').eq('user_id',u.user.id).eq('ativo',true);
+  hideLoad();
+  if(error){ toast('Erro ao carregar salões: '+error.message,'e'); return; }
+  SALOES=ms||[];
+  if(!SALOES.length){ openModal('m-novosalao'); return; }
+  let last=''; try{ last=localStorage.getItem('ns_salao')||''; }catch(e){}
+  const sel=SALOES.find(m=>m.salao_id===last);
+  if(SALOES.length>1&&!sel){
+    document.getElementById('esc-lista').innerHTML=SALOES.map(m=>`<button class="btn ol" style="justify-content:flex-start;padding:12px" onclick="escolherSalao('${m.salao_id}')">🏠 ${relEsc(m.saloes?.nome||'Salão')} <span style="margin-left:auto;font-size:11px;color:var(--text3)">${m.papel==='admin'?'Administradora':'Profissional'}</span></button>`).join('');
+    openModal('m-escsalao'); return;
+  }
+  await entrarSalao(sel||SALOES[0]);
+}
+async function escolherSalao(id){
+  try{ localStorage.setItem('ns_salao',id); }catch(e){}
+  closeModal('m-escsalao'); closeModal('m-conta');
+  if(S.user){ location.reload(); return; }
+  await entrarSalao(SALOES.find(m=>m.salao_id===id));
+}
+async function criarSalaoApp(){
+  const nm=document.getElementById('ns-nome').value.trim();
+  if(!nm){ toast('Dê um nome ao salão','e'); return; }
+  showLoad('Criando salão...');
+  const {data,error}=await sb.rpc('criar_salao',{p_nome:nm});
+  hideLoad();
+  if(error){ toast('Não consegui criar: '+error.message,'e'); return; }
+  try{ localStorage.setItem('ns_salao',data); }catch(e){}
+  closeModal('m-novosalao'); await posLogin();
+}
+async function entrarSalao(m){
+  S.salaoId=m.salao_id;
+  try{ localStorage.setItem('ns_salao',m.salao_id); }catch(e){}
+  S.salaoNome=m.saloes?.nome||'Meu Salão';
+  let nome=m.papel==='admin'?'Administradora':(S.email||'').split('@')[0];
+  if(m.profissional_id){
+    const {data}=await sb.from('profissionais').select('nome').eq('id',m.profissional_id).maybeSingle();
+    if(data&&data.nome) nome=data.nome;
+  }
+  const user={email:S.email,role:m.papel==='admin'?'admin':'prof',nome,profId:m.profissional_id||null};
   S.user=user;
   const ok = await loadAll();
-  if(!ok) return;
+  if(!ok){ S.user=null; return; }
+  await waCarregar();
   document.getElementById('ls').style.display='none';
   document.getElementById('app').style.display='flex';
+  const sn=document.getElementById('sl-nm'); if(sn) sn.value=(S.salaoNome||'').toUpperCase();
   document.getElementById('u-av').textContent=ini(user.nome);
   document.getElementById('u-nm').textContent=user.nome;
-  document.getElementById('u-rl').textContent=user.role==='admin'?'ADMINISTRADOR':'PROFISSIONAL';
-  if(user.role==='prof'){
-    ['n-cfg','n-rel','n-cx','n-dp','n-msg'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none'});
-  }
+  document.getElementById('u-rl').textContent=user.role==='admin'?'ADMINISTRADORA':'PROFISSIONAL';
+  ['n-cfg','n-rel','n-cx','n-dp','n-msg'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=user.role==='prof'?'none':''});
   bnPerfil();
   if(window.innerWidth<768) document.getElementById('mob-b').style.display='flex';
   goTo('dashboard', document.querySelector('.ni.active'));
-  iniciarRelatorioDiario(); // inicia verificador de relatório diário
-  if(user.role==='admin') msgStart(); // caixa de mensagens do WhatsApp
-  // Realtime — wa_status e confirmação automática na agenda
-  sb.channel('wa-updates')
+  iniciarRelatorioDiario();
+  if(user.role==='admin') msgStart();
+  if(!window.__waCh){
+    window.__waCh=sb.channel('wa-updates')
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'agendamentos'},payload=>{
       const n=payload.new;
       const idx=D.agendamentos.findIndex(a=>a.id===n.id);
       if(idx>=0){ D.agendamentos[idx]={...D.agendamentos[idx],...n}; }
       else D.agendamentos.push(n);
       renderAgenda(); renderComandas();
-      // Notificação de resposta WA
       const ws=n.wa_status;
       if(ws==='confirmou'||ws==='recusou'){
         const nm=gCNm(n.cliente_id||'');
-        toast(`${nm} respondeu: ${ws==='confirmou'?'✅ SIM — confirmado na agenda':'❌ NÃO — cancelado'}`, ws==='confirmou'?'ok':'w');
+        toast(`${nm} respondeu: ${ws==='confirmou'?'✅ SIM — confirmado na agenda':'🚫 NÃO — marcado como Faltou'}`, ws==='confirmou'?'ok':'w');
       }
     })
     .subscribe();
+  }
 }
+function abrirConta(){
+  document.getElementById('ct-email').textContent=S.email||'';
+  document.getElementById('ct-salao').textContent='Salão: '+(S.salaoNome||'')+' · '+(S.user?.role==='admin'?'Administradora':'Profissional');
+  document.getElementById('ct-pw').value=''; document.getElementById('ct-pw2').value='';
+  const tr=document.getElementById('ct-troca');
+  tr.innerHTML=SALOES.length>1?'<div style="font-size:12px;color:var(--text3);margin-bottom:6px">Trocar de salão</div>'+SALOES.filter(m=>m.salao_id!==S.salaoId).map(m=>`<button class="btn ol sm" style="margin:0 6px 6px 0" onclick="escolherSalao('${m.salao_id}')">🏠 ${relEsc(m.saloes?.nome||'Salão')}</button>`).join(''):'';
+  openModal('m-conta');
+}
+async function trocarSenha(){
+  const a=document.getElementById('ct-pw').value, b=document.getElementById('ct-pw2').value;
+  if(a.length<6){ toast('Senha mínima de 6 caracteres','e'); return; }
+  if(a!==b){ toast('As senhas não são iguais','e'); return; }
+  showLoad('Salvando...');
+  const {error}=await sb.auth.updateUser({password:a});
+  hideLoad();
+  if(error){ toast(error.message,'e'); return; }
+  closeModal('m-conta'); toast('✅ Senha alterada!');
+}
+// Abre direto se já houver sessão; link de "esqueci a senha" abre a troca de senha
+sb.auth.onAuthStateChange((ev)=>{ if(ev==='PASSWORD_RECOVERY'){ setTimeout(()=>{ if(!S.user) posLogin().then(()=>abrirConta()); else abrirConta(); },300); } });
+(async()=>{ try{ const {data}=await sb.auth.getSession(); if(data&&data.session) await posLogin(); }catch(e){} })();
 
 function doLogout(){
-  closeModal('m-logout'); S.user=null; try{msgStop();}catch(e){}
-  document.getElementById('app').style.display='none';
-  document.getElementById('ls').style.display='flex';
+  closeModal('m-logout'); closeModal('m-novosalao'); closeModal('m-escsalao'); try{msgStop();}catch(e){}
+  sb.auth.signOut().finally(()=>{ location.reload(); });
 }
 
 // ============================================================
@@ -1949,7 +2084,7 @@ function renderDash(){
   // 6 indicadores: previsto, ganhei, despesas, ticket médio, agendadas e canceladas
   const todosPeriodo=fAgs();
   const previstoTotal=agsPeriodo.reduce((t,a)=>t+gAgtot(a),0);
-  const nCancel=todosPeriodo.filter(isCanc).length;
+  const nCancel=todosPeriodo.filter(isCancelado).length; const nFaltou=todosPeriodo.filter(isFaltou).length;
   const nAgend=agsPeriodo.length;
   const nFeitas=agsPeriodo.filter(a=>a.status==='concluido').length;
   const nPorVir=nAgend-nFeitas;
@@ -1966,7 +2101,7 @@ function renderDash(){
     <div class="sc" onclick="dashList('agendadas')"><div class="sc-l">AGENDADAS</div><div class="sc-v">${nAgend}</div>
       <div class="sc-s">${nFeitas} atendida(s) · ${nPorVir} por vir</div></div>
     <div class="sc cR" onclick="dashList('canceladas')"><div class="sc-l">CANCELADAS</div><div class="sc-v ${nCancel?'rd':''}">${nCancel}</div>
-      <div class="sc-s">${nCancel?pctCancel+'% das comandas':'nenhuma'}</div></div>`;
+      <div class="sc-s">${nFaltou?nFaltou+' faltou'+(nFaltou>1?'ram':''):(nCancel?pctCancel+'% das comandas':'nenhuma')}</div></div>`;
   // chart — usa caixa por mês (valores reais)
   const ch=document.getElementById('d-chart'); ch.innerHTML='';
   const meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -2052,12 +2187,12 @@ function renderAgenda(){
       // Agendamentos do profissional/dia
       const doDia=D.agendamentos.filter(a=>(a.profissional_id||a.profId)===prof.id && (a.data||'').substring(0,10)===ds);
       const profAgs=doDia.filter(a=>!isCanc(a));
-      // Canceladas continuam visíveis (com aviso) até você remover — não ocupam horário
-      doDia.filter(a=>isCanc(a)&&toMin(a.hora)>=t&&toMin(a.hora)<t+S.agIv).forEach(ag=>{
+      // Cancelado some da agenda (fica no histórico). Faltou (disse NÃO) fica marcado, sem ocupar horário
+      doDia.filter(a=>isFaltou(a)&&toMin(a.hora)>=t&&toMin(a.hora)<t+S.agIv).forEach(ag=>{
         const dur=(ag.duracao_total||ag.durTotal||30);
-        const dv=document.createElement('div'); dv.className='ag-ap cancelada';
+        const dv=document.createElement('div'); dv.className='ag-ap cancelada faltou';
         dv.style.top='2px'; dv.style.height=(Math.max(dur/S.agIv,1)*42-4)+'px';
-        dv.innerHTML=`<div class="cn-t">❌ CANCELADA</div><div class="cn-n"><s>${relEsc(gCNm2(ag))}</s>${ag.wa_status==='recusou'?' · disse NÃO':''}</div>`;
+        dv.innerHTML=`<div class="cn-t">🚫 FALTOU</div><div class="cn-n">${relEsc(gCNm2(ag))} · disse NÃO</div>`;
         dv.onclick=e=>{ e.stopPropagation(); verAg(ag.id); };
         sl.appendChild(dv);
       });
@@ -2099,12 +2234,12 @@ function syncDatePicker(){ const p=document.getElementById('ag-date-pick'); if(p
 // Cancelar comanda: 1 toque + 1 confirmação, direto da lista, da agenda ou da janela da comanda
 function cancelarAg(id){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag) return;
-  if(isCanc(ag)){ toast('Já está cancelada','w'); return; }
+  if(isCancelado(ag)){ toast('Já está cancelada','w'); return; }
   if(ag.status==='concluido'){ toast('Comanda já paga — toque em ↩ Reabrir antes de cancelar','w'); return; }
   const pago=D.caixa.filter(x=>x.agendamento_id===id&&x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
   const aviso=pago>0.009?` Já foram pagos ${Rf(pago)} — esse valor continua no caixa.`:'';
   const quando=`${fBR((ag.data||'').substring(0,10)).slice(0,5)} ${ag.hora||''}`;
-  confirm2('❌','CANCELAR COMANDA',`Cancelar a comanda de ${gCNm2(ag)} (${quando})?${aviso}`,async()=>{
+  confirm2('❌','CANCELAR COMANDA',`Cancelar a comanda de ${gCNm2(ag)} (${quando})? Ela sai da agenda e fica só no histórico (Comandas).${aviso}`,async()=>{
     showLoad('Cancelando...');
     const {error}=await sb.from('agendamentos').update({status:'cancelado'}).eq('id',id);
     hideLoad();
@@ -2152,7 +2287,8 @@ function dashRows(kind){
   if(kind==='agendadas'){ const l=ord([...ativos]); return {tit:'AGENDADAS',sub:`${l.length} no período`,tot:String(l.length),rows:l.map(rowAg)}; }
   if(kind==='canceladas'){
     const l=ord(ags.filter(isCanc));
-    return {tit:'CANCELADAS',sub:`${l.length} no período`,tot:String(l.length),rows:l.map(a=>({t:gCNm2(a),s:`${quando(a)} · ${svc(a)}`,v:Rf(gAgtot(a)),tag:a.wa_status==='recusou'?'🚫 respondeu NÃO':'❌ cancelada',id:a.id,cls:'cn'}))};
+    const nc=l.filter(isCancelado).length, nf=l.length-nc;
+    return {tit:'CANCELADAS E FALTAS',sub:`${nc} cancelada(s) · ${nf} faltou`,tot:String(l.length),rows:l.map(a=>({t:gCNm2(a),s:`${quando(a)} · ${svc(a)}`,v:Rf(gAgtot(a)),tag:isCancelado(a)?'❌ cancelada':'🚫 faltou (disse NÃO)',id:a.id,cls:'cn'}))};
   }
   if(kind==='ganhei'){ const l=cx.filter(x=>x.tipo==='entrada'); return {tit:'GANHEI',sub:`${l.length} recebimento(s)`,tot:Rf(l.reduce((t,x)=>t+Number(x.valor),0)),rows:l.map(x=>({t:nomeCx(x),s:`${dCx(x)} · ${(x.forma_pagamento||'—').toUpperCase()}`,v:Rf(x.valor)}))}; }
   if(kind==='despesas'){ const l=cx.filter(x=>x.tipo==='saida'); return {tit:'DESPESAS',sub:`${l.length} saída(s)`,tot:Rf(l.reduce((t,x)=>t+Number(x.valor),0)),rows:l.map(x=>({t:x.descricao||'Despesa',s:`${dCx(x)}${x.forma_pagamento?' · '+x.forma_pagamento.toUpperCase():''}`,v:Rf(x.valor)}))}; }
@@ -2240,8 +2376,8 @@ function verAg(id){
   const addB=(lbl,cls,fn)=>{ const b=document.createElement('button'); b.className=`btn ${cls}`; b.textContent=lbl; b.onclick=fn; foot.appendChild(b); };
   addB('Fechar','gh',()=>closeModal('m-ver'));
   addB('✏ Editar','ol',()=>{ closeModal('m-ver'); editAg(id); });
-  if(ag.status!=='concluido'&&!isCanc(ag)){
-    addB('💰 Faturar','gr',()=>{ closeModal('m-ver'); abrirFat(id); });
+  if(ag.status!=='concluido'&&!isCancelado(ag)){
+    if(!isFaltou(ag)) addB('💰 Faturar','gr',()=>{ closeModal('m-ver'); abrirFat(id); });
     addB('✕ Cancelar comanda','rd',()=>{ closeModal('m-ver'); cancelarAg(id); });
   }
   if(ag.status==='concluido'){
@@ -2666,7 +2802,8 @@ function renderComandas(){
   });
   // Filtro por status (inclui 'atendimento' como virtual)
   if(f==='atendimento') ags=ags.filter(a=>efStatus(a)==='atendimento');
-  else if(f==='cancelado') ags=ags.filter(isCanc);
+  else if(f==='cancelado') ags=ags.filter(isCancelado);
+  else if(f==='faltou') ags=ags.filter(isFaltou);
   else if(f) ags=ags.filter(a=>a.status===f&&!isCanc(a));
   // Pesquisa universal
   if(q) ags=ags.filter(a=>
@@ -2694,7 +2831,7 @@ function renderComandas(){
       ${['pendente','confirmado','atendimento'].includes(efStatus(a))||saldoDev>0.01?`<button class="btn gr xs" onclick="abrirFat('${a.id}')">${saldoDev>0.01?'✓ Receber saldo':'✓ Faturar'}</button>`:''}
       ${a.status==='concluido'&&saldoDev<=0.01?`<button class="btn ol xs" style="color:var(--purple);border-color:var(--purple)" onclick="reabrirComanda('${a.id}')">↩ Reabrir</button>`:''}
       ${canc?`<button class="btn gr xs" onclick="reativarAg('${a.id}')">↩ Reativar</button>`:''}
-      ${(!canc&&a.status!=='concluido')?`<button class="btn ol xs" style="color:var(--red);border-color:var(--red)" onclick="cancelarAg('${a.id}')">✕ Cancelar</button>`:''}
+      ${(!isCancelado(a)&&a.status!=='concluido')?`<button class="btn ol xs" style="color:var(--red);border-color:var(--red)" onclick="cancelarAg('${a.id}')">✕ Cancelar</button>`:''}
       <button class="btn ol xs" onclick="editAg('${a.id}')">✏</button>
       <button class="btn gh xs" onclick="verAg('${a.id}')">Ver</button>
     </td>
@@ -3215,13 +3352,18 @@ const CAT_DEFAULTS=[
   {id:'ESTETICA', emoji:'✨',lbl:'Estética', corD:'#fef08a',bgD:'#2a2000',corL:'#92400e',bgL:'#fef9c3'},
 ];
 function loadCats(){
-  const custom=JSON.parse(localStorage.getItem('ns_cats')||'[]');
+  let custom=[];
+  if(D.cfgRow&&Array.isArray(D.cfgRow.categorias)&&D.cfgRow.categorias.length) custom=D.cfgRow.categorias;
+  else { try{ custom=JSON.parse(localStorage.getItem('ns_cats')||'[]'); }catch(e){} }
   D.categorias=[...CAT_DEFAULTS,...custom];
 }
 function saveCats(){
   // Salva tudo que diverge dos CAT_DEFAULTS originais (inclui novos + modificados)
   const custom=D.categorias.filter(c=>!CAT_DEFAULTS.find(d=>d.id===c.id&&d.lbl===c.lbl));
-  localStorage.setItem('ns_cats',JSON.stringify(custom));
+  if(D.cfgRow&&D.cfgRow.id&&S.user?.role==='admin'){
+    D.cfgRow.categorias=custom;
+    sb.from('configuracoes').update({categorias:custom}).eq('id',D.cfgRow.id).then(({error})=>{ if(error) toast('Erro ao salvar categorias: '+error.message,'e'); });
+  }
 }
 function getCatMeta(id){
   const c=D.categorias.find(x=>x.id===id)||D.categorias[0];
@@ -3898,11 +4040,11 @@ function abrirProf(id){
   if(id){
     const p=D.profs.find(x=>x.id===id); if(!p)return;
     document.getElementById('m-prf-t').textContent='EDITAR PROFISSIONAL';
-    document.getElementById('prf-nm').value=p.nome; document.getElementById('prf-em').value=p.email;
+    document.getElementById('prf-nm').value=p.nome; document.getElementById('prf-em').value=p.email; document.getElementById('prf-em').disabled=true; document.getElementById('prf-pw-l').textContent='NOVA SENHA (deixe vazio para manter)';
     document.getElementById('prf-pw').value=''; document.getElementById('prf-cm').value=p.comissao||p.com||'';
     document.getElementById('prf-en').value=p.entrada||'08:00'; document.getElementById('prf-sa').value=p.saida||'18:00';
   } else {
-    document.getElementById('m-prf-t').textContent='NOVO PROFISSIONAL';
+    document.getElementById('m-prf-t').textContent='NOVO PROFISSIONAL'; document.getElementById('prf-em').disabled=false; document.getElementById('prf-pw-l').textContent='SENHA PROVISÓRIA *';
     ['prf-nm','prf-em','prf-pw','prf-cm'].forEach(id=>{ document.getElementById(id).value=''; });
     document.getElementById('prf-en').value='08:00'; document.getElementById('prf-sa').value='18:00';
   }
@@ -3910,17 +4052,22 @@ function abrirProf(id){
 }
 async function salvarPrf(){
   const nm=document.getElementById('prf-nm').value.trim(); const em=document.getElementById('prf-em').value.trim(); const pw=document.getElementById('prf-pw').value; const eid=document.getElementById('prf-eid').value;
-  if(!nm||!em){ toast('Nome e email obrigatórios','e'); return; }
+  if(!nm||!em){ toast('Nome e e-mail obrigatórios','e'); return; }
+  const com=parseFloat(document.getElementById('prf-cm').value)||0, ent=document.getElementById('prf-en').value, sai=document.getElementById('prf-sa').value;
   showLoad('Salvando...');
   if(eid){
-    const upd={nome:nm,email:em,comissao:parseFloat(document.getElementById('prf-cm').value)||0,entrada:document.getElementById('prf-en').value,saida:document.getElementById('prf-sa').value};
-    if(pw) upd.senha=pw;
-    await sb.from('profissionais').update(upd).eq('id',eid); toast('Profissional atualizado!');
+    const {error}=await sb.from('profissionais').update({nome:nm,comissao:com,entrada:ent,saida:sai}).eq('id',eid);
+    if(error){ hideLoad(); toast('Erro: '+error.message,'e'); return; }
+    if(pw){
+      if(pw.length<6){ hideLoad(); toast('Senha mínima de 6 caracteres','e'); return; }
+      const r=await sb.rpc('redefinir_senha_profissional',{p_prof:eid,p_senha:pw});
+      if(r.error){ hideLoad(); toast(r.error.message,'e'); return; }
+    }
+    toast('Profissional atualizado!');
   } else {
-    if(!pw||pw.length<6){ hideLoad(); toast('Senha mínima de 6 caracteres','e'); return; }
-    const {error}=await sb.from('profissionais').insert({nome:nm,email:em,senha:pw,comissao:parseFloat(document.getElementById('prf-cm').value)||0,entrada:document.getElementById('prf-en').value,saida:document.getElementById('prf-sa').value});
-    if(error){ hideLoad(); toast('Email já cadastrado','e'); return; }
-    toast('Profissional criado!');
+    const {error}=await sb.rpc('criar_profissional',{p_nome:nm,p_email:em,p_senha:pw,p_comissao:com,p_entrada:ent,p_saida:sai});
+    if(error){ hideLoad(); toast(/duplicate|unique/i.test(error.message)?'Esse e-mail já é profissional deste salão':error.message,'e'); return; }
+    toast('Profissional criado! Passe o e-mail e a senha provisória para ela.');
   }
   await reloadSection('profs'); hideLoad(); closeModal('m-prf'); renderConfig(); popProfs();
 }
@@ -3941,30 +4088,45 @@ async function salvarBlk(){
 // WHATSAPP DO DIA
 // ============================================================
 // ── WhatsApp API Config ──────────────────────────────────────
-const WA_CFG = {
-  url: localStorage.getItem('wa_url')||'',
-  inst: localStorage.getItem('wa_inst')||'',
-  key: localStorage.getItem('wa_key')||''
-};
-function saveConfigWA(){
-  WA_CFG.url=(document.getElementById('cfg-wa-url')?.value||'').replace(/\/$/,'');
+const WA_CFG = { url:'', inst:'', key:'', dono:'', relhr:'07:00', ultimo:'' };
+// A conexão do WhatsApp é do SALÃO (tabela salao_whatsapp): configura uma vez e vale em todos os aparelhos
+async function waCarregar(){
+  if(!S.user||S.user.role!=='admin') return;
+  try{
+    const {data}=await sb.from('salao_whatsapp').select('*').maybeSingle();
+    if(data){
+      WA_CFG.url=data.wa_url||''; WA_CFG.inst=data.wa_inst||''; WA_CFG.key=data.wa_key||'';
+      WA_CFG.dono=data.wa_dono||''; WA_CFG.relhr=data.wa_rel_hora||'07:00'; WA_CFG.ultimo=data.wa_rel_ultimo||'';
+    } else {
+      // primeira vez: aproveita o que estava salvo neste aparelho
+      const g=k=>{ try{return localStorage.getItem(k)||'';}catch(e){return '';} };
+      if(g('wa_url')){
+        WA_CFG.url=g('wa_url'); WA_CFG.inst=g('wa_inst'); WA_CFG.key=g('wa_key');
+        WA_CFG.dono=g('wa_dono_num'); WA_CFG.relhr=g('wa_rel_hora')||'07:00';
+        await waSalvarDB();
+      }
+    }
+  }catch(e){}
+}
+async function waSalvarDB(){
+  return sb.from('salao_whatsapp').upsert({salao_id:S.salaoId,wa_url:WA_CFG.url,wa_inst:WA_CFG.inst,wa_key:WA_CFG.key,wa_dono:WA_CFG.dono,wa_rel_hora:WA_CFG.relhr,wa_rel_ultimo:WA_CFG.ultimo,updated_at:new Date().toISOString()},{onConflict:'salao_id'});
+}
+async function saveConfigWA(){
+  WA_CFG.url=(document.getElementById('cfg-wa-url')?.value||'').trim().replace(/\/$/,'');
   WA_CFG.inst=document.getElementById('cfg-wa-inst')?.value||'';
   WA_CFG.key=document.getElementById('cfg-wa-key')?.value||'';
-  const dono=document.getElementById('cfg-wa-dono')?.value||'';
-  const relHr=document.getElementById('cfg-wa-relhr')?.value||'07:00';
-  localStorage.setItem('wa_url',WA_CFG.url);
-  localStorage.setItem('wa_inst',WA_CFG.inst);
-  localStorage.setItem('wa_key',WA_CFG.key);
-  localStorage.setItem('wa_dono_num',dono);
-  localStorage.setItem('wa_rel_hora',relHr);
-  toast('✅ Config WhatsApp salva!');
+  WA_CFG.dono=document.getElementById('cfg-wa-dono')?.value||'';
+  WA_CFG.relhr=document.getElementById('cfg-wa-relhr')?.value||'07:00';
+  const {error}=await waSalvarDB();
+  if(error){ toast('Não consegui salvar: '+error.message,'e'); return; }
+  toast('✅ WhatsApp do salão salvo — vale em todos os aparelhos!');
 }
 function renderConfigWA(){
   const u=document.getElementById('cfg-wa-url'); if(u)u.value=WA_CFG.url;
   const i=document.getElementById('cfg-wa-inst'); if(i)i.value=WA_CFG.inst;
   const k=document.getElementById('cfg-wa-key'); if(k)k.value=WA_CFG.key;
-  const d=document.getElementById('cfg-wa-dono'); if(d)d.value=localStorage.getItem('wa_dono_num')||'';
-  const h=document.getElementById('cfg-wa-relhr'); if(h)h.value=localStorage.getItem('wa_rel_hora')||'07:00';
+  const d=document.getElementById('cfg-wa-dono'); if(d)d.value=WA_CFG.dono;
+  const h=document.getElementById('cfg-wa-relhr'); if(h)h.value=WA_CFG.relhr;
 }
 async function testarWA(){
   if(!WA_CFG.url||!WA_CFG.inst||!WA_CFG.key){toast('Configure URL, instância e chave primeiro','e');return;}
@@ -4206,7 +4368,6 @@ async function waSetStatus(agId, status){
   // Se cliente confirmou → também confirma o agendamento na agenda
   const updates={wa_status:status};
   if(status==='confirmou') updates.status='confirmado';
-  if(status==='recusou')   updates.status='cancelado';
   await sb.from('agendamentos').update(updates).eq('id',agId);
   const ag=D.agendamentos.find(a=>a.id===agId);
   if(ag){ Object.assign(ag, updates); }
@@ -4384,7 +4545,7 @@ async function waRelatorio(){
   msg+=`\n\n⏳ *Aguardando resposta (${aguardando.length}):*\n`+(aguardando.map(a=>` • ${gCNm2(a)} — ${a.hora}`).join('\n')||' _nenhum_');
   msg+=`\n\n📋 *Sem envio (${semEnvio.length}):*\n`+(semEnvio.map(a=>` • ${gCNm2(a)} — ${a.hora}`).join('\n')||' _nenhum_');
   // Tenta enviar via API para o número do dono configurado
-  const numDono=localStorage.getItem('wa_dono_num')||'';
+  const numDono=WA_CFG.dono||'';
   if(WA_CFG.url&&WA_CFG.inst&&WA_CFG.key&&numDono){
     showLoad('Enviando relatório...');
     const sent=await waEnviarAPI(numDono,msg);
@@ -4403,15 +4564,15 @@ async function waRelatorio(){
 // Verifica todo dia se deve enviar o relatório
 // ============================================================
 function iniciarRelatorioDiario(){
-  const horarioRel=localStorage.getItem('wa_rel_hora')||'07:00';
+  const horarioRel=WA_CFG.relhr||'07:00';
   const [hh,mm]=horarioRel.split(':').map(Number);
   function checarEEnviar(){
     const agora=new Date();
-    const jaMandouHoje=localStorage.getItem('wa_rel_ultimo')===dStr(agora);
-    if(!jaMandouHoje&&agora.getHours()===hh&&agora.getMinutes()===mm){
-      localStorage.setItem('wa_rel_ultimo',dStr(agora));
+    const jaMandouHoje=WA_CFG.ultimo===dStr(agora);
+    if(S.user?.role==='admin'&&!jaMandouHoje&&agora.getHours()===hh&&agora.getMinutes()===mm){
+      WA_CFG.ultimo=dStr(agora); waSalvarDB();
       // Envia relatório do dia para o dono
-      const numDono=localStorage.getItem('wa_dono_num')||'';
+      const numDono=WA_CFG.dono||'';
       if(WA_CFG.url&&WA_CFG.inst&&WA_CFG.key&&numDono){
         waRelatorioDia(dStr(agora),numDono);
       }
