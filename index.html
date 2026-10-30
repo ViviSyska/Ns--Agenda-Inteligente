@@ -663,6 +663,20 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
   .ag-more .btn{justify-content:center;min-height:42px}
   .ag-more .btn:nth-of-type(2){grid-column:1/-1;order:3}
 }
+
+/* ===== Indicadores clicáveis + lista + canceladas na agenda ===== */
+#d-cards .sc{cursor:pointer;transition:transform .12s,box-shadow .12s}
+#d-cards .sc:active{transform:scale(.97)}
+#d-cards .sc::before{content:'›';position:absolute;right:12px;top:8px;color:var(--text3);font-size:20px;line-height:1}
+.dl-sum{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 15px;background:var(--bg3);border-bottom:var(--brd);position:sticky;top:0;z-index:2}
+.dl-tot{font-family:var(--fm);font-weight:700;font-size:18px;color:var(--gold)}
+.dl-click{cursor:pointer}.dl-click:hover{background:var(--hov)}
+.fin-row.cn .fin-row-n{text-decoration:line-through;opacity:.75}
+#dl-body{max-height:70vh;overflow-y:auto}
+.ag-ap.cancelada{left:2px;right:2px;z-index:1;background:rgba(239,68,68,.10);border:1px dashed var(--red);border-left:3px solid var(--red);color:var(--red);opacity:1}
+.ag-ap.cancelada .cn-t{font-weight:700;font-size:10px;letter-spacing:.4px}
+.ag-ap.cancelada .cn-n{opacity:.9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ag-ap.cancelada .cn-s{font-size:10px;opacity:.85}
 </style>
 </head>
 <body>
@@ -1074,6 +1088,13 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 </div>
 
 <!-- VER AGENDAMENTO -->
+<div class="ov" id="m-dlist">
+  <div class="md w">
+    <div class="mh"><div class="mt" id="dl-t">LISTA</div><button class="xb" onclick="closeModal('m-dlist')">×</button></div>
+    <div class="mb" id="dl-body" style="padding:0"></div>
+  </div>
+</div>
+
 <div class="ov" id="m-ver">
   <div class="md">
     <div class="mh"><div class="mt">AGENDAMENTO</div><button class="xb" onclick="closeModal('m-ver')">×</button></div>
@@ -1549,6 +1570,8 @@ const SC = {
 };
 // efStatus: NUNCA muda status automaticamente — só lê o que está no banco
 // O "recusou" aparece como visual mas NÃO altera o status real
+// Cancelada de verdade OU cliente respondeu NÃO no WhatsApp (e ainda não foi atendida)
+const isCanc = ag => ag.status==='cancelado' || (ag.wa_status==='recusou' && ag.status!=='concluido' && ag.status!=='atendimento');
 const efStatus = ag => {
   if(ag.wa_status==='recusou') return 'recusou';
   if(ag.wa_status==='confirmou' && ag.status==='pendente') return 'confirmado';
@@ -1853,7 +1876,7 @@ function renderDash(){
   const nAtr =ags.filter(a=>a.status==='atendimento').length;
   const nConcl=ags.filter(a=>a.status==='concluido').length;
   // Previsão do período — usa o mesmo filtro do dashboard (hoje/semana/mês/ano)
-  const agsPeriodo=fAgs().filter(a=>a.status!=='cancelado');
+  const agsPeriodo=fAgs().filter(a=>!isCanc(a));
   // "Ainda a Faturar" = só quem NUNCA passou pelo faturamento ainda (nenhum pagamento no caixa).
   // Comandas já parcialmente cobradas saem daqui e ficam só em "Contas em Aberto",
   // evitando que o mesmo dinheiro apareça contado duas vezes nos dois cards.
@@ -1883,23 +1906,23 @@ function renderDash(){
   // 6 indicadores: previsto, ganhei, despesas, ticket médio, agendadas e canceladas
   const todosPeriodo=fAgs();
   const previstoTotal=agsPeriodo.reduce((t,a)=>t+gAgtot(a),0);
-  const nCancel=todosPeriodo.filter(a=>a.status==='cancelado').length;
+  const nCancel=todosPeriodo.filter(isCanc).length;
   const nAgend=agsPeriodo.length;
   const nFeitas=agsPeriodo.filter(a=>a.status==='concluido').length;
   const nPorVir=nAgend-nFeitas;
   const pctCancel=todosPeriodo.length?Math.round(nCancel/todosPeriodo.length*100):0;
   document.getElementById('d-cards').innerHTML=`
-    <div class="sc"><div class="sc-l">PREVISTO</div><div class="sc-v gd">${Rf(previstoTotal)}</div>
+    <div class="sc" onclick="dashList('previsto')"><div class="sc-l">PREVISTO</div><div class="sc-v gd">${Rf(previstoTotal)}</div>
       <div class="sc-s">${prevPeriodo>0.01?'ainda a faturar '+Rf(prevPeriodo):'tudo faturado'}</div></div>
-    <div class="sc cG"><div class="sc-l">GANHEI</div><div class="sc-v gr">${Rf(fat)}</div>
+    <div class="sc cG" onclick="dashList('ganhei')"><div class="sc-l">GANHEI</div><div class="sc-v gr">${Rf(fat)}</div>
       <div class="sc-s">lucro ${Rf(fat-totalDesp)}</div></div>
-    <div class="sc cR"><div class="sc-l">DESPESAS</div><div class="sc-v rd">${Rf(totalDesp)}</div>
+    <div class="sc cR" onclick="dashList('despesas')"><div class="sc-l">DESPESAS</div><div class="sc-v rd">${Rf(totalDesp)}</div>
       <div class="sc-s">${fat>0?Math.round(totalDesp/fat*100)+'% do que ganhei':'no período'}</div></div>
-    <div class="sc cB"><div class="sc-l">TICKET MÉDIO</div><div class="sc-v gd">${Rf(ticket)}</div>
+    <div class="sc cB" onclick="dashList('ticket')"><div class="sc-l">TICKET MÉDIO</div><div class="sc-v gd">${Rf(ticket)}</div>
       <div class="sc-s">por atendimento pago</div></div>
-    <div class="sc"><div class="sc-l">AGENDADAS</div><div class="sc-v">${nAgend}</div>
+    <div class="sc" onclick="dashList('agendadas')"><div class="sc-l">AGENDADAS</div><div class="sc-v">${nAgend}</div>
       <div class="sc-s">${nFeitas} atendida(s) · ${nPorVir} por vir</div></div>
-    <div class="sc cR"><div class="sc-l">CANCELADAS</div><div class="sc-v ${nCancel?'rd':''}">${nCancel}</div>
+    <div class="sc cR" onclick="dashList('canceladas')"><div class="sc-l">CANCELADAS</div><div class="sc-v ${nCancel?'rd':''}">${nCancel}</div>
       <div class="sc-s">${nCancel?pctCancel+'% das comandas':'nenhuma'}</div></div>`;
   // chart — usa caixa por mês (valores reais)
   const ch=document.getElementById('d-chart'); ch.innerHTML='';
@@ -1984,7 +2007,17 @@ function renderAgenda(){
       const blk=D.bloqueios.find(b=>(b.profissional_id||b.profId)===prof.id && (b.data||'').substring(0,10)===ds && (b.tipo==='dia'||(toMin(b.inicio||'00:00')<=t&&toMin(b.fim||'23:59')>t)));
       if(blk){ sl.classList.add('bl'); sl.title='Bloqueado'+(blk.motivo?': '+blk.motivo:''); g.appendChild(sl); return; }
       // Agendamentos do profissional/dia
-      const profAgs=D.agendamentos.filter(a=>(a.profissional_id||a.profId)===prof.id && (a.data||'').substring(0,10)===ds && a.status!=='cancelado');
+      const doDia=D.agendamentos.filter(a=>(a.profissional_id||a.profId)===prof.id && (a.data||'').substring(0,10)===ds);
+      const profAgs=doDia.filter(a=>!isCanc(a));
+      // Canceladas continuam visíveis (com aviso) até você remover — não ocupam horário
+      doDia.filter(a=>isCanc(a)&&toMin(a.hora)>=t&&toMin(a.hora)<t+S.agIv).forEach(ag=>{
+        const dur=(ag.duracao_total||ag.durTotal||30);
+        const dv=document.createElement('div'); dv.className='ag-ap cancelada';
+        dv.style.top='2px'; dv.style.height=(Math.max(dur/S.agIv,1)*42-4)+'px';
+        dv.innerHTML=`<div class="cn-t">❌ CANCELADA</div><div class="cn-n"><s>${relEsc(gCNm2(ag))}</s>${ag.wa_status==='recusou'?' · disse NÃO':''}</div>`;
+        dv.onclick=e=>{ e.stopPropagation(); verAg(ag.id); };
+        sl.appendChild(dv);
+      });
       // Os que iniciam neste slot (inclusive horários fora do grid, ex: 09:15 no slot 09:00)
       const startsHere=profAgs.filter(a=>{ const am=toMin(a.hora); return am>=t && am<t+S.agIv; });
       startsHere.forEach(ag=>{
@@ -2020,6 +2053,70 @@ function syncDatePicker(){ const p=document.getElementById('ag-date-pick'); if(p
 // ============================================================
 // VER AGENDAMENTO
 // ============================================================
+async function reativarAg(id){
+  const ag=D.agendamentos.find(a=>a.id===id); if(!ag) return;
+  const upd={status:'pendente',wa_status:null};
+  const {error}=await sb.from('agendamentos').update(upd).eq('id',id);
+  if(error){ toast('Erro ao reativar: '+error.message,'e'); return; }
+  Object.assign(ag,upd); renderAgenda(); renderComandas(); try{renderDash();}catch(e){}
+  toast('↩ Agendamento reativado','ok');
+}
+function removerAg(id){
+  const ag=D.agendamentos.find(a=>a.id===id); if(!ag) return;
+  if(D.caixa.some(x=>x.agendamento_id===id)){ toast('Esta comanda tem pagamento no caixa — não dá para remover','e'); return; }
+  confirm2('🗑','REMOVER DA AGENDA','Remove de vez. Ela também sai da contagem de canceladas.',async()=>{
+    showLoad('Removendo...');
+    const {error}=await sb.from('agendamentos').delete().eq('id',id);
+    hideLoad();
+    if(error){ toast('Erro ao remover: '+error.message,'e'); return; }
+    D.agendamentos=D.agendamentos.filter(a=>a.id!==id);
+    renderAgenda(); renderComandas(); try{renderDash();}catch(e){}
+    toast('Removida da agenda','w');
+  },'REMOVER','rd');
+}
+
+// ---- Indicadores do início: toque no cartão para ver a lista ----
+function dashRows(kind){
+  const ags=fAgs();
+  const ativos=ags.filter(a=>!isCanc(a));
+  const cx=fCx();
+  const svc=a=>(a.svcs||[]).map(gSNm).join(' + ')||'—';
+  const quando=a=>`${fBR((a.data||'').substring(0,10)).slice(0,5)} ${a.hora||''}`;
+  const rowAg=a=>({t:gCNm2(a),s:`${quando(a)} · ${svc(a)}`,v:Rf(gAgtot(a)),tag:efLabel(a),id:a.id});
+  const ord=l=>l.sort((x,y)=>((x.data||'')+(x.hora||'')).localeCompare((y.data||'')+(y.hora||'')));
+  const pago=a=>D.caixa.filter(x=>x.agendamento_id===a.id&&x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
+  const nomeCx=x=>{ const a=D.agendamentos.find(z=>z.id===x.agendamento_id); return a?gCNm2(a):(x.descricao||'Lançamento'); };
+  const dCx=x=>fBR((x.data||'').substring(0,10)).slice(0,5);
+  if(kind==='previsto'){ const l=ord([...ativos]); return {tit:'PREVISTO',sub:`${l.length} comanda(s) — valor combinado`,tot:Rf(l.reduce((t,a)=>t+gAgtot(a),0)),rows:l.map(rowAg)}; }
+  if(kind==='agendadas'){ const l=ord([...ativos]); return {tit:'AGENDADAS',sub:`${l.length} no período`,tot:String(l.length),rows:l.map(rowAg)}; }
+  if(kind==='canceladas'){
+    const l=ord(ags.filter(isCanc));
+    return {tit:'CANCELADAS',sub:`${l.length} no período`,tot:String(l.length),rows:l.map(a=>({t:gCNm2(a),s:`${quando(a)} · ${svc(a)}`,v:Rf(gAgtot(a)),tag:a.wa_status==='recusou'?'🚫 respondeu NÃO':'❌ cancelada',id:a.id,cls:'cn'}))};
+  }
+  if(kind==='ganhei'){ const l=cx.filter(x=>x.tipo==='entrada'); return {tit:'GANHEI',sub:`${l.length} recebimento(s)`,tot:Rf(l.reduce((t,x)=>t+Number(x.valor),0)),rows:l.map(x=>({t:nomeCx(x),s:`${dCx(x)} · ${(x.forma_pagamento||'—').toUpperCase()}`,v:Rf(x.valor)}))}; }
+  if(kind==='despesas'){ const l=cx.filter(x=>x.tipo==='saida'); return {tit:'DESPESAS',sub:`${l.length} saída(s)`,tot:Rf(l.reduce((t,x)=>t+Number(x.valor),0)),rows:l.map(x=>({t:x.descricao||'Despesa',s:`${dCx(x)}${x.forma_pagamento?' · '+x.forma_pagamento.toUpperCase():''}`,v:Rf(x.valor)}))}; }
+  if(kind==='ticket'){
+    const l=ord(ativos.filter(a=>a.status==='concluido'));
+    const tot=l.reduce((t,a)=>t+(pago(a)||gAgtot(a)),0);
+    return {tit:'TICKET MÉDIO',sub:`${l.length} atendimento(s) pago(s) — média = total ÷ atendimentos`,tot:Rf(l.length?tot/l.length:0),rows:l.map(a=>({t:gCNm2(a),s:`${quando(a)} · ${svc(a)}`,v:Rf(pago(a)||gAgtot(a))}))};
+  }
+  return {tit:'',sub:'',tot:'',rows:[]};
+}
+function dashList(kind){
+  const d=dashRows(kind);
+  const per={hoje:'Hoje',semana:'Esta semana',mes:'Este mês',ano:'Este ano'}[S.filter]||'';
+  document.getElementById('dl-t').textContent=`${d.tit} — ${per}`;
+  document.getElementById('dl-body').innerHTML=`
+    <div class="dl-sum"><div><div class="fin-l">${relEsc(d.sub)}</div></div><div class="dl-tot">${relEsc(d.tot)}</div></div>
+    ${d.rows.length?d.rows.map(r=>`
+      <div class="fin-row ${r.id?'dl-click':''} ${r.cls||''}" ${r.id?`onclick="closeModal('m-dlist');verAg('${r.id}')"`:''}>
+        <div class="fin-row-main"><div class="fin-row-n">${relEsc(r.t)}</div>
+          <div class="fin-row-d">${relEsc(r.s)} ${r.tag?`<span class="bd ${r.cls==='cn'?'rd':'gy'}">${relEsc(r.tag)}</span>`:''}</div></div>
+        <div class="fin-row-v">${relEsc(r.v)}</div>
+      </div>`).join(''):'<div class="fin-empty">Nada por aqui neste período</div>'}`;
+  openModal('m-dlist');
+}
+
 function verAg(id){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
   const tot=gAgtot(ag);
@@ -2087,6 +2184,10 @@ function verAg(id){
   }
   if(ag.status==='concluido'){
     addB('↩ Reabrir','ol',()=>{ closeModal('m-ver'); reabrirComanda(id); });
+  }
+  if(isCanc(ag)){
+    addB('↩ Reativar','gr',()=>{ closeModal('m-ver'); reativarAg(id); });
+    addB('🗑 Remover','rd',()=>{ closeModal('m-ver'); removerAg(id); });
   }
   openModal('m-ver');
 }
