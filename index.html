@@ -720,6 +720,9 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 #go-top{position:fixed;right:14px;bottom:calc(82px + env(safe-area-inset-bottom));width:44px;height:44px;border-radius:50%;border:none;background:var(--gold,#c9a14a);color:#fff;font-size:20px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:60;opacity:0;pointer-events:none;transform:translateY(10px);transition:.2s;cursor:pointer}
 #go-top.on{opacity:1;pointer-events:auto;transform:none}
 @media(min-width:769px){#go-top{bottom:24px}}
+
+.sec-add{display:none}
+@media(max-width:768px){.sec-add{display:flex;width:100%;justify-content:center;padding:13px;font-size:14px;margin-bottom:12px;border-radius:12px}}
 </style>
 </head>
 <body>
@@ -857,6 +860,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 
       <!-- CLIENTES -->
       <div id="sec-clientes" class="sec">
+        <button class="btn gd sec-add" onclick="abrirCliente(null)">+ NOVO CLIENTE</button>
         <div class="sh"><input class="si" placeholder="Buscar..." id="cli-s" oninput="renderClientes()"><div class="sh-sp"></div></div>
         <div id="cli-empty" class="empty" style="display:none"><div class="empty-ic">👥</div><div class="empty-t">Nenhum cliente cadastrado</div><div class="empty-s">Clique em "+ Cliente" para adicionar</div></div>
         <div class="c-grid" id="cli-grid"></div>
@@ -893,6 +897,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 
       <!-- DESPESAS -->
       <div id="sec-despesas" class="sec">
+        <button class="btn gd sec-add" onclick="abrirDp(null)">+ NOVA DESPESA</button>
         <div class="cr" id="dp-cards"></div>
         <div id="dp-empty" class="empty" style="display:none"><div class="empty-ic">💸</div><div class="empty-t">Nenhuma despesa registrada</div></div>
         <div class="tw" id="dp-tw"><div class="th2"><span class="th2-t">DESPESAS</span></div>
@@ -902,6 +907,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 
       <!-- SERVIÇOS -->
       <div id="sec-servicos" class="sec">
+        <button class="btn gd sec-add" onclick="abrirSvc(null)">+ NOVO SERVIÇO</button>
         <div class="sh" style="margin-bottom:12px">
           <input id="svc-search" class="si" placeholder="🔍 Buscar serviço..." oninput="renderSvc()" style="flex:1;max-width:320px">
           <div id="svc-cat-bar" style="display:flex;gap:4px;background:var(--bg3);border-radius:var(--r2);padding:3px;border:var(--brd);flex-wrap:wrap">
@@ -918,6 +924,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 
       <!-- PACOTES -->
       <div id="sec-pacotes" class="sec">
+        <button class="btn gd sec-add" onclick="abrirPkg(null)">+ NOVO PACOTE</button>
         <div id="pkg-empty" class="empty" style="display:none"><div class="empty-ic">📦</div><div class="empty-t">Nenhum pacote criado</div><div class="empty-s">Crie pacotes com desconto para seus clientes</div></div>
         <div class="pk-grid" id="pkg-grid"></div>
       </div>
