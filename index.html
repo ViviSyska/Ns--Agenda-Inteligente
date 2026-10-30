@@ -715,6 +715,10 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 
 .row-canc td{opacity:.72}
 .row-canc td:first-child strong{text-decoration:line-through}
+
+#go-top{position:fixed;right:14px;bottom:calc(82px + env(safe-area-inset-bottom));width:44px;height:44px;border-radius:50%;border:none;background:var(--gold,#c9a14a);color:#fff;font-size:20px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:60;opacity:0;pointer-events:none;transform:translateY(10px);transition:.2s;cursor:pointer}
+#go-top.on{opacity:1;pointer-events:auto;transform:none}
+@media(min-width:769px){#go-top{bottom:24px}}
 </style>
 </head>
 <body>
@@ -1832,6 +1836,7 @@ function goTo(sec,el){
   document.getElementById('pg-t').textContent=PGT[sec]||sec;
   document.getElementById('fbar').style.display=FLT_SECS.includes(sec)?'flex':'none';
   setTbAct(sec); bnMarcar(sec);
+  try{document.getElementById('ct').scrollTop=0;}catch(e){}
   const rend={dashboard:renderDash,agenda:renderAgenda,clientes:renderClientes,comandas:renderComandas,caixa:renderCaixa,despesas:renderDesp,servicos:renderSvc,pacotes:renderPkg,relatorios:renderRel,mensagens:renderMsgs,config:renderConfig};
   if(rend[sec]) rend[sec]();
   if(window.innerWidth<768) document.getElementById('sb').classList.remove('mo');
@@ -4622,5 +4627,7 @@ window.addEventListener('resize',()=>{
   if(window.innerWidth>=768) document.getElementById('sb').classList.remove('mo');
 });
 </script>
+<button id="go-top" aria-label="Voltar ao topo" onclick="document.getElementById('ct').scrollTo({top:0,behavior:'smooth'})">↑</button>
+<script>(function(){const ct=document.getElementById('ct'),b=document.getElementById('go-top');if(!ct||!b)return;ct.addEventListener('scroll',()=>b.classList.toggle('on',ct.scrollTop>300),{passive:true});})();</script>
 </body>
 </html>
