@@ -5,7 +5,7 @@ import express from 'express';
 import QRCode from 'qrcode';
 import { timingSafeEqual, randomUUID } from 'node:crypto';
 import { toWaNumber, phoneKey, jidToPhone } from './phone.js';
-import { parseReply, extractText } from './reply-parser.js';
+import { parseReply, describeMessage, extractText as extractText0 } from './reply-parser.js';
 
 const defaultSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CLIENTES_TTL_MS = 5 * 60 * 1000;
@@ -54,6 +54,34 @@ export function createApp({ cfg, db, wa, log = console, sleep = defaultSleep }) 
     next();
   };
 
+  // ---------- histórico de conversas ----------
+  const tsOf = (t) => {
+    const n = typeof t === 'object' && t ? (t.toNumber ? t.toNumber() : Number(t.low)) : Number(t);
+    return new Date((Number.isFinite(n) && n > 0 ? n : Date.now() / 1000) * 1000).toISOString();
+  };
+  const chatKeyOf = (phone, jid) => (phone && phoneKey(phone)) || `j${String(jid || '').replace(/\D/g, '')}`;
+
+  /** Nunca derruba o envio/recebimento: se o banco falhar, só registra no log. */
+  async function recordMsg({ jid, phone, direction, text, waId, pushName, ts }) {
+    if (!db.insertMessage || !text) return;
+    try {
+      const chat_key = chatKeyOf(phone, jid);
+      let nome = pushName || null;
+      try {
+        if (phone) {
+          const cli = (await findClientes(phoneKey(phone)))[0];
+          if (cli?.nome) nome = cli.nome;
+        }
+      } catch (_) { /* nome é só enfeite */ }
+      await db.insertMessage({
+        chat_key, phone: phone || null, jid: jid || null, nome, direction, text: String(text).slice(0, 4000),
+        wa_id: waId || null, ts: ts || new Date().toISOString(), lida: direction === 'out',
+      });
+    } catch (e) {
+      log.warn?.({ err: String(e?.message || e) }, 'não consegui guardar a mensagem');
+    }
+  }
+
   // ---------- envio ----------
   async function waitOpen(ms) {
     const t0 = Date.now();
@@ -78,6 +106,7 @@ export function createApp({ cfg, db, wa, log = console, sleep = defaultSleep }) 
         jid = hit.jid;
       } // se a consulta falhou (undefined), tenta enviar direto
       const res = await sock.sendMessage(jid, { text });
+      await recordMsg({ jid, phone: num, direction: 'out', text, waId: res?.key?.id });
       return { ok: true, jid, id: res?.key?.id };
     } catch (e) {
       return { ok: false, error: 'falha_envio', detail: String(e?.message || e) };
@@ -270,6 +299,71 @@ export function createApp({ cfg, db, wa, log = console, sleep = defaultSleep }) 
     });
   });
 
+  // ---------- caixa de mensagens (conversas) ----------
+  app.get('/chats/:inst', auth, async (_req, res) => {
+    if (!db.listRecentMessages) return res.status(501).json({ error: 'sem_historico' });
+    try {
+      const rows = await db.listRecentMessages(600);
+      const map = new Map();
+      for (const r of rows) { // já vêm da mais nova pra mais antiga
+        let c = map.get(r.chat_key);
+        if (!c) {
+          c = { key: r.chat_key, phone: r.phone, nome: r.nome, last: { text: r.text, direction: r.direction, ts: r.ts }, unread: 0 };
+          map.set(r.chat_key, c);
+        }
+        if (!c.nome && r.nome) c.nome = r.nome;
+        if (!c.phone && r.phone) c.phone = r.phone;
+        if (r.direction === 'in' && !r.lida) c.unread++;
+      }
+      const chats = [...map.values()];
+      res.json({ chats, unread: chats.reduce((t, c) => t + c.unread, 0), state: wa.getStatus() });
+    } catch (e) {
+      res.status(500).json({ error: 'falha_listar', message: String(e?.message || e) });
+    }
+  });
+
+  app.get('/chats/:inst/:key/messages', auth, async (req, res) => {
+    try {
+      const messages = await db.listChatMessages(req.params.key, Math.min(300, Number(req.query.limit) || 150));
+      res.json({ messages });
+    } catch (e) {
+      res.status(500).json({ error: 'falha_listar', message: String(e?.message || e) });
+    }
+  });
+
+  app.post('/chats/:inst/:key/read', auth, async (req, res) => {
+    try {
+      await db.markChatRead(req.params.key);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: 'falha_marcar', message: String(e?.message || e) });
+    }
+  });
+
+  // Responder uma conversa: usa o endereço (jid) de onde a cliente escreveu — funciona também com LID.
+  app.post('/chats/:inst/:key/send', auth, async (req, res) => {
+    const text = String(req.body?.text || '').trim();
+    if (!text) return res.status(400).json({ error: 'dados_invalidos', message: 'text é obrigatório' });
+    if (!(await waitOpen(cfg.waitOpenMs))) return res.status(503).json({ error: 'whatsapp_desconectado', state: wa.getStatus() });
+    try {
+      const msgs = await db.listChatMessages(req.params.key, 30);
+      const ref = [...msgs].reverse().find((m) => m.jid) || {};
+      const sock = wa.getSock();
+      if (ref.jid) {
+        const r = await sock.sendMessage(ref.jid, { text });
+        await recordMsg({ jid: ref.jid, phone: ref.phone, direction: 'out', text, waId: r?.key?.id });
+        return res.status(201).json({ ok: true, id: r?.key?.id });
+      }
+      const phone = ref.phone || (msgs[0] && msgs[0].phone);
+      if (!phone) return res.status(404).json({ error: 'conversa_sem_destino' });
+      const r = await sendWithRetry(phone, text);
+      if (!r.ok) return res.status(r.error === 'falha_envio' ? 502 : 400).json({ error: r.error, detail: r.detail });
+      res.status(201).json({ ok: true, id: r.id });
+    } catch (e) {
+      res.status(502).json({ error: 'falha_envio', detail: String(e?.message || e) });
+    }
+  });
+
   // ---------- respostas Sim/Não ----------
   let clientesCache = { at: 0, list: [] };
   async function findClientes(key) {
@@ -301,14 +395,25 @@ export function createApp({ cfg, db, wa, log = console, sleep = defaultSleep }) 
   /** Processa uma mensagem recebida. Retorna { handled, reason?, verdict?, updated? } */
   async function handleIncoming(msg) {
     const jid = msg?.key?.remoteJid || '';
-    if (!msg?.message || msg.key?.fromMe) return { handled: false, reason: 'ignorada' };
+    if (!msg?.message) return { handled: false, reason: 'ignorada' };
     if (jid.endsWith('@g.us') || jid.endsWith('@broadcast') || jid.endsWith('@newsletter')) {
       return { handled: false, reason: 'grupo_ou_lista' };
     }
-    const verdict = parseReply(extractText(msg.message));
+    // guarda no histórico (mensagens da cliente e as que você mandou pelo celular)
+    const shown = describeMessage(msg.message);
+    let phone = null;
+    if (shown) {
+      phone = await resolvePhone(msg);
+      await recordMsg({
+        jid, phone, direction: msg.key?.fromMe ? 'out' : 'in', text: shown,
+        waId: msg.key?.id, pushName: msg.key?.fromMe ? null : msg.pushName, ts: tsOf(msg.messageTimestamp),
+      });
+    }
+    if (msg.key?.fromMe) return { handled: false, reason: 'ignorada' };
+    const verdict = parseReply(extractText0(msg.message));
     if (!verdict) return { handled: false, reason: 'nao_e_resposta' };
 
-    const phone = await resolvePhone(msg);
+    phone = phone || (await resolvePhone(msg));
     const key = phone && phoneKey(phone);
     if (!key) return { handled: false, reason: 'telefone_desconhecido', verdict };
 
@@ -336,7 +441,8 @@ export function createApp({ cfg, db, wa, log = console, sleep = defaultSleep }) 
         hora: joinHoras(alvos.map((a) => a.hora)),
       });
       try {
-        await wa.getSock()?.sendMessage(jid, { text: texto });
+        const r = await wa.getSock()?.sendMessage(jid, { text: texto });
+        await recordMsg({ jid, phone, direction: 'out', text: texto, waId: r?.key?.id });
       } catch (e) {
         log.warn?.({ err: String(e) }, 'não consegui enviar a resposta automática');
       }

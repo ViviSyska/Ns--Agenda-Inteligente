@@ -49,3 +49,19 @@ export function extractText(message) {
     ''
   );
 }
+
+/** Texto para exibir no chat: o próprio texto, ou um rótulo para mídia. null = ignorar (reação, protocolo...). */
+export function describeMessage(message) {
+  if (!message) return null;
+  const m = message.ephemeralMessage?.message || message.viewOnceMessage?.message || message.viewOnceMessageV2?.message || message;
+  const t = extractText(m);
+  if (t) return t;
+  if (m.imageMessage) return m.imageMessage.caption ? `📷 ${m.imageMessage.caption}` : '📷 Foto';
+  if (m.videoMessage) return m.videoMessage.caption ? `🎥 ${m.videoMessage.caption}` : '🎥 Vídeo';
+  if (m.audioMessage) return '🎤 Áudio';
+  if (m.documentMessage) return `📄 ${m.documentMessage.fileName || 'Documento'}`;
+  if (m.stickerMessage) return '🏷️ Figurinha';
+  if (m.locationMessage) return '📍 Localização';
+  if (m.contactMessage || m.contactsArrayMessage) return '👤 Contato';
+  return null;
+}

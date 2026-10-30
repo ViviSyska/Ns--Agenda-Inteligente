@@ -22,3 +22,24 @@ alter table agendamentos add column if not exists wa_status text;
 
 -- Conferência: deve listar a tabela wa_auth com rls = true
 select tablename, rowsecurity as rls from pg_tables where tablename = 'wa_auth';
+
+-- ============================================================
+-- CAIXA DE MENSAGENS (conversas do WhatsApp dentro do sistema)
+-- ============================================================
+create table if not exists wa_msgs (
+  id         uuid        primary key default gen_random_uuid(),
+  chat_key   text        not null,          -- DDD + 8 últimos dígitos (identifica a cliente)
+  phone      text,
+  jid        text,
+  nome       text,
+  direction  text        not null check (direction in ('in','out')),
+  text       text        not null,
+  wa_id      text        unique,            -- id da mensagem no WhatsApp (evita duplicar)
+  ts         timestamptz not null default now(),
+  lida       boolean     not null default false
+);
+create index if not exists idx_wa_msgs_chat on wa_msgs (chat_key, ts);
+create index if not exists idx_wa_msgs_ts   on wa_msgs (ts desc);
+alter table wa_msgs enable row level security;   -- sem policy: só o servidor (service_role) acessa
+revoke all on table wa_msgs from anon, authenticated;
+select tablename, rowsecurity as rls from pg_tables where tablename in ('wa_auth','wa_msgs');

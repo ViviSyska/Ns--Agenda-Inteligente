@@ -28,6 +28,13 @@ No Render grátis o servidor dorme após ~15 min sem acesso. Em **cron-job.org**
 `https://SUA-URL.onrender.com/health` a cada 10 min, **somente sexta 18h → sábado 23:59**.
 Fora disso ele dorme (custo zero). Se abrir o sistema com ele dormindo, o 1º envio pode demorar ~1 min para acordar.
 
+## Caixa de mensagens (responder clientes pelo sistema)
+- Menu **💬 Mensagens**: lista de conversas, abre o chat e responde (há respostas rápidas). Aparece um aviso e um contador quando chega mensagem nova.
+- O servidor guarda as conversas na tabela `wa_msgs` (rode de novo o `setup.sql`, ele é seguro de repetir).
+- Só chegam mensagens enquanto o servidor está acordado; as que ficaram esperando no WhatsApp entram quando ele reconecta. Para receber durante o expediente, deixe o pinger do cron-job.org ligado nesse horário (ex.: a cada 10 min, das 8h às 20h, seg–sáb).
+- Abrir o sistema com o menu Mensagens também acorda o servidor (a 1ª vez pode demorar ~1 min).
+- Áudios, fotos e figurinhas aparecem como rótulo (🎤 Áudio, 📷 Foto); para ouvir/ver, abra o WhatsApp do celular.
+
 ## Como funcionam as respostas
 - Só são capturadas respostas de quem recebeu o lembrete (`wa_status = 'aguardando'`), sempre da data mais próxima.
 - “Sim / confirmo / ok / 👍” → `confirmou` (agendamento vira *confirmado*). “Não / cancela / não posso” → `recusou` (vira *cancelado*).
@@ -38,4 +45,4 @@ Fora disso ele dorme (custo zero). Se abrir o sistema com ele dormindo, o 1º en
 Veja `.env.example` (`DELAY_MIN_MS`, `DELAY_MAX_MS`, `MAX_BULK`, `REPLY_CONFIRMOU`, `REPLY_RECUSOU`, `CORS_ORIGIN`…).
 
 ## Desenvolvimento
-`npm install && npm test` (20 testes). Rodar local: `API_KEY=x SUPABASE_URL=... SUPABASE_SERVICE_KEY=... npm start`.
+`npm install && npm test` (25 testes). Rodar local: `API_KEY=x SUPABASE_URL=... SUPABASE_SERVICE_KEY=... npm start`.

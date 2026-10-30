@@ -536,6 +536,48 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
   .sh{flex-wrap:wrap}
   .tw table{min-width:520px}
 }
+
+/* ===== MENSAGENS (WhatsApp) ===== */
+.ni-bdg{margin-left:auto;background:#25d366;color:#fff;font-size:10px;font-weight:700;min-width:19px;height:19px;padding:0 6px;border-radius:10px;align-items:center;justify-content:center}
+.msg-banner{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);color:var(--text);border-radius:var(--r2);padding:10px 14px;font-size:12px;margin-bottom:12px;line-height:1.5}
+.msg-wrap{display:grid;grid-template-columns:330px 1fr;gap:12px;height:calc(100vh - 170px);min-height:420px}
+.msg-side,.msg-main{display:flex;flex-direction:column;overflow:hidden !important;min-height:0}
+#msg-list{overflow-y:auto;flex:1}
+.msg-item{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:var(--brd);cursor:pointer;transition:background .12s}
+.msg-item:hover{background:var(--hov)}
+.msg-item.sel{background:rgba(255,215,0,.1)}
+.msg-av{width:38px;height:38px;font-size:13px;flex-shrink:0}
+.msg-item-main{flex:1;min-width:0}
+.msg-item-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.msg-item-n{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msg-item.unr .msg-item-n{color:var(--gold)}
+.msg-item-t{font-size:10px;color:var(--text3);flex-shrink:0}
+.msg-item-l{font-size:12px;color:var(--text3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msg-item.unr .msg-item-l{color:var(--text2);font-weight:600}
+.msg-top{display:flex;align-items:center;gap:10px;padding:11px 15px;border-bottom:var(--brd);background:var(--bg3);min-height:48px}
+.msg-back{display:none}
+.msg-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:6px;background:var(--bg)}
+.msg-day{align-self:center;font-size:10px;color:var(--text3);background:var(--bg3);padding:3px 10px;border-radius:10px;margin:6px 0}
+.msg-b{max-width:78%;padding:8px 11px;border-radius:12px;font-size:13.5px;line-height:1.4;word-break:break-word}
+.msg-b.in{align-self:flex-start;background:var(--card);border:var(--brd);border-bottom-left-radius:4px}
+.msg-b.out{align-self:flex-end;background:#d9fdd3;color:#111;border-bottom-right-radius:4px}
+[data-theme="dark"] .msg-b.out{background:#144d37;color:#e9fff1}
+.msg-t{white-space:pre-wrap}
+.msg-h{font-size:10px;opacity:.6;text-align:right;margin-top:3px}
+.msg-quick{display:flex;gap:6px;padding:8px 12px 0;overflow-x:auto;border-top:var(--brd)}
+.msg-quick button{flex-shrink:0;border:var(--brd);background:var(--bg3);color:var(--text2);border-radius:14px;padding:5px 11px;font-size:12px;cursor:pointer}
+.msg-quick button:hover{border-color:var(--gold);color:var(--gold)}
+.msg-send{display:flex;gap:8px;padding:10px 12px;align-items:flex-end}
+.msg-send textarea{flex:1;resize:none;background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:9px 11px;color:var(--text);font-size:14px;outline:none;font-family:inherit;max-height:120px}
+.msg-send textarea:focus{border-color:var(--gold)}
+@media(max-width:768px){
+  .msg-wrap{grid-template-columns:1fr;height:calc(100dvh - 210px)}
+  .msg-main{display:none}
+  .msg-wrap.open .msg-side{display:none}
+  .msg-wrap.open .msg-main{display:flex}
+  .msg-back{display:inline-flex}
+  .msg-b{max-width:88%}
+}
 </style>
 </head>
 <body>
@@ -571,6 +613,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <button class="ni active" onclick="goTo('dashboard',this)"><span class="ni-ic">📊</span>Dashboard</button>
       <button class="ni" onclick="goTo('agenda',this)"><span class="ni-ic">📅</span>Agenda</button>
       <button class="ni" onclick="goTo('clientes',this)"><span class="ni-ic">👥</span>Clientes</button>
+      <button class="ni" id="n-msg" onclick="goTo('mensagens',this)"><span class="ni-ic">💬</span>Mensagens<span class="ni-bdg" id="msg-badge" style="display:none">0</span></button>
       <div class="nav-s">FINANCEIRO</div>
       <button class="ni" id="n-cmd" onclick="goTo('comandas',this)"><span class="ni-ic">🧾</span>Comandas</button>
       <button class="ni" id="n-cx" onclick="goTo('caixa',this)"><span class="ni-ic">💰</span>Fluxo de Caixa</button>
@@ -729,6 +772,31 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <div id="sec-pacotes" class="sec">
         <div id="pkg-empty" class="empty" style="display:none"><div class="empty-ic">📦</div><div class="empty-t">Nenhum pacote criado</div><div class="empty-s">Crie pacotes com desconto para seus clientes</div></div>
         <div class="pk-grid" id="pkg-grid"></div>
+      </div>
+
+      <!-- MENSAGENS (WhatsApp) -->
+      <div id="sec-mensagens" class="sec">
+        <div id="msg-banner" class="msg-banner" style="display:none"></div>
+        <div class="msg-wrap" id="msg-wrap">
+          <div class="msg-side tw">
+            <div class="th2"><span class="th2-t">CONVERSAS</span><div class="tb-sp"></div><button class="btn gh xs" onclick="msgAtivarAvisos()" id="msg-notif-btn">🔔 Ativar avisos</button></div>
+            <div id="msg-list"></div>
+          </div>
+          <div class="msg-main tw">
+            <div class="msg-top" id="msg-top"><button class="btn gh xs msg-back" onclick="msgVoltar()">← Voltar</button><div id="msg-top-n" style="font-weight:600"></div></div>
+            <div class="msg-body" id="msg-body"><div class="fin-empty">Escolha uma conversa para responder</div></div>
+            <div class="msg-quick" id="msg-quick" style="display:none">
+              <button onclick="msgQuick('Oi! Tudo bem? 💛')">Oi! 💛</button>
+              <button onclick="msgQuick('Pode vir sim! Te esperamos 💛')">Pode vir sim</button>
+              <button onclick="msgQuick('Vou verificar a agenda e já te retorno 💛')">Vou verificar</button>
+              <button onclick="msgQuick('Obrigada! 💛')">Obrigada</button>
+            </div>
+            <form class="msg-send" id="msg-send" onsubmit="msgSend(event)" style="display:none">
+              <textarea id="msg-inp" rows="1" placeholder="Digite sua resposta…" oninput="this.style.height='auto';this.style.height=Math.min(120,this.scrollHeight)+'px'" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&window.innerWidth>768){event.preventDefault();msgSend(event)}"></textarea>
+              <button class="btn gd" type="submit" id="msg-send-btn">Enviar</button>
+            </form>
+          </div>
+        </div>
       </div>
 
       <!-- RELATÓRIOS -->
@@ -1563,11 +1631,12 @@ async function doLogin(){
   document.getElementById('u-nm').textContent=user.nome;
   document.getElementById('u-rl').textContent=user.role==='admin'?'ADMINISTRADOR':'PROFISSIONAL';
   if(user.role==='prof'){
-    ['n-cfg','n-rel','n-cx','n-dp'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none'});
+    ['n-cfg','n-rel','n-cx','n-dp','n-msg'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none'});
   }
   if(window.innerWidth<768) document.getElementById('mob-b').style.display='flex';
   goTo('dashboard', document.querySelector('.ni.active'));
   iniciarRelatorioDiario(); // inicia verificador de relatório diário
+  if(user.role==='admin') msgStart(); // caixa de mensagens do WhatsApp
   // Realtime — wa_status e confirmação automática na agenda
   sb.channel('wa-updates')
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'agendamentos'},payload=>{
@@ -1587,7 +1656,7 @@ async function doLogin(){
 }
 
 function doLogout(){
-  closeModal('m-logout'); S.user=null;
+  closeModal('m-logout'); S.user=null; try{msgStop();}catch(e){}
   document.getElementById('app').style.display='none';
   document.getElementById('ls').style.display='flex';
 }
@@ -1595,7 +1664,7 @@ function doLogout(){
 // ============================================================
 // NAV
 // ============================================================
-const PGT={dashboard:'DASHBOARD',agenda:'AGENDA INTELIGENTE',clientes:'CLIENTES',comandas:'COMANDAS',caixa:'FLUXO DE CAIXA',despesas:'DESPESAS',servicos:'SERVIÇOS',pacotes:'PACOTES',relatorios:'RELATÓRIOS',config:'CONFIGURAÇÕES'};
+const PGT={dashboard:'DASHBOARD',agenda:'AGENDA INTELIGENTE',clientes:'CLIENTES',comandas:'COMANDAS',caixa:'FLUXO DE CAIXA',despesas:'DESPESAS',servicos:'SERVIÇOS',pacotes:'PACOTES',relatorios:'RELATÓRIOS',mensagens:'MENSAGENS',config:'CONFIGURAÇÕES'};
 const FLT_SECS=['dashboard','caixa','despesas','relatorios'];
 
 function goTo(sec,el){
@@ -1606,7 +1675,7 @@ function goTo(sec,el){
   document.getElementById('pg-t').textContent=PGT[sec]||sec;
   document.getElementById('fbar').style.display=FLT_SECS.includes(sec)?'flex':'none';
   setTbAct(sec);
-  const rend={dashboard:renderDash,agenda:renderAgenda,clientes:renderClientes,comandas:renderComandas,caixa:renderCaixa,despesas:renderDesp,servicos:renderSvc,pacotes:renderPkg,relatorios:renderRel,config:renderConfig};
+  const rend={dashboard:renderDash,agenda:renderAgenda,clientes:renderClientes,comandas:renderComandas,caixa:renderCaixa,despesas:renderDesp,servicos:renderSvc,pacotes:renderPkg,relatorios:renderRel,mensagens:renderMsgs,config:renderConfig};
   if(rend[sec]) rend[sec]();
   if(window.innerWidth<768) document.getElementById('sb').classList.remove('mo');
 }
@@ -3658,6 +3727,159 @@ async function testarWA(){
     toast(estado==='open'?'✅ Conectado: '+estado:'⚠️ Estado: '+estado, estado==='open'?'ok':'w');
   }catch(e){hideLoad();toast('❌ Erro: '+e.message,'e');}
 }
+// ============================================================
+// CAIXA DE MENSAGENS (WhatsApp) — conversas e resposta pelo sistema
+// ============================================================
+const MSG={chats:[],unread:0,cur:null,curNome:'',msgs:[],timer:null,seen:null,state:'',err:'',busy:false};
+const msgBase=()=>`${WA_CFG.url}/chats/${encodeURIComponent(WA_CFG.inst||'salao')}`;
+async function msgFetch(path,opt={},ms=20000){
+  const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),ms);
+  try{
+    const r=await fetch(msgBase()+path,{...opt,signal:ctl.signal,headers:{'apikey':WA_CFG.key,'Content-Type':'application/json',...(opt.headers||{})}});
+    let j=null; try{ j=await r.json(); }catch(e){}
+    return {ok:r.ok,status:r.status,j};
+  } finally { clearTimeout(t); }
+}
+function msgHora(ts){
+  const d=new Date(ts); if(isNaN(d)) return '';
+  const hoje=dStr(new Date())===dStr(d);
+  return hoje?d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+}
+function msgNomeChat(c){ return c.nome||(c.phone?('+'+c.phone):'Contato'); }
+function msgAtiva(){ return document.getElementById('sec-mensagens')?.classList.contains('active'); }
+
+async function msgPoll(){
+  if(!(WA_CFG.url&&WA_CFG.key)||!S.user) return;
+  try{
+    const r=await msgFetch('');
+    if(r.status===404||r.status===501){ MSG.err='Atualize o servidor do WhatsApp para usar as mensagens.'; }
+    else if(r.status===401){ MSG.err='API key inválida nas Configurações.'; }
+    else if(!r.ok){ MSG.err='Servidor indisponível no momento.'; }
+    else{
+      MSG.err=''; MSG.state=r.j.state||'';
+      const novo=(r.j.chats||[]);
+      // aviso de mensagem nova (só depois da primeira leitura)
+      if(MSG.seen!==null){
+        novo.forEach(c=>{
+          const ant=MSG.chats.find(x=>x.key===c.key);
+          const antUn=ant?ant.unread:0;
+          if(c.unread>antUn&&!(msgAtiva()&&MSG.cur===c.key&&!document.hidden)){
+            const txt=(c.last&&c.last.text)||'';
+            toast(`💬 ${msgNomeChat(c)}: ${txt.slice(0,60)}`,'ok');
+            try{ if('Notification' in window&&Notification.permission==='granted'&&document.hidden) new Notification(msgNomeChat(c),{body:txt.slice(0,120),tag:'ns-msg-'+c.key}); }catch(e){}
+          }
+        });
+      }
+      MSG.seen=true; MSG.chats=novo; MSG.unread=r.j.unread||0;
+    }
+  }catch(e){ MSG.err='Sem conexão com o servidor (ele pode estar acordando — tente de novo em 1 minuto).'; }
+  msgBadge();
+  if(msgAtiva()){
+    renderMsgs(true);
+    if(MSG.cur) await msgCarregar(MSG.cur,true);
+  }
+}
+function msgBadge(){
+  const b=document.getElementById('msg-badge'); if(b){ b.textContent=MSG.unread>99?'99+':MSG.unread; b.style.display=MSG.unread>0?'inline-flex':'none'; }
+  document.title=(MSG.unread>0?`(${MSG.unread}) `:'')+'NS Agenda Inteligente';
+}
+function msgLoop(){
+  clearTimeout(MSG.timer);
+  const delay=document.hidden?60000:(msgAtiva()?7000:25000);
+  MSG.timer=setTimeout(async()=>{ if(S.user){ await msgPoll(); msgLoop(); } },delay);
+}
+function msgStart(){
+  if(!(WA_CFG.url&&WA_CFG.key)) return;
+  msgPoll().then(msgLoop);
+  if(!MSG.vis){ MSG.vis=true; document.addEventListener('visibilitychange',()=>{ if(S.user&&!document.hidden){ msgPoll().then(msgLoop); } }); }
+}
+function msgStop(){ clearTimeout(MSG.timer); MSG.chats=[]; MSG.unread=0; MSG.cur=null; MSG.seen=null; msgBadge(); }
+
+function renderMsgs(soLista){
+  const ban=document.getElementById('msg-banner'); const list=document.getElementById('msg-list');
+  if(!list) return;
+  if(!(WA_CFG.url&&WA_CFG.key)){
+    ban.style.display='block'; ban.innerHTML='Conecte o WhatsApp primeiro em <b>Configurações → WhatsApp</b>.';
+    list.innerHTML=''; return;
+  }
+  if(!soLista){ msgStart(); }
+  const avisos=[];
+  if(MSG.err) avisos.push(MSG.err);
+  else if(MSG.state&&MSG.state!=='open') avisos.push('⚠️ WhatsApp desconectado no servidor — você ainda vê as conversas, mas não consegue responder. Abra o QR em Configurações.');
+  ban.style.display=avisos.length?'block':'none'; ban.innerHTML=avisos.join('<br>');
+  const nb=document.getElementById('msg-notif-btn');
+  if(nb) nb.style.display=('Notification' in window&&Notification.permission==='default')?'':'none';
+  list.innerHTML=MSG.chats.length?MSG.chats.map(c=>`
+    <div class="msg-item ${MSG.cur===c.key?'sel':''} ${c.unread?'unr':''}" onclick="msgAbrir('${c.key}')">
+      <div class="c-av msg-av">${relEsc(ini(msgNomeChat(c).replace(/^\+/,'')||'?'))}</div>
+      <div class="msg-item-main">
+        <div class="msg-item-top"><span class="msg-item-n">${relEsc(msgNomeChat(c))}</span><span class="msg-item-t">${msgHora(c.last&&c.last.ts)}</span></div>
+        <div class="msg-item-l">${c.last&&c.last.direction==='out'?'Você: ':''}${relEsc(((c.last&&c.last.text)||'').slice(0,70))}</div>
+      </div>
+      ${c.unread?`<span class="ni-bdg" style="display:inline-flex">${c.unread}</span>`:''}
+    </div>`).join(''):`<div class="fin-empty">${MSG.seen===null&&!MSG.err?'Carregando…':'Nenhuma conversa ainda.<br>Quando alguém te escrever, aparece aqui.'}</div>`;
+}
+async function msgAbrir(key){
+  MSG.cur=key;
+  const c=MSG.chats.find(x=>x.key===key); MSG.curNome=c?msgNomeChat(c):'';
+  document.getElementById('msg-wrap').classList.add('open');
+  document.getElementById('msg-top-n').textContent=MSG.curNome;
+  document.getElementById('msg-send').style.display='flex';
+  document.getElementById('msg-quick').style.display='flex';
+  renderMsgs(true);
+  await msgCarregar(key,false);
+  try{
+    await msgFetch(`/${encodeURIComponent(key)}/read`,{method:'POST',body:'{}'});
+    const cc=MSG.chats.find(x=>x.key===key); if(cc){ MSG.unread=Math.max(0,MSG.unread-cc.unread); cc.unread=0; }
+    msgBadge(); renderMsgs(true);
+  }catch(e){}
+}
+function msgVoltar(){ MSG.cur=null; document.getElementById('msg-wrap').classList.remove('open'); renderMsgs(true); }
+async function msgCarregar(key,silencioso){
+  try{
+    const r=await msgFetch(`/${encodeURIComponent(key)}/messages`);
+    if(!r.ok||MSG.cur!==key) return;
+    const novas=r.j.messages||[];
+    const mudou=novas.length!==MSG.msgs.length||(novas.at(-1)&&MSG.msgs.at(-1)&&novas.at(-1).id!==MSG.msgs.at(-1).id);
+    MSG.msgs=novas;
+    if(mudou||!silencioso) msgDesenhar(!silencioso||mudou);
+    // chegou mensagem nova com a conversa aberta: marca como lida
+    if(silencioso&&mudou&&novas.at(-1)?.direction==='in'){ msgFetch(`/${encodeURIComponent(key)}/read`,{method:'POST',body:'{}'}).catch(()=>{}); }
+  }catch(e){}
+}
+function msgDesenhar(rolar){
+  const el=document.getElementById('msg-body'); if(!el) return;
+  const perto=el.scrollHeight-el.scrollTop-el.clientHeight<80;
+  let ult='';
+  el.innerHTML=MSG.msgs.map(m=>{
+    const d=dStr(new Date(m.ts)); let sep='';
+    if(d!==ult){ ult=d; sep=`<div class="msg-day">${fBR(d)}</div>`; }
+    return `${sep}<div class="msg-b ${m.direction==='out'?'out':'in'}"><div class="msg-t">${relEsc(m.text)}</div><div class="msg-h">${new Date(m.ts).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div></div>`;
+  }).join('')||'<div class="fin-empty">Sem mensagens</div>';
+  if(rolar||perto) el.scrollTop=el.scrollHeight;
+}
+function msgQuick(t){ const i=document.getElementById('msg-inp'); i.value=t; i.focus(); }
+async function msgSend(ev){
+  if(ev&&ev.preventDefault) ev.preventDefault();
+  const inp=document.getElementById('msg-inp'); const text=(inp.value||'').trim();
+  if(!text||!MSG.cur||MSG.busy) return;
+  MSG.busy=true; const btn=document.getElementById('msg-send-btn'); btn.disabled=true; btn.textContent='Enviando…';
+  try{
+    const r=await msgFetch(`/${encodeURIComponent(MSG.cur)}/send`,{method:'POST',body:JSON.stringify({text})},60000);
+    if(r.ok){
+      inp.value=''; inp.style.height='auto';
+      MSG.msgs.push({id:'tmp'+Date.now(),direction:'out',text,ts:new Date().toISOString()});
+      msgDesenhar(true);
+      msgPoll();
+    } else if(r.status===503){ toast('⚠️ WhatsApp desconectado no servidor. Abra o QR em Configurações.','w'); }
+    else { toast('❌ Não consegui enviar'+(r.j&&r.j.error?` (${r.j.error})`:''),'e'); }
+  }catch(e){ toast('❌ Sem conexão com o servidor. Tente de novo em instantes.','e'); }
+  MSG.busy=false; btn.disabled=false; btn.textContent='Enviar';
+}
+function msgAtivarAvisos(){
+  try{ Notification.requestPermission().then(()=>renderMsgs(true)); }catch(e){ toast('Seu navegador não permite avisos','w'); }
+}
+
 function abrirQRWA(){
   if(!WA_CFG.url||!WA_CFG.key){toast('Preencha URL e API key e salve primeiro','w');return;}
   window.open(`${WA_CFG.url}/qr?key=${encodeURIComponent(WA_CFG.key)}`,'_blank');
