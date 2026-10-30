@@ -640,6 +640,29 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 }
 @keyframes sheetUp{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms !important;transition-duration:.01ms !important}}
+
+/* ===== AGENDA: barra de controles ===== */
+.ag-more{display:contents}
+.ag-cal{display:contents}
+.ag-cal-i,.ag-opt-btn{display:none}
+.ag-iv{display:contents}
+@media(max-width:768px){
+  .ag-tb{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .ag-nav{order:1;flex:1 1 100%;min-width:0;justify-content:space-between;padding:4px}
+  .ag-nav button{min-width:40px;min-height:36px}
+  .ag-nav .ag-dl{flex:1;min-width:0}
+  .ag-cal{display:flex;order:2;position:relative;width:46px;height:42px;flex:0 0 46px;align-items:center;justify-content:center;background:var(--card);border:var(--brd);border-radius:var(--r2);cursor:pointer}
+  .ag-cal-i{display:block;font-size:19px}
+  .ag-cal input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+  .ag-pf{order:3;flex:1;min-width:0;height:42px}
+  .ag-opt-btn{display:inline-flex;order:4;height:42px;justify-content:center}
+  .ag-opt-btn.on{border-color:var(--gold);color:var(--gold)}
+  .ag-more{display:none;order:5;flex:1 1 100%;grid-template-columns:1fr 1fr;gap:8px;padding:10px;background:var(--card);border:var(--brd);border-radius:var(--r)}
+  .ag-more.open{display:grid}
+  .ag-iv{display:flex;grid-column:1/-1;align-items:center;justify-content:space-between;gap:8px}
+  .ag-more .btn{justify-content:center;min-height:42px}
+  .ag-more .btn:nth-of-type(2){grid-column:1/-1;order:3}
+}
 </style>
 </head>
 <body>
@@ -742,23 +765,25 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
             <button onclick="agNav(1)">›</button>
             <button onclick="agToday()" style="font-size:10px;padding:4px 8px">Hoje</button>
           </div>
-          <input type="date" id="ag-date-pick" onchange="agPickDate(this.value)"
-            style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:6px 10px;color:var(--text);font-size:12px;outline:none;cursor:pointer">
-          <div style="font-size:11px;color:var(--text3)">Intervalo:</div>
-          <div class="iv-g">
-            <button class="iv-b" onclick="setIv(10,this)">10</button>
-            <button class="iv-b" onclick="setIv(20,this)">20</button>
-            <button class="iv-b active" onclick="setIv(30,this)">30</button>
-            <button class="iv-b" onclick="setIv(40,this)">40</button>
-            <button class="iv-b" onclick="setIv(50,this)">50</button>
-          </div>
-          <button class="btn ol sm" onclick="openModal('m-block')">🚫 Bloquear</button>
-          <button class="btn sm" style="background:#25d366;color:#fff;border:none" onclick="enviarWhatsAppDia()">📱 WhatsApp do Dia</button>
-          <button class="btn ol sm" onclick="abrirReplicarDia()">📋 Replicar Dia</button>
-          <div class="tb-sp"></div>
-          <select id="ag-pf" onchange="renderAgenda()" style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:6px 10px;color:var(--text);font-size:12px;outline:none">
+          <label class="ag-cal" title="Escolher data"><span class="ag-cal-i">📅</span><input type="date" id="ag-date-pick" onchange="agPickDate(this.value)"
+            style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:6px 10px;color:var(--text);font-size:12px;outline:none;cursor:pointer"></label>
+          <select id="ag-pf" onchange="renderAgenda()" class="ag-pf" style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:6px 10px;color:var(--text);font-size:12px;outline:none">
             <option value="">Todos profissionais</option>
           </select>
+          <button class="btn gh sm ag-opt-btn" id="ag-opt-btn" onclick="agOpt()">⚙️ Opções</button>
+          <div class="ag-more" id="ag-more">
+            <div class="ag-iv"><div style="font-size:11px;color:var(--text3)">Intervalo (min):</div>
+            <div class="iv-g">
+              <button class="iv-b" onclick="setIv(10,this)">10</button>
+              <button class="iv-b" onclick="setIv(20,this)">20</button>
+              <button class="iv-b active" onclick="setIv(30,this)">30</button>
+              <button class="iv-b" onclick="setIv(40,this)">40</button>
+              <button class="iv-b" onclick="setIv(50,this)">50</button>
+            </div></div>
+            <button class="btn ol sm" onclick="openModal('m-block')">🚫 Bloquear</button>
+            <button class="btn sm" style="background:#25d366;color:#fff;border:none" onclick="enviarWhatsAppDia()">📱 WhatsApp do Dia</button>
+            <button class="btn ol sm" onclick="abrirReplicarDia()">📋 Replicar Dia</button>
+          </div>
         </div>
         <div class="ag-w"><div class="ag-g" id="ag-g"></div></div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px">
@@ -3801,6 +3826,10 @@ async function testarWA(){
 // ============================================================
 // MOBILE — barra inferior, botão +, tabelas em cartões
 // ============================================================
+function agOpt(){
+  const m=document.getElementById('ag-more'),b=document.getElementById('ag-opt-btn'); if(!m)return;
+  const on=m.classList.toggle('open'); if(b) b.classList.toggle('on',on);
+}
 function bnGo(sec){
   const el=[...document.querySelectorAll('.ni')].find(x=>(x.getAttribute('onclick')||'').includes("'"+sec+"'"));
   goTo(sec,el);
