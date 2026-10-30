@@ -677,6 +677,41 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 .ag-ap.cancelada .cn-t{font-weight:700;font-size:10px;letter-spacing:.4px}
 .ag-ap.cancelada .cn-n{opacity:.9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ag-ap.cancelada .cn-s{font-size:10px;opacity:.85}
+
+/* ===== AJUSTES FINOS NO CELULAR (cortes, alinhamento, busca) ===== */
+.flt-dt{display:contents}.flt-l,.flt-xt{display:none}
+@media(max-width:768px){
+  /* busca grande e legível */
+  .si,#svc-search,#cmd-search,#cli-s{width:100% !important;max-width:none !important;flex:1 1 100% !important;min-height:46px;padding:12px 14px !important;font-size:16px !important;border-radius:12px}
+  .sh{flex-wrap:wrap}
+  #svc-cat-bar{flex:1 1 100%;flex-wrap:wrap !important;gap:6px !important;padding:6px !important}
+  #svc-cat-bar .cat-fb{min-height:38px;padding:8px 12px;flex-shrink:0}
+
+  /* filtros de Comandas em grade */
+  .flt-row{display:grid !important;grid-template-columns:1fr 1fr;gap:10px !important}
+  .flt-row .si,.flt-row select{grid-column:1/-1}
+  .flt-row select{min-height:46px;font-size:16px !important;padding:10px 12px !important;border-radius:12px !important}
+  .flt-ate{display:none}
+  .flt-dt{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .flt-l{display:block;font-size:10px;font-weight:600;letter-spacing:.6px;color:var(--text3)}
+  .flt-clr{grid-column:1/-1;justify-content:center;min-height:42px}
+  .flt-xt{display:inline}
+
+  /* datas e horas nunca estouram a tela */
+  input[type=date],input[type=time],input[type=datetime-local]{width:100%;max-width:100%;min-width:0;box-sizing:border-box;min-height:46px;text-align:left;-webkit-appearance:none;appearance:none;display:block}
+  input[type=date]::-webkit-date-and-time-value,input[type=time]::-webkit-date-and-time-value{text-align:left}
+  .ag-cal input{min-height:0 !important}
+
+  /* cartões de tabela: valor alinhado, texto longo embaixo do rótulo */
+  table.rt .rt-v{flex:1;min-width:0;display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap;text-align:right}
+  table.rt td:first-child .rt-v{flex-direction:column;align-items:flex-end;gap:2px}
+  table.rt td.rt-long{display:block !important;text-align:left}
+  table.rt td.rt-long::before{display:block;margin-bottom:4px}
+  table.rt td.rt-long .rt-v{display:block;text-align:left;font-size:14px;line-height:1.4}
+  table.rt td:first-child .rt-v{font-size:inherit}
+  /* tira larguras fixas/cortes que vinham da versão de computador */
+  table.rt td{max-width:none !important;overflow:visible !important;text-overflow:clip !important;width:auto !important}
+}
 </style>
 </head>
 <body>
@@ -818,7 +853,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 
       <!-- COMANDAS -->
       <div id="sec-comandas" class="sec">
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center">
+        <div class="flt-row" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center">
           <input class="si" placeholder="🔍 Buscar cliente, serviço..." id="cmd-search" oninput="renderComandas()" style="flex:1;min-width:160px">
           <select id="cmd-f" onchange="renderComandas()" style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:12px;outline:none">
             <option value="">Todos os status</option>
@@ -828,10 +863,10 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
             <option value="concluido">🟢 Pago</option>
             <option value="cancelado">⬜ Cancelado</option>
           </select>
-          <input type="date" id="cmd-dt-ini" onchange="renderComandas()" style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:7px 9px;color:var(--text);font-size:12px;outline:none" title="Data início">
-          <span style="color:var(--text3);font-size:12px">até</span>
-          <input type="date" id="cmd-dt-fim" onchange="renderComandas()" style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:7px 9px;color:var(--text);font-size:12px;outline:none" title="Data fim">
-          <button class="btn gh xs" onclick="document.getElementById('cmd-dt-ini').value='';document.getElementById('cmd-dt-fim').value='';renderComandas()" title="Limpar datas">✕</button>
+          <label class="flt-dt"><span class="flt-l">De</span><input type="date" id="cmd-dt-ini" onchange="renderComandas()" style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:7px 9px;color:var(--text);font-size:12px;outline:none" title="Data início"></label>
+          <span class="flt-ate" style="color:var(--text3);font-size:12px">até</span>
+          <label class="flt-dt"><span class="flt-l">Até</span><input type="date" id="cmd-dt-fim" onchange="renderComandas()" style="background:var(--card);border:var(--brd);border-radius:var(--r2);padding:7px 9px;color:var(--text);font-size:12px;outline:none" title="Data fim"></label>
+          <button class="btn gh xs flt-clr" onclick="document.getElementById('cmd-dt-ini').value='';document.getElementById('cmd-dt-fim').value='';renderComandas()" title="Limpar datas"><span class="flt-x">✕</span><span class="flt-xt"> Limpar datas</span></button>
         </div>
         <div class="tw">
           <table><thead><tr><th>CLIENTE</th><th>SERVIÇOS</th><th>PROFISSIONAL</th><th>DATA/HORA</th><th>TOTAL</th><th>STATUS</th><th>AÇÕES</th></tr></thead><tbody id="tb-cmd"></tbody></table>
@@ -3944,7 +3979,17 @@ function bnPerfil(){
 // Tabelas viram cartões no celular: cada célula ganha o rótulo da coluna
 function rtLabel(t){
   const heads=[...t.querySelectorAll('thead th')].map(h=>h.textContent.trim());
-  t.querySelectorAll('tbody tr').forEach(tr=>{ [...tr.children].forEach((td,i)=>{ if(td.tagName==='TD'&&!td.dataset.l&&heads[i]) td.dataset.l=heads[i]; }); });
+  t.querySelectorAll('tbody tr').forEach(tr=>{ [...tr.children].forEach((td,i)=>{
+    if(td.tagName!=='TD'||td.dataset.l||!heads[i]) return;
+    td.dataset.l=heads[i];
+    if(heads[i]==='AÇÕES'||td.hasAttribute('colspan')) return;
+    // valor num <span> próprio: rótulo à esquerda, valor à direita (textos longos ficam embaixo do rótulo)
+    const sp=document.createElement('span'); sp.className='rt-v';
+    while(td.firstChild) sp.appendChild(td.firstChild);
+    td.appendChild(sp);
+    const txt=(sp.textContent||'').trim();
+    if(i>0&&!sp.querySelector('button,.bd')&&(/SERVIÇO|DESCRI|OBSERV|PROCEDIM/i.test(heads[i])||txt.length>30)) td.classList.add('rt-long');
+  }); });
 }
 function rtInit(){
   document.querySelectorAll('table').forEach(t=>{
