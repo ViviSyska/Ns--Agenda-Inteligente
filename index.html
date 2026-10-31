@@ -4878,6 +4878,7 @@ async function waEnviarAPI(phone, message){
   }catch(e){return false;}
 }
 async function waSetStatus(agId, status){
+  { const a0=D.agendamentos.find(a=>a.id===agId); if(status==='aguardando'&&a0&&a0.wa_status==='confirmou') return; } // reenviar lembrete não desconfirma
   // Se cliente confirmou → também confirma o agendamento na agenda
   const updates={wa_status:status};
   if(status==='confirmou') updates.status='confirmado';
@@ -4958,7 +4959,7 @@ function montarMsgWA(agId){
     .replace(/{salao}/g,salaoNm);
 }
 function abrirWAindividual(agId){ const ag=D.agendamentos.find(a=>a.id===agId); if(!ag)return; const cli=D.clientes.find(c=>c.id===cliId(ag)); if(!cli?.whatsapp)return; const wp=cli.whatsapp.replace(/\D/g,''); const num=wp.length<=11?'55'+wp:wp; const msg=montarMsgWA(agId); if(msg) window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`,'_blank'); }
-function waSelecionarTodos(sel){ document.querySelectorAll('#wa-list input[type=checkbox]:not(:disabled)').forEach(c=>c.checked=sel); }
+function waSelecionarTodos(sel){ document.querySelectorAll('#wa-list input[type=checkbox]:not(:disabled)').forEach(c=>{ const a=D.agendamentos.find(x=>x.id===c.dataset.agid); c.checked=sel&&!(a&&a.wa_status==='confirmou'); }); } // quem já confirmou não recebe o lembrete de novo
 // Envio mensagem a mensagem (compatível com Evolution API / servidor sem sendBulk)
 async function waEnviarLoopAntigo(sels){
   showLoad(`Enviando ${sels.length} mensagem(ns) via API...`);

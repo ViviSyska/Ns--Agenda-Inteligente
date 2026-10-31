@@ -147,7 +147,9 @@ export function createApp({ cfg, db, wa, log = console, sleep = defaultSleep }) 
           job.sent++;
           if (item.agId) {
             try {
-              await db.updateAgendamento(item.agId, { wa_status: 'aguardando', wa_enviado_em: new Date().toISOString() });
+              // quem já confirmou continua confirmada (reenviar o lembrete não "desconfirma")
+              const marcar = db.marcarAguardando || ((id, iso) => db.updateAgendamento(id, { wa_status: 'aguardando', wa_enviado_em: iso }));
+              await marcar(item.agId, new Date().toISOString());
             } catch (e) {
               item.dbError = String(e?.message || e);
               log.error?.({ err: item.dbError, agId: item.agId }, 'falha ao marcar aguardando');
@@ -393,7 +395,20 @@ export function createApp({ cfg, db, wa, log = console, sleep = defaultSleep }) 
   }
 
   /** Processa uma mensagem recebida. Retorna { handled, reason?, verdict?, updated? } */
-  async function handleIncoming(msg) {
+  // Mensagens da mesma conversa são tratadas uma de cada vez, na ordem em que chegam:
+  // assim "sim" e "não" mandados juntos não passam os dois pela checagem ao mesmo tempo.
+  const filas = new Map();
+  function handleIncoming(msg) {
+    const k = msg?.key?.remoteJid || '';
+    const anterior = filas.get(k) || Promise.resolve();
+    const atual = anterior.catch(() => {}).then(() => processarIncoming(msg));
+    filas.set(k, atual);
+    const limpa = () => { if (filas.get(k) === atual) filas.delete(k); };
+    atual.then(limpa, limpa);
+    return atual;
+  }
+
+  async function processarIncoming(msg) {
     const jid = msg?.key?.remoteJid || '';
     if (!msg?.message) return { handled: false, reason: 'ignorada' };
     if (jid.endsWith('@g.us') || jid.endsWith('@broadcast') || jid.endsWith('@newsletter')) {
@@ -450,7 +465,7 @@ export function createApp({ cfg, db, wa, log = console, sleep = defaultSleep }) 
       if (enviadoEm) {
         if (recebidaEm < enviadoEm - 60000 || recebidaEm > enviadoEm + 48 * 3600 * 1000) return false;
         if (historico) {
-          const antes = historico.some((m) => m.direction === 'in' && m.wa_id !== meuId && Date.parse(m.ts) > enviadoEm && Date.parse(m.ts) < recebidaEm);
+          const antes = historico.some((m) => m.direction === 'in' && m.wa_id !== meuId && Date.parse(m.ts) > enviadoEm && Date.parse(m.ts) <= recebidaEm);
           if (antes) return false; // ela já tinha respondido alguma coisa depois do lembrete
         }
         return true;

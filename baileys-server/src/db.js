@@ -27,6 +27,12 @@ export function createDb(sb) {
     },
 
     /** Agendamentos aguardando resposta dessas clientes (ainda ativos), do mais próximo pro mais distante. */
+    async marcarAguardando(id, iso) {
+      const run = (f) => sb.from('agendamentos').update(f).eq('id', id).or('wa_status.is.null,wa_status.neq.confirmou');
+      let { error } = await run({ wa_status: 'aguardando', wa_enviado_em: iso });
+      if (error && /wa_enviado_em/.test(error.message || '')) ({ error } = await run({ wa_status: 'aguardando' }));
+      if (error) throw error;
+    },
     async listAguardando(clienteIds) {
       if (!clienteIds.length) return [];
       const run = (cols) => sb
