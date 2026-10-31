@@ -925,6 +925,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <!-- PACOTES -->
       <div id="sec-pacotes" class="sec">
         <button class="btn gd sec-add" onclick="abrirPkg(null)">+ NOVO PACOTE</button>
+        <div class="srch-row" style="display:flex;gap:8px;align-items:center;margin-bottom:12px"><input type="search" id="pkg-q" placeholder="🔍 Pesquisar pacote ou serviço..." oninput="renderPkg()" style="flex:1;background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:10px 12px;color:var(--text);font-size:14px;outline:none"><span id="pkg-count" style="font-size:12px;color:var(--text3);white-space:nowrap"></span></div>
         <div id="pkg-empty" class="empty" style="display:none"><div class="empty-ic">📦</div><div class="empty-t">Nenhum pacote criado</div><div class="empty-s">Crie pacotes com desconto para seus clientes</div></div>
         <div class="pk-grid" id="pkg-grid"></div>
       </div>
@@ -1002,7 +1003,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <!-- CONFIG -->
       <div id="sec-config" class="sec">
         <div class="tw" id="cfg-series" style="margin-bottom:14px"></div>
-        <div class="tw" id="cfg-reativ" style="margin-bottom:14px;padding:16px"></div>
+        <div class="tw" id="cfg-reativ" style="margin-bottom:14px;padding:12px 14px"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
           <div class="tw"><div class="th2"><span class="th2-t">PROFISSIONAIS</span><div class="tb-sp"></div><button class="btn gd xs" onclick="abrirProf(null)">+ Adicionar</button></div>
             <table><thead><tr><th>NOME</th><th>COMISSÃO</th><th>HORÁRIO</th><th>AÇÕES</th></tr></thead><tbody id="tb-prof"></tbody></table>
@@ -1101,12 +1102,13 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
           <div class="fgr"><label>HORÁRIO *</label><input type="time" id="ag-hr" onchange="calcSeq()"></div>
         </div>
         <div class="fgr">
-          <label>📦 PACOTE (opcional)</label>
+          <label>📦 PACOTES (pode escolher mais de um)</label>
           <input type="text" class="ac-inp" id="ag-pkg-search" placeholder="🔍 Buscar pacote..." autocomplete="off"
             oninput="filtrarAcPkg()" onfocus="filtrarAcPkg()" style="margin-bottom:5px">
           <select id="ag-pkg" onchange="aplicarPacoteAg()" style="background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px 10px;color:var(--text);font-size:13px;outline:none;width:100%">
-            <option value="">— Sem pacote —</option>
+            <option value="">— Adicionar pacote —</option>
           </select>
+          <div id="ag-pkg-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
           <div id="ag-pkg-info" style="display:none;margin-top:6px;font-size:11px;color:var(--gold)"></div>
         </div>
         <div class="fgr">
@@ -1485,6 +1487,13 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
     <div class="mf"><button class="btn gh" onclick="closeModal('m-serie')">Cancelar</button><button class="btn gd" onclick="serieSalvar()">CRIAR REPETIÇÃO</button></div>
   </div>
 </div>
+
+<div class="ov" id="m-pkguso">
+  <div class="md" style="max-width:560px">
+    <div class="mh"><div class="mt" id="pu-t">QUEM USA</div><button class="mx" onclick="closeModal('m-pkguso')">✕</button></div>
+    <div class="mb" id="pu-body"></div>
+  </div>
+</div>
 <div class="ov" id="m-logout">
   <div class="md conf-md">
     <div class="mb" style="text-align:center;padding:28px 20px">
@@ -1626,22 +1635,22 @@ const gCNm  = id => { const c=D.clientes.find(x=>x.id===id); return c?c.nome:'�
 const gSNm  = id => { const s=D.servicos.find(x=>x.id===id); return s?s.nome:'—'; };
 const gSDur = id => { const s=D.servicos.find(x=>x.id===id); return s?s.duracao_min:0; };
 const gSVal = id => { const s=D.servicos.find(x=>x.id===id); return s?s.valor:0; };
+const agPkgIds = ag => { const l=Array.isArray(ag.pacote_ids)?ag.pacote_ids.filter(Boolean).map(String):[]; if(l.length) return l; const p=ag.pacote_id||ag.pkgId; return p?[String(p)]:[]; };
 const gAgtot= ag => {
   // Se tem valor_cobrado salvo (personalizado), usa ele — INCLUSIVE ZERO (cortesia)
   // Importante: verifica null/undefined, NÃO >0, para não ignorar valor combinado de R$ 0,00
   if(ag.valor_cobrado!==null && ag.valor_cobrado!==undefined){
     return Math.max(0, Number(ag.valor_cobrado));
   }
-  const pid = ag.pacote_id || ag.pkgId;
+  const pids = agPkgIds(ag);
   let base=0;
-  if(pid){
-    const pk=D.pacotes.find(x=>x.id===pid);
-    if(pk){
-      base=Number(pk.valor)||0;
-      // soma serviços AVULSOS que não fazem parte do pacote
-      const svcsDoPacote=pk.svcs||[];
-      const svcsAvulsos=(ag.svcs||[]).filter(sid=>!svcsDoPacote.includes(sid));
-      base+=svcsAvulsos.reduce((t,sid)=>t+Number(gSVal(sid)),0);
+  if(pids.length){
+    const pks=pids.map(id=>D.pacotes.find(x=>x.id===id)).filter(Boolean);
+    if(pks.length){
+      base=pks.reduce((t,pk)=>t+(Number(pk.valor)||0),0);
+      // soma serviços AVULSOS que não fazem parte de nenhum dos pacotes
+      const cobertos=new Set(pks.flatMap(pk=>pk.svcs||[]));
+      base+=(ag.svcs||[]).filter(sid=>!cobertos.has(sid)).reduce((t,sid)=>t+Number(gSVal(sid)),0);
     } else {
       // pacote não encontrado no cache — soma todos os serviços
       base=(ag.svcs||[]).reduce((t,sid)=>t+Number(gSVal(sid)),0);
@@ -2500,28 +2509,47 @@ function _aplicarStatusManual(id, novoStatus, btnEl){
 // ============================================================
 // AGENDAMENTO — NOVO / EDITAR
 // ============================================================
-function popPkgSelect(selId){
+function popPkgSelect(ids){
+  S.agPkgs=(Array.isArray(ids)?ids:(ids?[ids]:[])).map(String);
   const srch=document.getElementById('ag-pkg-search'); if(srch) srch.value='';
-  filtrarAcPkg();
-  if(selId){ const s=document.getElementById('ag-pkg'); for(const o of s.options) if(o.value===selId){o.selected=true;break} }
-  document.getElementById('ag-pkg-info').style.display='none';
+  filtrarAcPkg(); renderAgPkgChips();
+}
+function renderAgPkgChips(){
+  const box=document.getElementById('ag-pkg-chips'); const info=document.getElementById('ag-pkg-info'); if(!box) return;
+  const pks=(S.agPkgs||[]).map(id=>D.pacotes.find(x=>x.id===id)).filter(Boolean);
+  box.innerHTML=pks.map(pk=>`<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,215,0,.12);border:1px solid var(--gold3);border-radius:20px;padding:5px 10px;font-size:12px;font-weight:600">📦 ${relEsc(pk.nome)} <span style="font-size:10px;color:var(--text3)">${Rf(pk.valor)}</span><button type="button" onclick="removerPacoteAg('${pk.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:15px;line-height:1;padding:0" title="Remover">×</button></span>`).join('');
+  if(!pks.length){ info.style.display='none'; info.textContent=''; return; }
+  const svcs=[...new Set(pks.flatMap(pk=>pk.svcs||[]))];
+  const dur=svcs.reduce((t,id)=>t+(gSDur(id)||0),0);
+  const tot=pks.reduce((t,pk)=>t+(Number(pk.valor)||0),0);
+  const orig=svcs.reduce((t,id)=>t+gSVal(id),0);
+  info.style.display='block'; info.style.color='var(--gold)';
+  info.innerHTML=`${pks.length} pacote(s) · ${svcs.length} serviço(s) · ${dur}min · ${Rf(tot)}${orig>tot?' <span style="color:var(--green)">(economia '+Rf(orig-tot)+')</span>':''}`;
 }
 function aplicarPacoteAg(){
-  const pid=document.getElementById('ag-pkg').value;
+  const sel=document.getElementById('ag-pkg'); const pid=sel.value; if(!pid) return;
   const info=document.getElementById('ag-pkg-info');
-  if(!pid){ info.style.display='none'; return; }
-  const pk=D.pacotes.find(x=>x.id===pid); if(!pk||!pk.svcs||!pk.svcs.length){
+  const pk=D.pacotes.find(x=>x.id===pid);
+  sel.value='';
+  if(!pk) return;
+  if(!pk.svcs||!pk.svcs.length){
     info.style.display='block'; info.style.color='var(--red)';
     info.textContent='⚠️ Esse pacote ainda não tem serviços cadastrados. Edite o pacote em Pacotes.';
     return;
   }
-  // limpa e injeta serviços do pacote
-  S.agSvcs=[]; pk.svcs.forEach(sid=>{ if(!S.agSvcs.includes(sid))S.agSvcs.push(sid); }); renderAgSvcChips();
-  const dur=pk.svcs.reduce((t,id)=>t+(gSDur(id)||0),0);
-  const orig=pk.svcs.reduce((t,id)=>t+gSVal(id),0);
-  info.style.display='block'; info.style.color='var(--gold)';
-  info.innerHTML=`📦 <b>${pk.nome}</b> aplicado · ${pk.svcs.length} serviço(s) · ${dur}min · ${Rf(pk.valor)}${orig>pk.valor?' <span style="color:var(--green)">(economia '+Rf(orig-pk.valor)+')</span>':''}`;
-  calcSeq();
+  S.agPkgs=S.agPkgs||[];
+  if(S.agPkgs.includes(pid)){ toast('Esse pacote já está no agendamento','w'); return; }
+  S.agPkgs.push(pid);
+  S.agSvcs=S.agSvcs||[]; pk.svcs.forEach(sid=>{ if(!S.agSvcs.includes(sid)) S.agSvcs.push(sid); });
+  renderAgSvcChips(); renderAgPkgChips(); filtrarAcPkg(); calcSeq();
+}
+function removerPacoteAg(pid){
+  const pk=D.pacotes.find(x=>x.id===pid);
+  S.agPkgs=(S.agPkgs||[]).filter(x=>x!==pid);
+  // tira só os serviços que eram exclusivos desse pacote
+  const outros=new Set(S.agPkgs.flatMap(id=>(D.pacotes.find(x=>x.id===id)?.svcs)||[]));
+  (pk?.svcs||[]).forEach(sid=>{ if(!outros.has(sid)){ const i=(S.agSvcs||[]).indexOf(sid); if(i>=0) S.agSvcs.splice(i,1); } });
+  renderAgSvcChips(); renderAgPkgChips(); filtrarAcPkg(); calcSeq();
 }
 function toggleAgCustomVal(){
   const chk=document.getElementById('ag-custom-chk');
@@ -2533,7 +2561,7 @@ function toggleAgCustomVal(){
 function abrirAg(data,hora,profId){
   S.editAgId=null;
   document.getElementById('m-ag-t').textContent='NOVO AGENDAMENTO';
-  popCliSelect(); popProfsModal(); popPkgSelect();
+  popCliSelect(); popProfsModal(); popPkgSelect([]);
   const pkgSel=document.getElementById('ag-pkg'); if(pkgSel)pkgSel.value='';
   const pkgSearch=document.getElementById('ag-pkg-search'); if(pkgSearch)pkgSearch.value='';
   const pkgInfo=document.getElementById('ag-pkg-info'); if(pkgInfo){pkgInfo.style.display='none';pkgInfo.textContent='';}
@@ -2556,7 +2584,7 @@ function editAg(id){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
   S.editAgId=id;
   document.getElementById('m-ag-t').textContent='EDITAR AGENDAMENTO';
-  popCliSelect(ag.cliente_id||ag.clienteId||''); popProfsModal(); popPkgSelect(ag.pacote_id||'');
+  popCliSelect(ag.cliente_id||ag.clienteId||''); popProfsModal(); popPkgSelect(agPkgIds(ag));
   document.getElementById('ag-dt').value=(ag.data||'').substring(0,10);
   document.getElementById('ag-hr').value=ag.hora;
   document.getElementById('ag-ob').value=ag.observacoes||ag.obs||'';
@@ -2666,22 +2694,28 @@ async function salvarAg(){
     if(conf){ toast('Conflito de horário. Marque "Forçar" para continuar.','e'); return; }
   }
   showLoad('Salvando agendamento...');
-  const pkgSel=document.getElementById('ag-pkg'); const pacote_id=pkgSel?(pkgSel.value||null):null;
+  const pacote_ids=(S.agPkgs||[]).slice(); const pacote_id=pacote_ids[0]||null;
   // Valor personalizado — checa checkbox e permite valor ZERO (cortesia)
   const customChk=document.getElementById('ag-custom-chk');
   const customValRaw=document.getElementById('ag-custom-val')?.value;
   const usandoCustomAg = customChk?.checked && customValRaw!=='' && customValRaw!=null;
   const valor_cobrado = usandoCustomAg ? parseFloat(customValRaw) : null;
-  const agData={ cliente_id:cliId2, profissional_id:profId2, data, hora, duracao_total:durTotal, status:document.getElementById('ag-st').value, observacoes:document.getElementById('ag-ob').value, forcar:document.getElementById('ag-fc').checked, pacote_id, valor_cobrado };
+  const agData={ cliente_id:cliId2, profissional_id:profId2, data, hora, duracao_total:durTotal, status:document.getElementById('ag-st').value, observacoes:document.getElementById('ag-ob').value, forcar:document.getElementById('ag-fc').checked, pacote_id, pacote_ids, valor_cobrado };
   let agId=S.editAgId;
+  const semIds=()=>{ const {pacote_ids:_,...resto}=agData; return resto; };
+  const semCol=e=>e&&/pacote_ids/.test(e.message||'');
   if(S.editAgId){
-    await sb.from('agendamentos').update(agData).eq('id',S.editAgId);
+    let r=await sb.from('agendamentos').update(agData).eq('id',S.editAgId);
+    if(semCol(r.error)) r=await sb.from('agendamentos').update(semIds()).eq('id',S.editAgId); // banco sem a coluna nova
+    if(r.error){ hideLoad(); toast('Não consegui salvar: '+r.error.message,'e'); return; }
     await sb.from('agendamento_servicos').delete().eq('agendamento_id',S.editAgId);
   } else {
     // Novo agendamento: garante saldo_devedor null (nunca foi cobrado ainda) —
     // não depende do default da coluna no banco
-    const {data:ins}=await sb.from('agendamentos').insert({...agData, saldo_devedor:null}).select().single();
-    agId=ins?.id;
+    let r=await sb.from('agendamentos').insert({...agData, saldo_devedor:null}).select().single();
+    if(semCol(r.error)) r=await sb.from('agendamentos').insert({...semIds(), saldo_devedor:null}).select().single();
+    if(r.error){ hideLoad(); toast('Não consegui salvar: '+r.error.message,'e'); return; }
+    agId=r.data?.id;
   }
   if(agId && svcs.length>0){
     await sb.from('agendamento_servicos').insert(svcs.map(sid=>({agendamento_id:agId, servico_id:sid})));
@@ -3588,13 +3622,58 @@ function calcPkgDesc(){
   if(orig>0&&pkval>0){ const desc=orig-pkval,perc=((desc/orig)*100).toFixed(1); el.style.display='block'; el.innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap"><div><div style="font-size:10px;color:var(--text3);margin-bottom:2px">ORIGINAL</div><div style="font-family:var(--fm);text-decoration:line-through;color:var(--text3)">${Rf(orig)}</div></div><div><div style="font-size:10px;color:var(--text3);margin-bottom:2px">PACOTE</div><div style="font-family:var(--fm);font-weight:700;color:var(--gold)">${Rf(pkval)}</div></div><div><div style="font-size:10px;color:var(--text3);margin-bottom:2px">DESCONTO</div><div style="font-family:var(--fm);font-weight:700;color:var(--green)">${desc>0?Rf(desc)+' ('+perc+'%)':'+'+Rf(Math.abs(desc))}</div></div></div>`; }
   else el.style.display='none';
 }
+// Uso de um pacote: quem usa, quantas vezes e o histórico (cancelados ficam de fora das contas)
+function pkgUso(id){
+  const ags=D.agendamentos.filter(a=>agPkgIds(a).includes(String(id))).sort((a,b)=>(b.data||'').localeCompare(a.data||'')||(b.hora||'').localeCompare(a.hora||''));
+  const validos=ags.filter(a=>!isCancelado(a));
+  const porCli={};
+  validos.forEach(a=>{
+    const cid=cliId(a); const o=porCli[cid]||(porCli[cid]={cid,usos:0,feitos:0,ultima:'',valor:0,futuro:false});
+    o.usos++; if(a.status==='concluido'){ o.feitos++; o.valor+=gAgtot(a); }
+    const d=(a.data||'').substring(0,10); if(d>o.ultima&&a.status==='concluido') o.ultima=d;
+    if(d>=dStr(new Date())&&(a.status==='pendente'||a.status==='confirmado')) o.futuro=true;
+  });
+  const clientes=Object.values(porCli).sort((a,b)=>b.feitos-a.feitos||b.usos-a.usos);
+  return {ags,validos,clientes,feitos:validos.filter(a=>a.status==='concluido').length,receita:validos.filter(a=>a.status==='concluido').reduce((t,a)=>t+gAgtot(a),0)};
+}
+function verUsoPkg(id){
+  const pk=D.pacotes.find(x=>x.id===id); if(!pk) return;
+  const u=pkgUso(id); const ses=Number(pk.sessoes)||1;
+  document.getElementById('pu-t').textContent='📦 '+pk.nome.toUpperCase();
+  const st={pendente:['Agendado','gd'],confirmado:['Confirmado','gd'],atendimento:['Em atendimento','pr'],concluido:['Pago','gr'],cancelado:['Cancelado','rd']};
+  document.getElementById('pu-body').innerHTML=`
+    <div class="cr" style="margin-bottom:12px">
+      <div class="sc"><div class="sc-l">CLIENTES</div><div class="sc-v">${u.clientes.length}</div></div>
+      <div class="sc"><div class="sc-l">VEZES FEITO</div><div class="sc-v">${u.feitos}</div></div>
+      <div class="sc"><div class="sc-l">EM ANDAMENTO</div><div class="sc-v gd">${u.clientes.filter(c=>c.futuro).length}</div></div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin:6px 0">QUEM USA <span style="font-weight:400">(pacote de ${ses} sessão${ses>1?'ões':''})</span></div>
+    ${u.clientes.length?u.clientes.map(c=>{ const feitasTxt=ses>1?`${Math.min(c.feitos,ses)}/${ses} sessões`:`${c.feitos}x`; const acabou=ses>1&&c.feitos>=ses;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bc)"><div class="c-av" style="flex-shrink:0">${relEsc(ini(gCNm(c.cid)))}</div><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${relEsc(gCNm(c.cid))}</div><div style="font-size:11px;color:var(--text3)">${feitasTxt}${c.ultima?' · última '+fBR(c.ultima):''}${c.futuro?' · 📅 tem horário marcado':''}</div></div><span class="bd ${acabou?'gr':c.futuro?'bl':'gy'}">${acabou?'✔ Concluiu':c.futuro?'Em andamento':'Parou?'}</span></div>`; }).join(''):'<div class="fin-empty">Ninguém usou esse pacote ainda.</div>'}
+    <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin:16px 0 6px">HISTÓRICO</div>
+    ${u.ags.length?u.ags.slice(0,80).map(a=>{ const [l,c]=st[a.status]||[a.status,'gy']; return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bc);font-size:12px"><span style="font-family:var(--fm);color:var(--text3);min-width:78px">${fBR((a.data||'').substring(0,10))}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${relEsc(gCNm2(a))}</span><span class="bd ${isFaltou(a)?'wa-no':c}">${isFaltou(a)?'Faltou':l}</span></div>`; }).join(''):'<div class="fin-empty">Sem histórico.</div>'}`;
+  openModal('m-pkguso');
+}
+function duplicarPkg(id){
+  const pk=D.pacotes.find(x=>x.id===id); if(!pk) return;
+  abrirPkg(null);
+  PKG_SEL=new Set((pk.svcs||[]).map(String)); renderPkgSvs();
+  document.getElementById('m-pkg-t').textContent='DUPLICAR PACOTE';
+  document.getElementById('pkg-nm').value=pk.nome+' (cópia)';
+  document.getElementById('pkg-ss').value=pk.sessoes||1; document.getElementById('pkg-vl').value=pk.valor;
+  calcPkgDesc();
+}
 function renderPkg(){
   updateCatBars();
+  const q=(document.getElementById('pkg-q')?.value||'').toLowerCase().trim();
+  const lst=D.pacotes.filter(p=>!q||p.nome.toLowerCase().includes(q)||(p.svcs||[]).some(id=>gSNm(id).toLowerCase().includes(q)));
   document.getElementById('pkg-empty').style.display=D.pacotes.length?'none':'block';
-  document.getElementById('pkg-grid').innerHTML=D.pacotes.map(p=>{
+  const cnt=document.getElementById('pkg-count'); if(cnt) cnt.textContent=q?`${lst.length} de ${D.pacotes.length}`:`${D.pacotes.length} pacote(s)`;
+  document.getElementById('pkg-grid').innerHTML=lst.length?lst.map(p=>{
     const orig=(p.svcs||[]).reduce((t,id)=>t+gSVal(id),0); const desc=orig>0?((1-p.valor/orig)*100).toFixed(0):0;
-    return`<div class="pk-card"><div class="pk-nm">${p.nome}</div><div style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.5">${(p.svcs||[]).map(gSNm).join(' + ')||'—'}</div><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:12px;color:var(--text3);text-decoration:line-through">${Rf(orig)}</span><span style="font-family:var(--fm);font-size:19px;font-weight:700">${Rf(p.valor)}</span>${desc>0?`<span class="bd gr">-${desc}%</span>`:''}</div><div style="font-size:11px;color:var(--text3);margin-bottom:10px">${p.sessoes||1} sessão(ões)</div><div style="display:flex;gap:6px"><button class="btn ol xs" onclick="abrirPkg('${p.id}')">✏ Editar</button><button class="btn rd xs" onclick="delPkg('${p.id}')">✕</button></div></div>`;
-  }).join('');
+    const u=pkgUso(p.id);
+    return`<div class="pk-card"><div class="pk-nm">${relEsc(p.nome)}</div><div style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.5">${(p.svcs||[]).map(gSNm).join(' + ')||'—'}</div><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:12px;color:var(--text3);text-decoration:line-through">${Rf(orig)}</span><span style="font-family:var(--fm);font-size:19px;font-weight:700">${Rf(p.valor)}</span>${desc>0?`<span class="bd gr">-${desc}%</span>`:''}</div><div style="font-size:11px;color:var(--text3);margin-bottom:10px">${p.sessoes||1} sessão(ões) · 👥 ${u.clientes.length} cliente(s)</div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn gd xs" onclick="verUsoPkg('${p.id}')">👥 Quem usa</button><button class="btn ol xs" onclick="abrirPkg('${p.id}')">✏ Editar</button><button class="btn ol xs" onclick="duplicarPkg('${p.id}')">⧉ Duplicar</button><button class="btn rd xs" onclick="delPkg('${p.id}')">✕</button></div></div>`;
+  }).join(''):'<div class="fin-empty" style="grid-column:1/-1">Nenhum pacote encontrado.</div>';
 }
 async function salvarPkg(){
   const nm=document.getElementById('pkg-nm').value.trim();
@@ -4306,6 +4385,7 @@ function renderSeries(){
   const el=document.getElementById('cfg-series'); if(!el) return;
   if(S.user?.role!=='admin'){ el.style.display='none'; return; } el.style.display='';
   const l=D.series||[];
+  if(!l.length){ el.innerHTML=`<div style="padding:10px 14px;font-size:12px;color:var(--text3)">🔁 <b>Repetições:</b> nenhuma ainda. Abra um agendamento (Ver) e toque em <b>🔁 Repetir</b>.</div>`; return; }
   el.innerHTML=`<div class="th2"><span class="th2-t">🔁 AGENDAMENTOS QUE SE REPETEM</span></div>`+(l.length?`<table class="rt"><thead><tr><th>CLIENTE</th><th>REGRA</th><th>PRÓXIMO</th><th>AÇÕES</th></tr></thead><tbody>${l.map(se=>{
     const sv=(se.servicos||[]).map(id=>(D.servicos.find(x=>x.id===id)||{}).nome).filter(Boolean).join(' + ');
     const prox=(D.agendamentos.filter(a=>a.serie_id===se.id&&!isCancelado(a)&&a.status!=='concluido').map(a=>(a.data||'').substring(0,10)).sort()[0])||'';
@@ -4355,20 +4435,32 @@ function renderReativ(){
   const svcOpt='<option value="">— escolha o serviço —</option>'+D.servicos.map(x=>`<option value="${x.id}" ${x.id===WA_CFG.reativarSvc?'selected':''}>${relEsc(x.nome)}</option>`).join('');
   const ult=D.reativ[0]?fBR(String(D.reativ[0].enviado_em).substring(0,10)):'nunca';
   const quando=jan.laser?`Este mês o laser cai em <b>${fBR(jan.laser)}</b>. ${jan.ativa?'Estamos na semana de chamar.':'As mensagens saem na semana anterior, de segunda até o dia antes.'}`:'';
+  const svcNome=(D.servicos.find(x=>x.id===WA_CFG.reativarSvc)||{}).nome||'escolha o serviço';
+  const nthTxt={'-1':'último','1':'1º','2':'2º','3':'3º','4':'4º'}[String(WA_CFG.reativarNth)]||'';
+  const resumo=`${svcNome} · ${max}/semana · ${nthTxt} ${DIAS_SEM[Number(WA_CFG.reativarDow)]||''}`;
+  const aberto=el.querySelector('details')?.open?'open':'';
+  const inp='width:100%;padding:8px 10px;font-size:13px';
   el.innerHTML=`
-    <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:6px">💌 SEMANA DO LASER: CHAMAR QUEM NÃO VOLTOU (automático)</div>
-    <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Na semana do laser, o servidor do WhatsApp chama as últimas clientes que fizeram o serviço e não voltaram, poucas por dia (a meta da semana é dividida pelos dias úteis), de segunda até o dia antes. Só em horário comercial, uma vez por dia. Cada cliente é chamada no máximo uma vez a cada 25 dias. Quem responde "parar" não recebe mais.</div>
-    <label style="display:flex;align-items:center;gap:8px;font-weight:700;margin-bottom:12px"><input type="checkbox" id="rv-on" ${WA_CFG.reativarOn?'checked':''}> Envio automático LIGADO</label>
-    <div class="fg fg2">
-      <div class="fgr"><label>SERVIÇO (laser)</label><select id="rv-svc">${svcOpt}</select></div>
-      <div class="fgr"><label>QUANTAS CLIENTES POR SEMANA</label><input type="number" id="rv-max" min="1" max="60" value="${max}"></div>
-      <div class="fgr"><label>QUAL É O DIA DO LASER</label><select id="rv-nth">${[[-1,'Último'],[1,'1º'],[2,'2º'],[3,'3º'],[4,'4º']].map(([v,l])=>`<option value="${v}" ${Number(WA_CFG.reativarNth)===v?'selected':''}>${l}</option>`).join('')}</select></div>
-      <div class="fgr"><label>DIA DA SEMANA</label><select id="rv-dow">${DIAS_SEM.map((n,i)=>`<option value="${i}" ${Number(WA_CFG.reativarDow)===i?'selected':''}>${n[0].toUpperCase()+n.slice(1)}</option>`).join('')}</select></div>
-      <div class="fgr"><label>NÃO VOLTOU HÁ MAIS DE (dias)</label><input type="number" id="rv-dias" min="7" max="365" value="${Number(WA_CFG.reativarDias)||30}"></div>
-    </div>
-    <div class="fgr" style="margin-top:10px"><label>MENSAGEM ({nome} {data} {dia} {salao} são trocados)</label><textarea id="rv-msg" rows="3" style="width:100%">${relEsc(WA_CFG.reativarMsg||'Oi {nome}! Tudo bem? 💛 Dia {data} ({dia}) é o dia do laser aqui no {salao}. Quer garantir o seu horário? É só me responder por aqui!')}</textarea></div>
-    <div style="margin-top:12px"><button class="btn gd sm" onclick="salvarReativ()">SALVAR</button> <span style="font-size:12px;color:var(--text3);margin-left:8px">Último envio: ${ult}</span></div>
-    <div style="margin-top:14px;font-size:12px">${quando}<br>${WA_CFG.reativarSvc?`<b>${cand.length}</b> cliente(s) na fila (as mais recentes primeiro)${cand.length?': '+cand.slice(0,8).map(x=>relEsc(x.c.nome.split(' ')[0])+' ('+x.dias+'d)').join(', ')+(cand.length>8?'…':''):''}`:'Escolha o serviço para ver quem seria chamada.'}</div>`;
+    <details ${aberto} style="margin:-2px 0">
+      <summary style="display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;min-height:34px">
+        <span style="font-size:14px">💌</span>
+        <span style="flex:1;min-width:0"><span style="display:block;font-size:12px;font-weight:700;letter-spacing:.4px">Semana do laser: chamar quem não voltou</span><span style="display:block;font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${WA_CFG.reativarOn?'🟢 Ligado':'⚪ Desligado'} · ${relEsc(resumo)}</span></span>
+        <span class="bd ${WA_CFG.reativarOn?'gr':'gy'}">${cand.length} na fila</span><span style="color:var(--text3);font-size:12px">Ajustar ▾</span>
+      </summary>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bc)">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:13px;margin-bottom:10px"><input type="checkbox" id="rv-on" ${WA_CFG.reativarOn?'checked':''}> Envio automático ligado</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 10px">
+          <div class="fgr" style="grid-column:1/-1"><label>SERVIÇO (laser)</label><select id="rv-svc" style="${inp}">${svcOpt}</select></div>
+          <div class="fgr"><label>CLIENTES POR SEMANA</label><input type="number" id="rv-max" min="1" max="60" value="${max}" style="${inp}"></div>
+          <div class="fgr"><label>SEM VOLTAR HÁ (dias)</label><input type="number" id="rv-dias" min="7" max="365" value="${Number(WA_CFG.reativarDias)||30}" style="${inp}"></div>
+          <div class="fgr"><label>DIA DO LASER</label><select id="rv-nth" style="${inp}">${[[-1,'Último'],[1,'1º'],[2,'2º'],[3,'3º'],[4,'4º']].map(([v,l])=>`<option value="${v}" ${Number(WA_CFG.reativarNth)===v?'selected':''}>${l}</option>`).join('')}</select></div>
+          <div class="fgr"><label>DIA DA SEMANA</label><select id="rv-dow" style="${inp}">${DIAS_SEM.map((n,i)=>`<option value="${i}" ${Number(WA_CFG.reativarDow)===i?'selected':''}>${n[0].toUpperCase()+n.slice(1)}</option>`).join('')}</select></div>
+          <div class="fgr" style="grid-column:1/-1"><label>MENSAGEM ({nome} {data} {dia} {salao})</label><textarea id="rv-msg" rows="2" style="${inp};resize:vertical">${relEsc(WA_CFG.reativarMsg||'Oi {nome}! Tudo bem? 💛 Dia {data} ({dia}) é o dia do laser aqui no {salao}. Quer garantir o seu horário? É só me responder por aqui!')}</textarea></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px"><button class="btn gd sm" onclick="salvarReativ()">SALVAR</button><span style="font-size:11px;color:var(--text3)">Último envio: ${ult}</span></div>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3);line-height:1.5">${quando}${WA_CFG.reativarSvc&&cand.length?`<br>Fila: ${cand.slice(0,8).map(x=>relEsc(x.c.nome.split(' ')[0])+' ('+x.dias+'d)').join(', ')}${cand.length>8?'…':''}`:''}<br>Manda poucas por dia, de segunda até o dia antes, em horário comercial. Cada cliente no máximo 1 vez a cada 25 dias; quem responde "parar" não recebe mais.</div>
+      </div>
+    </details>`;
 }
 async function salvarReativ(){
   WA_CFG.reativarOn=document.getElementById('rv-on').checked;
@@ -4976,10 +5068,9 @@ function carregarAgReplicar(){
   }
   lista.innerHTML=ags.map(ag=>{
     // Mostra pacote OU serviços, com valor correto
-    const pkId=ag.pacote_id||ag.pkgId;
-    const pk=pkId?D.pacotes.find(x=>x.id===pkId):null;
-    const label=pk
-      ? `📦 ${pk.nome}`
+    const pkNomes=agPkgIds(ag).map(id=>D.pacotes.find(x=>x.id===id)).filter(Boolean).map(x=>x.nome);
+    const label=pkNomes.length
+      ? `📦 ${pkNomes.join(' + ')}`
       : (ag.svcs||[]).map(gSNm).join(', ')||'—';
     const valor=gAgtot(ag);
     const sc={pendente:'gd',confirmado:'gd',atendimento:'pr',concluido:'gr',cancelado:'rd'};
@@ -5034,6 +5125,7 @@ async function confirmarReplicar(){
       observacoes:   ag.observacoes||ag.obs||null,
       forcar:        false,
       pacote_id:     ag.pacote_id||ag.pkgId||null,  // ← preserva pacote
+      ...(Array.isArray(ag.pacote_ids)&&ag.pacote_ids.length?{pacote_ids:ag.pacote_ids}:{}),
       desconto:      ag.desconto||0,
     };
     const{data:ins,error}=await sb.from('agendamentos').insert(novoAg).select().single();
@@ -5116,10 +5208,10 @@ document.addEventListener('click',e=>{
 function filtrarAcPkg(){
   const q=(document.getElementById('ag-pkg-search')?.value||'').toLowerCase().trim();
   const sel=document.getElementById('ag-pkg'); if(!sel)return;
-  const cur=sel.value;
-  const lst=q ? D.pacotes.filter(p=>p.nome.toLowerCase().includes(q)) : D.pacotes;
-  sel.innerHTML='<option value="">— Sem pacote —</option>'+lst.map(p=>`<option value="${p.id}">${p.nome} · ${Rf(p.valor)}${p.svcs?.length?' ('+p.svcs.length+' serv.)':''}</option>`).join('');
-  if(cur){ for(const o of sel.options) if(o.value===cur){o.selected=true;break} }
+  const jaTem=new Set(S.agPkgs||[]);
+  let lst=D.pacotes.filter(p=>!jaTem.has(p.id));
+  if(q) lst=lst.filter(p=>p.nome.toLowerCase().includes(q));
+  sel.innerHTML='<option value="">— Adicionar pacote —</option>'+lst.map(p=>`<option value="${p.id}">${p.nome} · ${Rf(p.valor)}${p.svcs?.length?' ('+p.svcs.length+' serv.)':''}</option>`).join('');
 }
 function popProfsInSvc(){ const sel=document.getElementById('svc-pf'); if(!sel)return; sel.innerHTML='<option value="">Qualquer</option>'+D.profs.map(p=>`<option value="${p.id}">${p.nome}</option>`).join(''); }
 
