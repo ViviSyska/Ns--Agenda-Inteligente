@@ -1549,7 +1549,6 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <div id="rep-lista" style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
         <div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Selecione o dia de origem</div>
       </div>
-      <label style="display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:12px;line-height:1.4"><input type="checkbox" id="rep-valor" checked style="margin-top:2px"> <span>Manter o <b>valor cobrado</b> de cada comanda (o que aparece na lista). Desmarque para usar o preço atual do pacote.</span></label>
       <div id="rep-aviso" style="display:none;margin-top:10px;padding:8px 12px;background:var(--bg3);border-radius:var(--r2);font-size:11px;color:var(--gold)"></div>
     </div>
     <div class="mf">
@@ -5073,7 +5072,7 @@ function carregarAgReplicar(){
     const label=pkNomes.length
       ? `📦 ${pkNomes.join(' + ')}`
       : (ag.svcs||[]).map(gSNm).join(', ')||'—';
-    const valor=gAgtot(ag);
+    const valor=gAgtot({...ag,valor_cobrado:null,desconto:0}); // valor que a réplica terá: pacote(s) + serviços
     const sc={pendente:'gd',confirmado:'gd',atendimento:'pr',concluido:'gr',cancelado:'rd'};
     return`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:var(--r2);cursor:pointer;border:var(--brd);transition:border-color .15s">
       <input type="checkbox" checked data-agid="${ag.id}" style="accent-color:var(--gold);width:15px;height:15px;flex-shrink:0;cursor:pointer">
@@ -5127,9 +5126,9 @@ async function confirmarReplicar(){
       forcar:        false,
       pacote_id:     ag.pacote_id||ag.pkgId||null,  // ← preserva pacote
       ...(Array.isArray(ag.pacote_ids)&&ag.pacote_ids.length?{pacote_ids:ag.pacote_ids}:{}),
-      desconto:      ag.desconto||0,
-      // mantém o valor cobrado da comanda original (ex.: pacote combinado por R$ 160 em vez de 180); cortesia (R$ 0) não é repetida
-      valor_cobrado: (document.getElementById('rep-valor')?.checked && Number(ag.valor_cobrado)>0) ? Number(ag.valor_cobrado) : null,
+      desconto:      0,
+      // valor = preço do(s) pacote(s) + serviços selecionados (nunca copia valor combinado/cortesia da comanda original)
+      valor_cobrado: null,
     };
     const{data:ins,error}=await sb.from('agendamentos').insert(novoAg).select().single();
     if(error||!ins){erros.push(`${ag.hora} ${gCNm2(ag)} (erro: ${error?.message||'?'})`);continue;}
