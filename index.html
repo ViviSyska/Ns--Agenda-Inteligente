@@ -5127,6 +5127,7 @@ async function confirmarReplicar(){
       pacote_id:     ag.pacote_id||ag.pkgId||null,  // ← preserva pacote
       ...(Array.isArray(ag.pacote_ids)&&ag.pacote_ids.length?{pacote_ids:ag.pacote_ids}:{}),
       desconto:      ag.desconto||0,
+      valor_cobrado: (ag.valor_cobrado===undefined?null:ag.valor_cobrado), // mantém o valor combinado (não recalcula pelo preço atual do pacote)
     };
     const{data:ins,error}=await sb.from('agendamentos').insert(novoAg).select().single();
     if(error||!ins){erros.push(`${ag.hora} ${gCNm2(ag)} (erro: ${error?.message||'?'})`);continue;}
