@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { selecionarLaser, janelaDoLaser, dataDoLaser, createReativacao } from '../src/reativacao.js';
+import { selecionarLaser, janelaDoLaser, dataDoLaser, createAutomacoes } from '../src/reativacao.js';
 import { isOptOut } from '../src/reply-parser.js';
 
 const cli = (id, nome, whatsapp, extra = {}) => ({ id, nome, whatsapp, ...extra });
@@ -41,47 +41,76 @@ test('não chama quem foi chamada há pouco', () => {
   assert.deepEqual(r.map((x) => x.cliente.id), ['a']);
 });
 
-function montar({ cfg, now, contatos = [], n = 20 }) {
+function montar({ autos, now, contatos = [], n = 20 }) {
   const enviados = []; const marcas = []; const gravados = [];
   const clientes = Array.from({ length: n }, (_, i) => cli('c' + i, 'Cli' + i, `119000000${String(i).padStart(2, '0')}`));
   const agendamentos = clientes.map((c, i) => ag(c.id, `2026-0${1 + (i % 7)}-10`));
   const db = {
-    getReativacaoCfg: async () => cfg,
-    setReativarUltimo: async (_s, d) => { marcas.push(d); cfg.reativar_ultimo = d; },
+    listAutomacoes: async () => autos,
+    setAutomacaoUltimo: async (id, d) => { marcas.push(d); autos.find((a) => a.id === id).ultimo_envio = d; },
     listClientesSalao: async () => clientes,
     listAgendamentosSalao: async () => agendamentos,
-    listReativacoes: async () => contatos,
+    listReativacoes: async () => [...contatos, ...gravados],
     getSalaoNome: async () => 'Espaço Tela Viva',
+    listServicosNomes: async () => new Map([['laser', 'laser']]),
     insertReativacao: async (r) => { gravados.push(r); },
   };
   const wa = { getStatus: () => 'open' };
   const sendOne = async (num, t) => { enviados.push({ num, t }); return { ok: true }; };
-  const r = createReativacao({ db, wa, sendOne, now: () => now, sleep: async () => {}, log: { info() {}, warn() {} } });
+  const r = createAutomacoes({ db, wa, sendOne, now: () => now, sleep: async () => {}, log: { info() {}, warn() {} } });
   return { r, enviados, marcas, gravados };
 }
-const base = { salao_id: 's1', reativar_on: true, reativar_servico: 'laser', reativar_nth: -1, reativar_dow: 6, reativar_dias: 30, reativar_max: 15, reativar_msg: 'Oi {nome}! Laser dia {data} ({dia}) no {salao}' };
+const base = () => ({ id: 'a1', salao_id: 's1', nome: 'Laser', ativa: true, servico_id: 'laser', nth: -1, dow: 6, dias_antes: null, meses_pulados: [], sumiu_dias: 30, max_ciclo: 15, mensagem: 'Oi {nome}! Laser dia {data} ({dia}) no {salao}' });
 
 test('na segunda da semana do laser manda só uma parte da meta (15 em 5 dias úteis = 3)', async () => {
-  const { r, enviados, marcas } = montar({ cfg: { ...base }, now: new Date('2026-10-26T15:00:00Z') }); // segunda 12h
+  const { r, enviados, marcas } = montar({ autos: [base()], now: new Date('2026-10-26T15:00:00Z') }); // segunda 12h
   const out = await r.tick();
   assert.equal(out.enviadas, 3);
-  assert.equal(enviados[0].t, 'Oi Cli' .concat(enviados[0].t.slice(6, enviados[0].t.indexOf('!'))) + '! Laser dia 31/10 (sábado) no Espaço Tela Viva');
+  assert.match(enviados[0].t, /^Oi Cli\d+! Laser dia 31\/10 \(sábado\) no Espaço Tela Viva$/);
   assert.deepEqual(marcas, ['2026-10-26']);
   assert.equal((await r.tick()).reason, 'ja_rodou_hoje');
 });
 
-test('na sexta completa o que faltou da meta', async () => {
-  const contatos = Array.from({ length: 11 }, (_, i) => ({ cliente_id: 'x' + i, enviado_em: '2026-10-27T15:00:00Z' }));
-  const { r, enviados } = montar({ cfg: { ...base }, now: new Date('2026-10-30T15:00:00Z'), contatos }); // sexta
+test('na sexta completa o que faltou da meta, mas nunca passa de 8 por dia', async () => {
+  const contatos = Array.from({ length: 5 }, (_, i) => ({ cliente_id: 'x' + i, automacao_id: 'a1', enviado_em: '2026-10-27T15:00:00Z' }));
+  const { r, enviados } = montar({ autos: [base()], now: new Date('2026-10-30T15:00:00Z'), contatos }); // sexta: faltam 10
   const out = await r.tick();
-  assert.equal(out.enviadas, 4); assert.equal(enviados.length, 4);
+  assert.equal(out.enviadas, 8); assert.equal(enviados.length, 8);
 });
 
-test('fora da semana do laser, no domingo ou desligado não envia', async () => {
-  assert.equal((await montar({ cfg: { ...base }, now: new Date('2026-10-14T15:00:00Z') }).r.tick()).reason, 'fora_da_semana_do_laser');
-  assert.equal((await montar({ cfg: { ...base }, now: new Date('2026-10-26T23:30:00Z') }).r.tick()).reason, 'fora_do_horario');
-  assert.equal((await montar({ cfg: { ...base, reativar_on: false }, now: new Date('2026-10-26T15:00:00Z') }).r.tick()).reason, 'desligado');
-  assert.equal((await montar({ cfg: { ...base, reativar_servico: null }, now: new Date('2026-10-26T15:00:00Z') }).r.tick()).reason, 'desligado');
+test('meta nunca passa de 15, mesmo que a configuração diga mais', async () => {
+  const a = { ...base(), max_ciclo: 60 };
+  const contatos = Array.from({ length: 14 }, (_, i) => ({ cliente_id: 'x' + i, automacao_id: 'a1', enviado_em: '2026-10-27T15:00:00Z' }));
+  const out = await montar({ autos: [a], now: new Date('2026-10-30T15:00:00Z'), contatos }).r.tick();
+  assert.equal(out.enviadas, 1);
+});
+
+test('duas automações no mesmo dia dividem o teto de 8 mensagens', async () => {
+  const a = { ...base() }; const b = { ...base(), id: 'a2', nome: 'Outra' };
+  const { r, enviados } = montar({ autos: [a, b], now: new Date('2026-10-30T15:00:00Z') }); // sexta, cada uma pediria 15
+  await r.tick();
+  assert.equal(enviados.length, 8);
+});
+
+test('fora da janela, fora do horário, desligada ou mês pulado não envia', async () => {
+  assert.equal((await montar({ autos: [base()], now: new Date('2026-10-14T15:00:00Z') }).r.tick()).reason, 'fora_da_janela');
+  assert.equal((await montar({ autos: [base()], now: new Date('2026-10-26T23:30:00Z') }).r.tick()).reason, 'fora_do_horario');
+  assert.equal((await montar({ autos: [], now: new Date('2026-10-26T15:00:00Z') }).r.tick()).reason, 'desligado');
+  assert.equal((await montar({ autos: [{ ...base(), meses_pulados: [10] }], now: new Date('2026-10-26T15:00:00Z') }).r.tick()).reason, 'fora_da_janela');
+});
+
+test('janela com X dias antes e evento no começo do mês seguinte', () => {
+  // 1º sábado de dezembro = 05/12; 7 dias antes começa em 28/11 (sábado)
+  assert.equal(janelaDoLaser('2026-11-27', 1, 6, 7).ativa, false);
+  const j = janelaDoLaser('2026-11-30', 1, 6, 7);
+  assert.equal(j.ativa, true); assert.equal(j.laser, '2026-12-05'); assert.equal(j.diasRestantes, 5);
+  assert.equal(janelaDoLaser('2026-11-30', 1, 6, 7, [12]).ativa, false); // dezembro pulado
+});
+
+test('sem serviço escolhido considera qualquer atendimento concluído', () => {
+  const clientes = [cli('a', 'Ana', '11988887777')];
+  const r = selecionarLaser({ clientes, agendamentos: [ag('a', '2026-08-01', 'concluido', ['unha'])], hoje: '2026-10-28', servicoId: null });
+  assert.equal(r.length, 1);
 });
 
 test('reconhece pedido para parar', () => {

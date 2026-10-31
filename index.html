@@ -1003,7 +1003,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <!-- CONFIG -->
       <div id="sec-config" class="sec">
         <div class="tw" id="cfg-series" style="margin-bottom:14px"></div>
-        <div class="tw" id="cfg-reativ" style="margin-bottom:14px;padding:12px 14px"></div>
+        <div class="tw" id="cfg-autos" style="margin-bottom:14px"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
           <div class="tw"><div class="th2"><span class="th2-t">PROFISSIONAIS</span><div class="tb-sp"></div><button class="btn gd xs" onclick="abrirProf(null)">+ Adicionar</button></div>
             <table><thead><tr><th>NOME</th><th>COMISSÃO</th><th>HORÁRIO</th><th>AÇÕES</th></tr></thead><tbody id="tb-prof"></tbody></table>
@@ -1485,6 +1485,34 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <div style="font-size:12px;color:var(--text3);margin-top:12px">O app cria o próximo agendamento só depois que o atual passar, e segue todo mês para sempre, até você pausar ou excluir em Configurações.</div>
     </div>
     <div class="mf"><button class="btn gh" onclick="closeModal('m-serie')">Cancelar</button><button class="btn gd" onclick="serieSalvar()">CRIAR REPETIÇÃO</button></div>
+  </div>
+</div>
+
+<div class="ov" id="m-auto">
+  <div class="md" style="max-width:560px">
+    <div class="mh"><div class="mt" id="au-t">NOVA AUTOMAÇÃO</div><button class="mx" onclick="closeModal('m-auto')">✕</button></div>
+    <div class="mb">
+      <div class="fgr"><label>NOME</label><input id="au-nome" placeholder="Ex.: Laser: chamar quem não voltou"></div>
+      <div style="font-size:11px;color:var(--gold);letter-spacing:.7px;font-weight:700;margin:16px 0 8px">1 · QUANDO</div>
+      <div class="fg fg2">
+        <div class="fgr"><label>QUAL SEMANA DO MÊS</label><select id="au-nth" onchange="autoPrever()"><option value="-1">Último</option><option value="1">1º</option><option value="2">2º</option><option value="3">3º</option><option value="4">4º</option></select></div>
+        <div class="fgr"><label>DIA DA SEMANA</label><select id="au-dow" onchange="autoPrever()"><option value="0">Domingo</option><option value="1">Segunda</option><option value="2">Terça</option><option value="3">Quarta</option><option value="4">Quinta</option><option value="5">Sexta</option><option value="6">Sábado</option></select></div>
+      </div>
+      <div class="fgr" style="margin-top:10px"><label>QUANDO AS MENSAGENS SAEM</label><select id="au-antes"><option value="">Na semana anterior (de segunda até o dia antes)</option><option value="1">No dia anterior</option><option value="3">Nos 3 dias anteriores</option><option value="7">Nos 7 dias anteriores</option><option value="14">Nos 14 dias anteriores</option></select></div>
+      <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin:12px 0 6px">MESES EM QUE NÃO ACONTECE (marque para pular)</div>
+      <div id="au-meses" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px"></div>
+      <div style="font-size:11px;color:var(--gold);letter-spacing:.7px;font-weight:700;margin:18px 0 8px">2 · PARA QUEM</div>
+      <div class="fg fg2">
+        <div class="fgr"><label>FEZ O SERVIÇO</label><select id="au-svc"></select></div>
+        <div class="fgr"><label>E NÃO VOLTA HÁ (dias)</label><input type="number" id="au-dias" min="7" max="365"></div>
+      </div>
+      <div class="fgr" style="margin-top:10px"><label>CLIENTES POR CICLO (máximo 15 — protege seu WhatsApp)</label><input type="number" id="au-max" min="1" max="15"></div>
+      <div style="font-size:11px;color:var(--gold);letter-spacing:.7px;font-weight:700;margin:18px 0 8px">3 · MENSAGEM</div>
+      <div class="fgr"><label>TEXTO ({nome} {servico} {data} {dia} {salao})</label><textarea id="au-msg" rows="4" oninput="autoPrever()"></textarea></div>
+      <div style="font-size:11px;color:var(--text3);margin:8px 0 4px">Como a cliente vai ler:</div>
+      <div id="au-prev" style="font-size:13px;background:var(--bg3,rgba(255,255,255,.04));border:var(--brd);border-radius:10px;padding:10px 12px;white-space:pre-wrap"></div>
+    </div>
+    <div class="mf"><button class="btn gh" onclick="closeModal('m-auto')">Cancelar</button><button class="btn gd" onclick="autoSalvar()">SALVAR</button></div>
   </div>
 </div>
 
@@ -3907,7 +3935,7 @@ function chamarCliente(cid){
   setTimeout(()=>{ msgNovaEscolher(cid); const i=document.getElementById('msg-inp'); if(i) i.value=reativarTexto(c); },350);
 }
 function reativarTexto(c){
-  const t=WA_CFG.reativarMsg||'Oi {nome}! Tudo bem? 💛 Sentimos sua falta por aqui no {salao}. Vamos marcar o seu horário? É só me responder por aqui!';
+  const t='Oi {nome}! Tudo bem? 💛 Sentimos sua falta por aqui no {salao}. Vamos marcar o seu horário? É só me responder por aqui!';
   return t.replace(/\{nome\}/g,(c.nome||'').split(' ')[0]).replace(/\{salao\}/g,S.salaoNome||'salão');
 }
 
@@ -4230,7 +4258,7 @@ function renderConfig(){
   document.getElementById('cfg-cr').value=D.cfg.taxaCred; document.getElementById('cfg-db').value=D.cfg.taxaDeb;
   document.getElementById('cfg-ab').value=D.cfg.abertura; document.getElementById('cfg-fe').value=D.cfg.fechamento;
   renderConfigWA();
-  try{ renderSeries(); renderReativ(); }catch(e){ console.error(e); }
+  try{ renderSeries(); renderAutos(); }catch(e){ console.error(e); }
   renderCatConfig();
   document.getElementById('tb-prof').innerHTML=D.profs.length?D.profs.map(p=>`<tr>
     <td><div style="font-weight:600">${p.nome}</div><div style="font-size:11px;color:var(--text3)">${p.email}</div></td>
@@ -4302,7 +4330,7 @@ async function salvarBlk(){
 // WHATSAPP DO DIA
 // ============================================================
 // ── WhatsApp API Config ──────────────────────────────────────
-const WA_CFG = { url:'', inst:'', key:'', dono:'', relhr:'07:00', ultimo:'', reativarOn:false, reativarMsg:'', reativarMax:15, reativarDias:30, reativarSvc:'', reativarNth:-1, reativarDow:6 };
+const WA_CFG = { url:'', inst:'', key:'', dono:'', relhr:'07:00', ultimo:'' };
 const SUMIDA_DIAS=60; // relatório: cliente sem vir há mais que isso = sumida
 // A conexão do WhatsApp é do SALÃO (tabela salao_whatsapp): configura uma vez e vale em todos os aparelhos
 
@@ -4406,74 +4434,129 @@ function serieExcluir(id){
 
 
 // ============================================================
-// REATIVAÇÃO AUTOMÁTICA (o servidor do WhatsApp envia; aqui você liga e ajusta)
+// AUTOMAÇÕES DE MENSAGEM (o servidor do WhatsApp envia; aqui você cria e ajusta as regras)
 // ============================================================
-D.reativ=D.reativ||[];
+const AUTO_MAX_CICLO=15; // máximo de clientes por automação a cada ciclo (protege o WhatsApp)
+const AUTO_MAX_DIA=8;    // teto de mensagens automáticas por dia (somando todas as automações)
+const AUTO_TEXTO='Oi {nome}! Tudo bem? 💛 Dia {data} ({dia}) é o dia do {servico} aqui no {salao}. Quer garantir o seu horário? É só me responder por aqui!';
+D.autos=D.autos||[]; D.reativ=D.reativ||[];
 async function reativCarregar(){
   if(S.user?.role!=='admin') return;
-  try{ const {data}=await sb.from('reativacoes').select('cliente_id,enviado_em').order('enviado_em',{ascending:false}).limit(500); D.reativ=data||[]; }catch(e){ D.reativ=[]; }
+  try{ const {data}=await sb.from('automacoes').select('*').order('created_at',{ascending:true}); D.autos=data||[]; D.autosOk=true; }catch(e){ D.autos=[]; D.autosOk=false; }
+  try{ const {data}=await sb.from('reativacoes').select('cliente_id,enviado_em,automacao_id').order('enviado_em',{ascending:false}).limit(1000); D.reativ=data||[]; }catch(e){ D.reativ=[]; }
 }
-function reativJanela(){
-  // semana do laser = da segunda até o dia ANTES do laser (mesma regra do servidor)
-  const hoje=dStr(new Date()); const d=new Date();
-  const laser=serieData(Number(WA_CFG.reativarNth),Number(WA_CFG.reativarDow),d.getFullYear(),d.getMonth());
-  if(!laser) return {laser:null,ativa:false};
-  const L=new Date(laser+'T12:00:00'); const seg=new Date(L); seg.setDate(L.getDate()-((L.getDay()+6)%7)); const fim=new Date(L); fim.setDate(L.getDate()-1);
-  const ativa=hoje>=dStr(seg)&&hoje<=dStr(fim);
-  return {laser,ativa,inicio:dStr(seg)};
+// mesma regra do servidor: janela de envio de um evento mensal. dias_antes null = semana do evento (segunda até o dia antes)
+function autoJanela(au){
+  const hoje=dStr(new Date()); const now=new Date(); let primeiro=null;
+  for(let i=0;i<2;i++){
+    const dt=new Date(now.getFullYear(),now.getMonth()+i,1);
+    if((au.meses_pulados||[]).includes(dt.getMonth()+1)) continue;
+    const ev=serieData(Number(au.nth),Number(au.dow),dt.getFullYear(),dt.getMonth()); if(!ev) continue;
+    const L=new Date(ev+'T12:00:00'); const ini=new Date(L);
+    if(au.dias_antes==null) ini.setDate(L.getDate()-((L.getDay()+6)%7)); else ini.setDate(L.getDate()-Number(au.dias_antes));
+    const fim=new Date(L); fim.setDate(L.getDate()-1);
+    const j={evento:ev,inicio:dStr(ini),fim:dStr(fim),ativa:hoje>=dStr(ini)&&hoje<=dStr(fim)};
+    if(!primeiro&&ev>hoje) primeiro=j;
+    if(j.ativa) return j;
+  }
+  return primeiro||{evento:null,ativa:false};
 }
-function reativCandidatas(){
-  const svc=WA_CFG.reativarSvc; if(!svc) return [];
-  const hoje=dStr(new Date()); const min=Number(WA_CFG.reativarDias)||30;
-  return cliStats(svc).filter(x=>x.n>0&&x.ultima&&!x.futura&&x.dias>min&&x.c.whatsapp&&!x.c.nao_contatar&&!D.reativ.some(r=>r.cliente_id===x.c.id&&diasEntre(String(r.enviado_em).substring(0,10),hoje)<25))
+function autoFila(au){
+  const hoje=dStr(new Date()); const min=Number(au.sumiu_dias)||30; const cd=Number(au.cooldown_dias)||25;
+  return cliStats(au.servico_id||'').filter(x=>x.n>0&&x.ultima&&!x.futura&&x.dias>min&&x.c.whatsapp&&!x.c.nao_contatar&&!D.reativ.some(r=>r.cliente_id===x.c.id&&diasEntre(String(r.enviado_em).substring(0,10),hoje)<cd))
     .sort((a,b)=>a.ultima<b.ultima?1:a.ultima>b.ultima?-1:b.n-a.n);
 }
-function renderReativ(){
-  const el=document.getElementById('cfg-reativ'); if(!el) return;
-  if(S.user?.role!=='admin'){ el.style.display='none'; return; } el.style.display='';
-  const max=Number(WA_CFG.reativarMax)||15; const cand=reativCandidatas().slice(0,max); const jan=reativJanela();
-  const svcOpt='<option value="">— escolha o serviço —</option>'+D.servicos.map(x=>`<option value="${x.id}" ${x.id===WA_CFG.reativarSvc?'selected':''}>${relEsc(x.nome)}</option>`).join('');
-  const ult=D.reativ[0]?fBR(String(D.reativ[0].enviado_em).substring(0,10)):'nunca';
-  const quando=jan.laser?`Este mês o laser cai em <b>${fBR(jan.laser)}</b>. ${jan.ativa?'Estamos na semana de chamar.':'As mensagens saem na semana anterior, de segunda até o dia antes.'}`:'';
-  const svcNome=(D.servicos.find(x=>x.id===WA_CFG.reativarSvc)||{}).nome||'escolha o serviço';
-  const nthTxt={'-1':'último','1':'1º','2':'2º','3':'3º','4':'4º'}[String(WA_CFG.reativarNth)]||'';
-  const resumo=`${svcNome} · ${max}/semana · ${nthTxt} ${DIAS_SEM[Number(WA_CFG.reativarDow)]||''}`;
-  const aberto=el.querySelector('details')?.open?'open':'';
-  const inp='width:100%;padding:8px 10px;font-size:13px';
-  el.innerHTML=`
-    <details ${aberto} style="margin:-2px 0">
-      <summary style="display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;min-height:34px">
-        <span style="font-size:14px">💌</span>
-        <span style="flex:1;min-width:0"><span style="display:block;font-size:12px;font-weight:700;letter-spacing:.4px">Semana do laser: chamar quem não voltou</span><span style="display:block;font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${WA_CFG.reativarOn?'🟢 Ligado':'⚪ Desligado'} · ${relEsc(resumo)}</span></span>
-        <span class="bd ${WA_CFG.reativarOn?'gr':'gy'}">${cand.length} na fila</span><span style="color:var(--text3);font-size:12px">Ajustar ▾</span>
-      </summary>
-      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bc)">
-        <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:13px;margin-bottom:10px"><input type="checkbox" id="rv-on" ${WA_CFG.reativarOn?'checked':''}> Envio automático ligado</label>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 10px">
-          <div class="fgr" style="grid-column:1/-1"><label>SERVIÇO (laser)</label><select id="rv-svc" style="${inp}">${svcOpt}</select></div>
-          <div class="fgr"><label>CLIENTES POR SEMANA</label><input type="number" id="rv-max" min="1" max="60" value="${max}" style="${inp}"></div>
-          <div class="fgr"><label>SEM VOLTAR HÁ (dias)</label><input type="number" id="rv-dias" min="7" max="365" value="${Number(WA_CFG.reativarDias)||30}" style="${inp}"></div>
-          <div class="fgr"><label>DIA DO LASER</label><select id="rv-nth" style="${inp}">${[[-1,'Último'],[1,'1º'],[2,'2º'],[3,'3º'],[4,'4º']].map(([v,l])=>`<option value="${v}" ${Number(WA_CFG.reativarNth)===v?'selected':''}>${l}</option>`).join('')}</select></div>
-          <div class="fgr"><label>DIA DA SEMANA</label><select id="rv-dow" style="${inp}">${DIAS_SEM.map((n,i)=>`<option value="${i}" ${Number(WA_CFG.reativarDow)===i?'selected':''}>${n[0].toUpperCase()+n.slice(1)}</option>`).join('')}</select></div>
-          <div class="fgr" style="grid-column:1/-1"><label>MENSAGEM ({nome} {data} {dia} {salao})</label><textarea id="rv-msg" rows="2" style="${inp};resize:vertical">${relEsc(WA_CFG.reativarMsg||'Oi {nome}! Tudo bem? 💛 Dia {data} ({dia}) é o dia do laser aqui no {salao}. Quer garantir o seu horário? É só me responder por aqui!')}</textarea></div>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px"><button class="btn gd sm" onclick="salvarReativ()">SALVAR</button><span style="font-size:11px;color:var(--text3)">Último envio: ${ult}</span></div>
-        <div style="margin-top:10px;font-size:11px;color:var(--text3);line-height:1.5">${quando}${WA_CFG.reativarSvc&&cand.length?`<br>Fila: ${cand.slice(0,8).map(x=>relEsc(x.c.nome.split(' ')[0])+' ('+x.dias+'d)').join(', ')}${cand.length>8?'…':''}`:''}<br>Manda poucas por dia, de segunda até o dia antes, em horário comercial. Cada cliente no máximo 1 vez a cada 25 dias; quem responde "parar" não recebe mais.</div>
-      </div>
-    </details>`;
+function autoQuando(au){
+  const n={'-1':'último','1':'1º','2':'2º','3':'3º','4':'4º'}[String(au.nth)]; const pul=(au.meses_pulados||[]).map(m=>MESES_ABR[m-1]).join(', ');
+  const ant=au.dias_antes==null?'na semana anterior (de segunda até o dia antes)':au.dias_antes==1?'no dia anterior':`nos ${au.dias_antes} dias anteriores`;
+  return `Todo ${n} ${DIAS_SEM[au.dow]} do mês${pul?' (menos '+pul+')':''} · mensagens ${ant}`;
 }
-async function salvarReativ(){
-  WA_CFG.reativarOn=document.getElementById('rv-on').checked;
-  WA_CFG.reativarSvc=document.getElementById('rv-svc').value;
-  if(WA_CFG.reativarOn&&!WA_CFG.reativarSvc){ toast('Escolha o serviço do laser antes de ligar','e'); WA_CFG.reativarOn=false; return; }
-  WA_CFG.reativarNth=Number(document.getElementById('rv-nth').value);
-  WA_CFG.reativarDow=Number(document.getElementById('rv-dow').value);
-  WA_CFG.reativarDias=Math.max(7,Math.min(365,Number(document.getElementById('rv-dias').value)||30));
-  WA_CFG.reativarMax=Math.max(1,Math.min(60,Number(document.getElementById('rv-max').value)||15));
-  WA_CFG.reativarMsg=document.getElementById('rv-msg').value.trim();
-  const {error}=await waSalvarDB();
-  if(error){ toast('Não consegui salvar: '+error.message,'e'); return; }
-  toast(WA_CFG.reativarOn?'✅ Envio automático ligado':'Salvo (envio desligado)','ok'); renderReativ();
+function autoTexto(au,c,ev){
+  const svc=(D.servicos.find(x=>x.id===au.servico_id)||{}).nome||'atendimento';
+  const e=ev?new Date(ev+'T12:00:00'):null;
+  return (au.mensagem||'').trim().replace(/\{nome\}/g,((c&&c.nome)||'Maria').split(' ')[0]).replace(/\{salao\}/g,S.salaoNome||'salão')
+    .replace(/\{servico\}/g,svc).replace(/\{data\}/g,e?fBR(ev).slice(0,5):'--/--').replace(/\{dia\}/g,e?DIAS_SEM[e.getDay()]:'dia');
+}
+function renderAutos(){
+  const el=document.getElementById('cfg-autos'); if(!el) return;
+  if(S.user?.role!=='admin'){ el.style.display='none'; return; } el.style.display='';
+  const l=D.autos||[];
+  const cab=`<div class="th2"><span class="th2-t">💌 AUTOMAÇÕES DE MENSAGEM</span><div class="tb-sp"></div><button class="btn gd xs" onclick="autoAbrir(null)">+ Nova automação</button></div>`;
+  if(D.autosOk===false){ el.innerHTML=cab+`<div style="padding:14px;font-size:12px;color:var(--text3)">Falta rodar o arquivo <b>automacoes.sql</b> no Supabase para liberar este recurso.</div>`; return; }
+  if(!l.length){ el.innerHTML=cab+`<div style="padding:14px;font-size:12px;color:var(--text3);line-height:1.6">Nenhuma automação ainda. Aqui você cria regras que mandam WhatsApp sozinhas: <b>quando</b> (ex.: último sábado do mês), <b>para quem</b> (ex.: quem fez laser e não voltou há 30 dias) e <b>qual mensagem</b>.</div>`; return; }
+  el.innerHTML=cab+`<div style="padding:4px 14px 12px">`+l.map(au=>{
+    const fila=autoFila(au); const j=autoJanela(au); const svc=au.servico_id?((D.servicos.find(x=>x.id===au.servico_id)||{}).nome||'serviço apagado'):'qualquer atendimento';
+    const usadas=j.inicio?D.reativ.filter(r=>r.automacao_id===au.id&&String(r.enviado_em).substring(0,10)>=j.inicio).length:0;
+    const ult=D.reativ.find(r=>r.automacao_id===au.id);
+    return `<div style="padding:12px 0;border-top:1px solid var(--bc)">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-weight:700;font-size:13px;flex:1;min-width:140px">${relEsc(au.nome)}</span>
+        <span class="bd ${au.ativa?'gr':'gy'}">${au.ativa?'🟢 Ligada':'⚪ Desligada'}</span><span class="bd bl">${fila.length} na fila</span>
+      </div>
+      <div style="font-size:12px;color:var(--text3);line-height:1.55;margin-top:4px">${relEsc(autoQuando(au))}<br>Para: ${relEsc(svc)} · sem vir há mais de ${Number(au.sumiu_dias)||30} dias · até ${Math.min(AUTO_MAX_CICLO,Number(au.max_ciclo)||AUTO_MAX_CICLO)} clientes por ciclo<br>${j.evento?(j.ativa?`<b style="color:var(--gold)">Em andamento</b> (evento dia ${fBR(j.evento)}) · enviadas neste ciclo: ${usadas}`:`Próximo evento: ${fBR(j.evento)}`):''}${ult?` · última mensagem: ${fBR(String(ult.enviado_em).substring(0,10))}`:''}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn ${au.ativa?'ol':'gd'} xs" onclick="autoToggle('${au.id}')">${au.ativa?'⏸ Desligar':'▶ Ligar'}</button>
+        <button class="btn ol xs" onclick="autoAbrir('${au.id}')">✏ Editar</button>
+        <button class="btn ol xs" onclick="autoDuplicar('${au.id}')">⧉ Duplicar</button>
+        <button class="btn rd xs" onclick="autoExcluir('${au.id}')">🗑</button>
+      </div>
+      ${fila.length?`<div style="font-size:11px;color:var(--text3);margin-top:6px">Fila: ${fila.slice(0,8).map(x=>relEsc(x.c.nome.split(' ')[0])+' ('+x.dias+'d)').join(', ')}${fila.length>8?'…':''}</div>`:''}
+    </div>`;}).join('')+`<div style="font-size:11px;color:var(--text3);line-height:1.5;border-top:1px solid var(--bc);padding-top:10px">🛡 <b>Proteção do WhatsApp:</b> no máximo ${AUTO_MAX_CICLO} clientes por automação a cada ciclo, ${AUTO_MAX_DIA} mensagens por dia somando tudo, só em horário comercial (10h–17h, sem domingo), com pausa entre uma e outra e cada cliente no máximo 1 vez a cada 25 dias. Quem responde "parar" não recebe mais.</div></div>`;
+}
+let _autoEd=null;
+function autoAbrir(id){
+  if(D.autosOk===false){ toast('Rode o automacoes.sql no Supabase primeiro','e'); return; }
+  const au=id?D.autos.find(x=>x.id===id):null; _autoEd=au?au.id:null;
+  const v=au||{nome:'',nth:-1,dow:6,dias_antes:null,meses_pulados:[],servico_id:'',sumiu_dias:30,max_ciclo:AUTO_MAX_CICLO,mensagem:AUTO_TEXTO};
+  document.getElementById('au-t').textContent=au?'EDITAR AUTOMAÇÃO':'NOVA AUTOMAÇÃO';
+  document.getElementById('au-nome').value=v.nome||'';
+  document.getElementById('au-nth').value=String(v.nth); document.getElementById('au-dow').value=String(v.dow);
+  document.getElementById('au-antes').value=v.dias_antes==null?'':String(v.dias_antes);
+  document.getElementById('au-svc').innerHTML='<option value="">Qualquer atendimento</option>'+D.servicos.map(x=>`<option value="${x.id}" ${x.id===v.servico_id?'selected':''}>${relEsc(x.nome)}</option>`).join('');
+  document.getElementById('au-dias').value=v.sumiu_dias||30; document.getElementById('au-max').value=Math.min(AUTO_MAX_CICLO,v.max_ciclo||AUTO_MAX_CICLO);
+  document.getElementById('au-msg').value=v.mensagem||AUTO_TEXTO;
+  document.getElementById('au-meses').innerHTML=MESES_ABR.map((m,i)=>`<label style="display:flex;align-items:center;gap:6px;padding:8px;border:var(--brd);border-radius:8px;font-size:13px"><input type="checkbox" class="au-mes" value="${i+1}" ${(v.meses_pulados||[]).includes(i+1)?'checked':''}>${m}</label>`).join('');
+  autoPrever(); openModal('m-auto');
+}
+async function autoSalvar(){
+  const nome=document.getElementById('au-nome').value.trim(); if(!nome){ toast('Dê um nome para a automação','e'); return; }
+  const pul=[...document.querySelectorAll('.au-mes:checked')].map(x=>Number(x.value));
+  if(pul.length>=12){ toast('Não dá para pular todos os meses','e'); return; }
+  const ant=document.getElementById('au-antes').value;
+  const mensagem=document.getElementById('au-msg').value.trim(); if(!mensagem){ toast('Escreva a mensagem','e'); return; }
+  const row={nome,nth:Number(document.getElementById('au-nth').value),dow:Number(document.getElementById('au-dow').value),dias_antes:ant===''?null:Number(ant),meses_pulados:pul,
+    servico_id:document.getElementById('au-svc').value||null,sumiu_dias:Math.max(7,Math.min(365,Number(document.getElementById('au-dias').value)||30)),
+    max_ciclo:Math.max(1,Math.min(AUTO_MAX_CICLO,Number(document.getElementById('au-max').value)||AUTO_MAX_CICLO)),mensagem};
+  showLoad('Salvando...');
+  let r;
+  if(_autoEd) r=await sb.from('automacoes').update(row).eq('id',_autoEd).select().single();
+  else r=await sb.from('automacoes').insert({...row,ativa:false}).select().single();
+  hideLoad();
+  if(r.error){ toast('Não consegui salvar: '+r.error.message,'e'); return; }
+  if(_autoEd) D.autos=D.autos.map(x=>x.id===_autoEd?{...x,...r.data}:x); else D.autos.push(r.data);
+  closeModal('m-auto'); renderAutos(); toast(_autoEd?'Automação salva':'Automação criada (desligada). Confira a fila e toque em Ligar.','ok');
+}
+async function autoToggle(id){
+  const au=D.autos.find(x=>x.id===id); if(!au) return;
+  const {error}=await sb.from('automacoes').update({ativa:!au.ativa}).eq('id',id);
+  if(error){ toast(error.message,'e'); return; } au.ativa=!au.ativa; renderAutos(); toast(au.ativa?'✅ Automação ligada':'Automação desligada','ok');
+}
+async function autoDuplicar(id){
+  const au=D.autos.find(x=>x.id===id); if(!au) return;
+  const {id:_i,salao_id:_s,created_at:_c,ultimo_envio:_u,...resto}=au;
+  const {data,error}=await sb.from('automacoes').insert({...resto,nome:au.nome+' (cópia)',ativa:false}).select().single();
+  if(error){ toast(error.message,'e'); return; } D.autos.push(data); renderAutos(); toast('Duplicada (desligada). Toque em Editar para ajustar.','ok');
+}
+function autoExcluir(id){
+  confirm2('🗑','EXCLUIR AUTOMAÇÃO','Ela deixa de enviar mensagens. O histórico de quem já recebeu continua.',async()=>{
+    const {error}=await sb.from('automacoes').delete().eq('id',id);
+    if(error){ toast(error.message,'e'); return; } D.autos=D.autos.filter(x=>x.id!==id); renderAutos(); toast('Automação excluída','w');
+  },'EXCLUIR','rd');
+}
+function autoPrever(){
+  const au={mensagem:document.getElementById('au-msg').value,servico_id:document.getElementById('au-svc').value||null};
+  const j=autoJanela({nth:Number(document.getElementById('au-nth').value),dow:Number(document.getElementById('au-dow').value),dias_antes:document.getElementById('au-antes').value===''?null:Number(document.getElementById('au-antes').value),meses_pulados:[...document.querySelectorAll('.au-mes:checked')].map(x=>Number(x.value))});
+  document.getElementById('au-prev').textContent=autoTexto(au,{nome:'Maria Souza'},j.evento);
 }
 
 async function waCarregar(){
@@ -4483,7 +4566,6 @@ async function waCarregar(){
     if(data){
       WA_CFG.url=data.wa_url||''; WA_CFG.inst=data.wa_inst||''; WA_CFG.key=data.wa_key||'';
       WA_CFG.dono=data.wa_dono||''; WA_CFG.relhr=data.wa_rel_hora||'07:00'; WA_CFG.ultimo=data.wa_rel_ultimo||'';
-      WA_CFG.reativarOn=!!data.reativar_on; WA_CFG.reativarDias=Number(data.reativar_dias)||30; WA_CFG.reativarMsg=data.reativar_msg||''; WA_CFG.reativarMax=Number(data.reativar_max)||15; WA_CFG.reativarUltimo=data.reativar_ultimo||''; WA_CFG.reativarSvc=data.reativar_servico||''; WA_CFG.reativarNth=data.reativar_nth==null?-1:Number(data.reativar_nth); WA_CFG.reativarDow=data.reativar_dow==null?6:Number(data.reativar_dow);
     } else {
       // primeira vez: aproveita o que estava salvo neste aparelho
       const g=k=>{ try{return localStorage.getItem(k)||'';}catch(e){return '';} };
@@ -4497,10 +4579,7 @@ async function waCarregar(){
 }
 async function waSalvarDB(){
   const base={salao_id:S.salaoId,wa_url:WA_CFG.url,wa_inst:WA_CFG.inst,wa_key:WA_CFG.key,wa_dono:WA_CFG.dono,wa_rel_hora:WA_CFG.relhr,wa_rel_ultimo:WA_CFG.ultimo,updated_at:new Date().toISOString()};
-  const rv={reativar_on:!!WA_CFG.reativarOn,reativar_dias:Number(WA_CFG.reativarDias)||30,reativar_msg:WA_CFG.reativarMsg||'',reativar_max:Number(WA_CFG.reativarMax)||15,reativar_servico:WA_CFG.reativarSvc||null,reativar_nth:Number(WA_CFG.reativarNth),reativar_dow:Number(WA_CFG.reativarDow)};
-  let r=await sb.from('salao_whatsapp').upsert({...base,...rv},{onConflict:'salao_id'});
-  // banco ainda sem as colunas novas (recorrencia-reativacao.sql não rodou): salva o resto
-  if(r.error&&/reativar/i.test(r.error.message||'')) r=await sb.from('salao_whatsapp').upsert(base,{onConflict:'salao_id'});
+  const r=await sb.from('salao_whatsapp').upsert(base,{onConflict:'salao_id'});
   return r;
 }
 async function saveConfigWA(){

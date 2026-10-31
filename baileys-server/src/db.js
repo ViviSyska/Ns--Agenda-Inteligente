@@ -91,16 +91,20 @@ export function createDb(sb) {
     },
 
     // ---------- reativação de clientes sumidas ----------
-    async getReativacaoCfg(salaoId) {
-      let q = sb.from('salao_whatsapp').select('*');
-      q = salaoId ? q.eq('salao_id', salaoId) : q.eq('reativar_on', true);
-      const { data, error } = await q.order('updated_at', { ascending: true }).limit(1);
+    async listAutomacoes(salaoId) {
+      let q = sb.from('automacoes').select('*').eq('ativa', true);
+      if (salaoId) q = q.eq('salao_id', salaoId);
+      const { data, error } = await q.order('created_at', { ascending: true });
       if (error) throw error;
-      return (data && data[0]) || null;
+      return data || [];
     },
-    async setReativarUltimo(salaoId, dia) {
-      const { error } = await sb.from('salao_whatsapp').update({ reativar_ultimo: dia }).eq('salao_id', salaoId);
+    async setAutomacaoUltimo(id, dia) {
+      const { error } = await sb.from('automacoes').update({ ultimo_envio: dia }).eq('id', id);
       if (error) throw error;
+    },
+    async listServicosNomes(salaoId) {
+      const { data } = await sb.from('servicos').select('id,nome').eq('salao_id', salaoId);
+      return new Map((data || []).map((x) => [x.id, x.nome]));
     },
     listClientesSalao(salaoId) {
       return fetchAll(() => sb.from('clientes').select('id,nome,whatsapp,nao_contatar').eq('salao_id', salaoId).not('whatsapp', 'is', null).order('id'));
@@ -110,12 +114,13 @@ export function createDb(sb) {
         .then((rows) => rows.map((a) => ({ id: a.id, cliente_id: a.cliente_id, data: a.data, status: a.status, servicos: (a.agendamento_servicos || []).map((x) => x.servico_id) })));
     },
     async listReativacoes(salaoId) {
-      const { data, error } = await sb.from('reativacoes').select('cliente_id,enviado_em').eq('salao_id', salaoId).order('enviado_em', { ascending: false }).limit(2000);
+      const { data, error } = await sb.from('reativacoes').select('cliente_id,enviado_em,automacao_id').eq('salao_id', salaoId).order('enviado_em', { ascending: false }).limit(2000);
       if (error) throw error;
       return data || [];
     },
     async insertReativacao(row) {
-      const { error } = await sb.from('reativacoes').insert(row);
+      let { error } = await sb.from('reativacoes').insert(row);
+      if (error && /automacao_id/.test(error.message || '')) { const { automacao_id, ...resto } = row; ({ error } = await sb.from('reativacoes').insert(resto)); }
       if (error) throw error;
     },
     async getSalaoNome(salaoId) {
