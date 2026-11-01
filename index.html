@@ -2081,6 +2081,7 @@ async function entrarSalao(m){
   const ok = await loadAll();
   if(!ok){ S.user=null; return; }
   await waCarregar();
+  try{ await repararStatusVazio(); }catch(e){ console.warn(e); }
   await serieCarregar(); await reativCarregar();
   document.getElementById('ls').style.display='none';
   document.getElementById('app').style.display='flex';
@@ -2112,6 +2113,21 @@ async function entrarSalao(m){
     })
     .subscribe();
   }
+}
+// Comandas que ficaram com o status em branco (edição antiga de comanda paga): volta ao normal
+async function repararStatusVazio(){
+  if(S.user?.role!=='admin') return;
+  const ruins=D.agendamentos.filter(a=>!a.status);
+  if(!ruins.length) return;
+  let n=0;
+  for(const a of ruins){
+    const paga=D.caixa.some(x=>x.agendamento_id===a.id&&x.tipo==='entrada');
+    const st=paga?'concluido':'pendente';
+    const upd={status:st}; if(paga&&(a.saldo_devedor===null||a.saldo_devedor===undefined)) upd.saldo_devedor=Math.max(0,gAgSaldo(a));
+    const {error}=await sb.from('agendamentos').update(upd).eq('id',a.id);
+    if(!error){ a.status=st; if(upd.saldo_devedor!==undefined) a.saldo_devedor=upd.saldo_devedor; n++; }
+  }
+  if(n) toast(`🔧 ${n} comanda(s) com status em branco foram corrigidas`,'w');
 }
 function abrirConta(){
   document.getElementById('ct-email').textContent=S.email||'';
@@ -2807,7 +2823,7 @@ function abrirAg(data,hora,profId){
   const pkgInfo=document.getElementById('ag-pkg-info'); if(pkgInfo){pkgInfo.style.display='none';pkgInfo.textContent='';}
   document.getElementById('ag-dt').value=data||dStr(S.agDate);
   document.getElementById('ag-hr').value=hora||'09:00';
-  document.getElementById('ag-ob').value=''; document.getElementById('ag-st').value='pendente'; document.getElementById('ag-fc').checked=false;
+  document.getElementById('ag-ob').value=''; setAgStatusSel('pendente'); document.getElementById('ag-fc').checked=false;
   // Reset valor personalizado
   const cChk=document.getElementById('ag-custom-chk'); if(cChk)cChk.checked=false;
   const cWrap=document.getElementById('ag-custom-wrap'); if(cWrap)cWrap.style.display='none';
@@ -2820,6 +2836,18 @@ function abrirAg(data,hora,profId){
   else if(D.profs.length && !ps.value) ps.value=D.profs[0].id;
   openModal('m-ag');
 }
+// O seletor de status só tem Pendente/Confirmado. Para comandas pagas/em atendimento/canceladas,
+// acrescenta a opção do status atual — senão o select fica vazio e o salvar apagava o status.
+function setAgStatusSel(st){
+  const sel=document.getElementById('ag-st'); if(!sel) return;
+  sel.querySelectorAll('option[data-x]').forEach(o=>o.remove());
+  st=st||'pendente';
+  if(!['pendente','confirmado'].includes(st)){
+    const o=document.createElement('option'); o.value=st; o.dataset.x='1';
+    o.textContent={concluido:'💰 Pago (concluído)',atendimento:'🟣 Em atendimento',cancelado:'❌ Cancelado'}[st]||st; sel.appendChild(o);
+  }
+  sel.value=st;
+}
 function editAg(id){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
   S.editAgId=id;
@@ -2828,7 +2856,7 @@ function editAg(id){
   document.getElementById('ag-dt').value=(ag.data||'').substring(0,10);
   document.getElementById('ag-hr').value=ag.hora;
   document.getElementById('ag-ob').value=ag.observacoes||ag.obs||'';
-  document.getElementById('ag-st').value=ag.status; document.getElementById('ag-fc').checked=false;
+  setAgStatusSel(ag.status); document.getElementById('ag-fc').checked=false;
   // Preenche valor personalizado se já existir (permite zero/cortesia)
   const cChk=document.getElementById('ag-custom-chk');
   const cWrap=document.getElementById('ag-custom-wrap');
@@ -2940,7 +2968,7 @@ async function salvarAg(){
   const customValRaw=document.getElementById('ag-custom-val')?.value;
   const usandoCustomAg = customChk?.checked && customValRaw!=='' && customValRaw!=null;
   const valor_cobrado = usandoCustomAg ? parseFloat(customValRaw) : null;
-  const agData={ cliente_id:cliId2, profissional_id:profId2, data, hora, duracao_total:durTotal, status:document.getElementById('ag-st').value, observacoes:document.getElementById('ag-ob').value, forcar:document.getElementById('ag-fc').checked, pacote_id, pacote_ids, valor_cobrado };
+  const agData={ cliente_id:cliId2, profissional_id:profId2, data, hora, duracao_total:durTotal, status:(document.getElementById('ag-st').value||(S.editAgId&&(D.agendamentos.find(a=>a.id===S.editAgId)||{}).status)||'pendente'), observacoes:document.getElementById('ag-ob').value, forcar:document.getElementById('ag-fc').checked, pacote_id, pacote_ids, valor_cobrado };
   let agId=S.editAgId;
   const semIds=()=>{ const {pacote_ids:_,...resto}=agData; return resto; };
   const semCol=e=>e&&/pacote_ids/.test(e.message||'');
@@ -3437,8 +3465,12 @@ async function confirmarFat(){
       // o preço já combinado. MAS se o usuário marcou "Cobrar valor diferente" agora,
       // é uma renegociação explícita: o valor_cobrado TEM que ser atualizado, senão
       // o saldo devedor fica calculado contra o preço antigo pra sempre.
-      if(ag.valor_cobrado===null || ag.valor_cobrado===undefined || usandoCustom){
+      if(usandoCustom){
         upd.valor_cobrado = totalFinal*fatia;
+      } else if(ag.valor_cobrado===null || ag.valor_cobrado===undefined){
+        // trava o preço COMBINADO (total da comanda), não o que falta pagar agora
+        // (se já estava tudo pago, o que falta é zero e o preço não pode virar zero)
+        upd.valor_cobrado = Math.max(0, gAgtot(ag) - desc*fatia);
       }
       if(desc>0 && (ag.desconto===null||ag.desconto===undefined||ag.desconto===0)) upd.desconto = desc*fatia;
       if(novoSaldo<0.01) upd.status='concluido'; // só fecha quando realmente quitou
