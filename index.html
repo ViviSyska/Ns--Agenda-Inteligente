@@ -297,6 +297,8 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
 .conf-ic{font-size:34px;margin-bottom:10px}
 
 /* LOGIN */
+.pw-w{position:relative}.pw-w input{width:100%;padding-right:44px}
+.pw-eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:0;cursor:pointer;font-size:17px;line-height:1;padding:8px 10px;opacity:.65;color:var(--text)}.pw-eye.on{opacity:1}
 #ls{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9990}
 .lc{background:var(--card);border:var(--brd);border-radius:16px;padding:36px;width:340px;animation:mIn .3s ease;box-shadow:var(--sh)}
 
@@ -735,9 +737,10 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <div style="font-size:10px;color:var(--text3);letter-spacing:3px;margin-top:2px">INTELIGENTE · GESTÃO DE SALÃO</div>
     </div>
     <div class="fg" style="gap:12px">
-      <div class="fgr"><label>E-MAIL</label><input type="email" id="l-em" autocomplete="username" placeholder="seu@email.com" onkeydown="if(event.key==='Enter')loginEnviar()"></div>
-      <div class="fgr"><label>SENHA</label><input type="password" id="l-pw" autocomplete="current-password" placeholder="Sua senha" onkeydown="if(event.key==='Enter')loginEnviar()"></div>
+      <div class="fgr"><label>E-MAIL</label><input type="email" id="l-em" autocomplete="username" placeholder="seu@email.com" oninput="loginDesbloqueioSeTrocou()" onkeydown="if(event.key==='Enter')loginEnviar()"></div>
+      <div class="fgr"><label>SENHA</label><div class="pw-w"><input type="password" id="l-pw" autocomplete="current-password" placeholder="Sua senha" onkeydown="if(event.key==='Enter')loginEnviar()"><button type="button" class="pw-eye" onclick="verSenha('l-pw',this)" aria-label="Mostrar senha" title="Mostrar senha">👁</button></div></div>
     </div>
+    <div id="l-msg" role="alert" style="display:none;margin-top:12px;font-size:12px;line-height:1.45;padding:9px 11px;border-radius:8px;background:rgba(224,80,80,.12);color:#e05050"></div>
     <div style="height:1px;background:var(--bc);margin:18px 0"></div>
     <button class="btn gd" id="l-btn" style="width:100%;justify-content:center;padding:11px" onclick="loginEnviar()">ENTRAR</button>
     <div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;margin-top:14px">
@@ -745,6 +748,10 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <a href="#" id="l-modo" onclick="loginModo();return false" style="color:var(--gold);font-weight:700">Criar conta do meu salão</a>
     </div>
   </div>
+</div>
+
+<div id="inat-av" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:9995;background:var(--card);border:var(--brd);border-radius:12px;padding:12px 14px;box-shadow:var(--sh);max-width:92vw;font-size:13px;text-align:center">
+  <div id="inat-tx" style="margin-bottom:8px"></div><button class="btn gd sm" onclick="inatMarcar(true)">Continuar conectada(o)</button>
 </div>
 
 <!-- APP -->
@@ -778,6 +785,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
         <div style="flex:1;min-width:0">
           <div class="u-nm" id="u-nm">Admin</div>
           <div class="u-rl" id="u-rl">ADMINISTRADOR</div>
+          <div id="u-em" style="font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title=""></div>
         </div>
         <button class="lo-btn" onclick="abrirConta()" title="Minha conta">⚙</button>
       </div>
@@ -1454,8 +1462,8 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <div id="ct-email" style="font-weight:700;margin-bottom:4px"></div>
       <div id="ct-salao" style="font-size:12px;color:var(--text3);margin-bottom:14px"></div>
       <div id="ct-troca" style="margin-bottom:14px"></div>
-      <div class="fgr"><label>NOVA SENHA</label><input type="password" id="ct-pw" autocomplete="new-password" placeholder="Mínimo 6 caracteres"></div>
-      <div class="fgr" style="margin-top:8px"><label>REPITA A NOVA SENHA</label><input type="password" id="ct-pw2" autocomplete="new-password"></div>
+      <div class="fgr"><label>NOVA SENHA</label><div class="pw-w"><input type="password" id="ct-pw" autocomplete="new-password" placeholder="Mínimo 8 caracteres"><button type="button" class="pw-eye" onclick="verSenha('ct-pw',this)" aria-label="Mostrar senha" title="Mostrar senha">👁</button></div></div>
+      <div class="fgr" style="margin-top:8px"><label>REPITA A NOVA SENHA</label><div class="pw-w"><input type="password" id="ct-pw2" autocomplete="new-password"><button type="button" class="pw-eye" onclick="verSenha('ct-pw2',this)" aria-label="Mostrar senha" title="Mostrar senha">👁</button></div></div>
     </div>
     <div class="mf"><button class="btn rd" onclick="closeModal('m-conta');openModal('m-logout')">Sair</button><button class="btn gd" onclick="trocarSenha()">SALVAR SENHA</button></div>
   </div>
@@ -1895,17 +1903,55 @@ function loginModo(){
   document.getElementById('l-btn').textContent=LOGIN_CRIAR?'CRIAR CONTA':'ENTRAR';
   document.getElementById('l-modo').textContent=LOGIN_CRIAR?'Já tenho conta':'Criar conta do meu salão';
   document.getElementById('l-esq').style.display=LOGIN_CRIAR?'none':'';
-  document.getElementById('l-pw').placeholder=LOGIN_CRIAR?'Crie uma senha (mín. 6)':'Sua senha';
+  document.getElementById('l-pw').placeholder=LOGIN_CRIAR?'Crie uma senha (mín. 8)':'Sua senha';
 }
 function loginEnviar(){ return LOGIN_CRIAR?criarConta():doLogin(); }
+// ---- olho da senha
+function verSenha(id,btn){ const i=document.getElementById(id); if(!i) return; const ver=i.type==='password'; i.type=ver?'text':'password'; if(btn){ btn.classList.toggle('on',ver); btn.title=ver?'Esconder senha':'Mostrar senha'; btn.setAttribute('aria-label',btn.title); } }
+// ---- mensagem fixa na tela de login
+function loginMsg(t,cor){ const el=document.getElementById('l-msg'); if(!el) return; if(!t){ el.style.display='none'; el.textContent=''; return; } el.textContent=t; el.style.display='block'; const ok=cor==='ok'; el.style.background=ok?'rgba(80,200,120,.12)':'rgba(224,80,80,.12)'; el.style.color=ok?'#3fbf6f':'#e05050'; }
+// ---- bloqueio depois de 3 erros (guarda neste aparelho e, se o banco tiver, também no servidor)
+const LOGIN_MAX=3, LOGIN_BLOQ_MIN=15;
+const lkKey=em=>'ns_lk_'+String(em||'').trim().toLowerCase();
+function lkLer(em){ try{ return JSON.parse(localStorage.getItem(lkKey(em))||'null')||{f:0,ate:0}; }catch(e){ return {f:0,ate:0}; } }
+function lkGravar(em,o){ try{ localStorage.setItem(lkKey(em),JSON.stringify(o)); }catch(e){} }
+function lkEstadoLocal(em){ const o=lkLer(em); const seg=Math.ceil((o.ate-Date.now())/1000); return seg>0?{bloqueado:true,segundos:seg,restam:0}:{bloqueado:false,segundos:0,restam:Math.max(0,LOGIN_MAX-(o.f||0))}; }
+function lkFalhaLocal(em){ let o=lkLer(em); if(o.ate>Date.now()) return lkEstadoLocal(em); o.f=(o.f||0)+1; if(o.f>=LOGIN_MAX){ o={f:0,ate:Date.now()+LOGIN_BLOQ_MIN*60000}; } lkGravar(em,o); return lkEstadoLocal(em); }
+const lkMax=(a,b)=>a.bloqueado||b.bloqueado?{bloqueado:true,segundos:Math.max(a.segundos||0,b.segundos||0),restam:0}:{bloqueado:false,segundos:0,restam:Math.min(a.restam,b.restam)};
+async function loginEstado(em){
+  const loc=lkEstadoLocal(em);
+  try{ const {data,error}=await sb.rpc('login_estado',{p_email:em}); if(!error&&data&&typeof data.bloqueado==='boolean') return lkMax(loc,data); }catch(e){}
+  return loc;
+}
+async function loginFalhou(em){
+  const loc=lkFalhaLocal(em);
+  try{ const {data,error}=await sb.rpc('login_falhou',{p_email:em}); if(!error&&data&&typeof data.bloqueado==='boolean') return lkMax(loc,data); }catch(e){}
+  return loc;
+}
+let _lkTimer=null,_lkEmail='';
+function loginBloqueio(seg,em){
+  _lkEmail=(em||document.getElementById('l-em').value).trim().toLowerCase();
+  const btn=document.getElementById('l-btn'); const fim=Date.now()+seg*1000;
+  clearInterval(_lkTimer);
+  const tick=()=>{
+    const r=Math.ceil((fim-Date.now())/1000);
+    if(r<=0){ clearInterval(_lkTimer); btn.disabled=false; loginMsg('Você já pode tentar de novo.','ok'); return; }
+    btn.disabled=true; loginMsg(`Muitas tentativas erradas. Por segurança, aguarde ${Math.floor(r/60)}:${String(r%60).padStart(2,'0')} para tentar de novo. Se esqueceu a senha, use "Esqueci a senha".`);
+  };
+  tick(); _lkTimer=setInterval(tick,1000);
+}
+function loginDesbloqueioSeTrocou(){
+  if(!_lkTimer) return; const v=document.getElementById('l-em').value.trim().toLowerCase();
+  if(v!==_lkEmail){ clearInterval(_lkTimer); _lkTimer=null; document.getElementById('l-btn').disabled=false; loginMsg(''); }
+}
 async function criarConta(){
   const em=document.getElementById('l-em').value.trim(), pw=document.getElementById('l-pw').value;
-  if(!em||pw.length<6){ toast('Informe o e-mail e uma senha de pelo menos 6 caracteres','e'); return; }
+  if(!em||pw.length<8){ toast('Informe o e-mail e uma senha de pelo menos 8 caracteres','e'); return; }
   showLoad('Criando conta...');
   const {data,error}=await sb.auth.signUp({email:em,password:pw});
   hideLoad();
   if(error){ toast(error.message,'e'); return; }
-  if(data.session){ await posLogin(); }
+  if(data.session){ inatMarcar(); await posLogin(); }
   else { toast('Enviamos um e-mail de confirmação. Confirme e depois entre.','w'); loginModo(); }
 }
 async function loginEsqueci(){
@@ -1917,15 +1963,57 @@ async function loginEsqueci(){
 async function doLogin(){
   const em=document.getElementById('l-em').value.trim();
   const pw=document.getElementById('l-pw').value;
-  if(!em||!pw){ toast('Informe e-mail e senha','e'); return; }
+  loginMsg('');
+  if(!em||!pw){ loginMsg('Informe e-mail e senha.'); return; }
+  const est=await loginEstado(em);
+  if(est.bloqueado){ loginBloqueio(est.segundos,em); return; }
   showLoad('Entrando...');
   const {error}=await sb.auth.signInWithPassword({email:em,password:pw});
   hideLoad();
   if(error){
     const m=error.message||'';
-    toast(/invalid/i.test(m)?'E-mail ou senha incorretos':(/confirm/i.test(m)?'Confirme seu e-mail antes de entrar':m),'e'); return;
+    if(/invalid/i.test(m)){
+      const e2=await loginFalhou(em);
+      if(e2.bloqueado){ loginBloqueio(e2.segundos,em); return; }
+      loginMsg(`E-mail ou senha incorretos. ${e2.restam===1?'Resta 1 tentativa.':'Restam '+e2.restam+' tentativas.'}`); return;
+    }
+    loginMsg(/confirm/i.test(m)?'Confirme seu e-mail antes de entrar.':/rate|too many/i.test(m)?'Muitas tentativas. Aguarde alguns minutos e tente de novo.':m); return;
   }
+  try{ localStorage.setItem('ns_email',em); localStorage.removeItem(lkKey(em)); }catch(e){}
+  try{ sb.rpc('login_ok').then(()=>{},()=>{}); }catch(e){}
+  inatMarcar(true);
   await posLogin();
+}
+// ---- sai sozinho depois de 2 horas sem usar
+const INAT_MS=2*3600*1000, INAT_AVISO_MS=5*60*1000;
+let _inatMem=0,_inatTimer=null,_inatOn=false,_inatSaindo=false;
+function inatUltima(){ let v=0; try{ v=Number(localStorage.getItem('ns_ativo'))||0; }catch(e){} return Math.max(v,_inatMem); }
+function inatMarcar(forcar){
+  const t=Date.now(); if(!forcar&&t-_inatMem<10000) return; _inatMem=t;
+  try{ localStorage.setItem('ns_ativo',String(t)); }catch(e){}
+  const av=document.getElementById('inat-av'); if(av) av.style.display='none';
+}
+function inatExpirou(){ const u=inatUltima(); return u>0&&Date.now()-u>=INAT_MS; }
+async function inatSair(){
+  if(_inatSaindo) return; _inatSaindo=true;
+  try{ localStorage.setItem('ns_msg','Sua sessão foi encerrada porque ficou 2 horas sem uso. Entre de novo.'); localStorage.removeItem('ns_ativo'); }catch(e){}
+  try{ msgStop(); }catch(e){}
+  try{ await sb.auth.signOut(); }catch(e){}
+  location.reload();
+}
+function inatChecar(){
+  if(!_inatOn||!S.user) return;
+  const idle=Date.now()-inatUltima();
+  if(idle>=INAT_MS){ inatSair(); return; }
+  const av=document.getElementById('inat-av');
+  if(av&&idle>=INAT_MS-INAT_AVISO_MS){ document.getElementById('inat-tx').textContent=`Por segurança, sua sessão será encerrada em ${Math.max(1,Math.ceil((INAT_MS-idle)/60000))} min por falta de uso.`; av.style.display='block'; }
+}
+function inatIniciar(){
+  if(_inatOn) return; _inatOn=true; inatMarcar(true);
+  ['pointerdown','keydown','touchstart','scroll','mousemove'].forEach(ev=>document.addEventListener(ev,()=>inatMarcar(),{passive:true,capture:true}));
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) inatChecar(); });
+  window.addEventListener('focus',inatChecar);
+  _inatTimer=setInterval(inatChecar,20000);
 }
 async function posLogin(){
   const {data:u}=await sb.auth.getUser();
@@ -1982,6 +2070,8 @@ async function entrarSalao(m){
   document.getElementById('u-av').textContent=ini(user.nome);
   document.getElementById('u-nm').textContent=user.nome;
   document.getElementById('u-rl').textContent=user.role==='admin'?'ADMINISTRADORA':'PROFISSIONAL';
+  { const ue=document.getElementById('u-em'); if(ue){ ue.textContent=S.email||''; ue.title=S.email||''; } }
+  inatIniciar(); toast('Entrou como '+(S.email||'')+' · '+(S.salaoNome||''));
   ['n-cfg','n-rel','n-cx','n-dp','n-msg'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=user.role==='prof'?'none':''});
   bnPerfil();
   if(window.innerWidth<768) document.getElementById('mob-b').style.display='flex';
@@ -2015,7 +2105,7 @@ function abrirConta(){
 }
 async function trocarSenha(){
   const a=document.getElementById('ct-pw').value, b=document.getElementById('ct-pw2').value;
-  if(a.length<6){ toast('Senha mínima de 6 caracteres','e'); return; }
+  if(a.length<8){ toast('Senha mínima de 8 caracteres','e'); return; }
   if(a!==b){ toast('As senhas não são iguais','e'); return; }
   showLoad('Salvando...');
   const {error}=await sb.auth.updateUser({password:a});
@@ -2025,10 +2115,27 @@ async function trocarSenha(){
 }
 // Abre direto se já houver sessão; link de "esqueci a senha" abre a troca de senha
 sb.auth.onAuthStateChange((ev)=>{ if(ev==='PASSWORD_RECOVERY'){ setTimeout(()=>{ if(!S.user) posLogin().then(()=>abrirConta()); else abrirConta(); },300); } });
-(async()=>{ try{ const {data}=await sb.auth.getSession(); if(data&&data.session) await posLogin(); }catch(e){} })();
+(async()=>{
+  try{
+    const em=localStorage.getItem('ns_email')||''; if(em){ const i=document.getElementById('l-em'); if(i&&!i.value) i.value=em; }
+    const msg=localStorage.getItem('ns_msg'); if(msg){ localStorage.removeItem('ns_msg'); loginMsg(msg,'ok'); }
+  }catch(e){}
+  try{
+    const {data}=await sb.auth.getSession();
+    if(data&&data.session){
+      if(inatExpirou()){ // ficou mais de 2h parado com o app fechado
+        try{ localStorage.setItem('ns_msg','Sua sessão foi encerrada porque ficou 2 horas sem uso. Entre de novo.'); localStorage.removeItem('ns_ativo'); }catch(e){}
+        await sb.auth.signOut(); loginMsg('Sua sessão foi encerrada porque ficou 2 horas sem uso. Entre de novo.','ok'); try{ localStorage.removeItem('ns_msg'); }catch(e){} return;
+      }
+      showLoad('Entrando como '+(data.session.user?.email||'')+'...');
+      try{ await posLogin(); } finally { hideLoad(); }
+    }
+  }catch(e){}
+})();
 
 function doLogout(){
   closeModal('m-logout'); closeModal('m-novosalao'); closeModal('m-escsalao'); try{msgStop();}catch(e){}
+  try{ localStorage.removeItem('ns_ativo'); }catch(e){}
   sb.auth.signOut().finally(()=>{ location.reload(); });
 }
 
