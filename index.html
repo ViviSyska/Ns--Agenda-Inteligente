@@ -299,6 +299,7 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
 /* LOGIN */
 .pw-w{position:relative}.pw-w input{width:100%;padding-right:44px}
 .pw-eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:0;cursor:pointer;font-size:17px;line-height:1;padding:8px 10px;opacity:.65;color:var(--text)}.pw-eye.on{opacity:1}
+#m-codigo,#m-escsalao,#m-novosalao{z-index:9992}
 #ls{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9990}
 .lc{background:var(--card);border:var(--brd);border-radius:16px;padding:36px;width:340px;animation:mIn .3s ease;box-shadow:var(--sh)}
 
@@ -1462,6 +1463,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <div id="ct-email" style="font-weight:700;margin-bottom:4px"></div>
       <div id="ct-salao" style="font-size:12px;color:var(--text3);margin-bottom:14px"></div>
       <div id="ct-troca" style="margin-bottom:14px"></div>
+      <div id="ct-seg" style="margin-bottom:14px;display:none"></div>
       <div class="fgr"><label>NOVA SENHA</label><div class="pw-w"><input type="password" id="ct-pw" autocomplete="new-password" placeholder="Mínimo 8 caracteres"><button type="button" class="pw-eye" onclick="verSenha('ct-pw',this)" aria-label="Mostrar senha" title="Mostrar senha">👁</button></div></div>
       <div class="fgr" style="margin-top:8px"><label>REPITA A NOVA SENHA</label><div class="pw-w"><input type="password" id="ct-pw2" autocomplete="new-password"><button type="button" class="pw-eye" onclick="verSenha('ct-pw2',this)" aria-label="Mostrar senha" title="Mostrar senha">👁</button></div></div>
     </div>
@@ -1521,6 +1523,21 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <div id="au-prev" style="font-size:13px;background:var(--bg3,rgba(255,255,255,.04));border:var(--brd);border-radius:10px;padding:10px 12px;white-space:pre-wrap"></div>
     </div>
     <div class="mf"><button class="btn gh" onclick="closeModal('m-auto')">Cancelar</button><button class="btn gd" onclick="autoSalvar()">SALVAR</button></div>
+  </div>
+</div>
+
+<div class="ov" id="m-codigo">
+  <div class="md" style="max-width:420px">
+    <div class="mh"><div class="mt">🔐 CÓDIGO DE SEGURANÇA</div></div>
+    <div class="mb">
+      <div id="cd-msg" style="font-size:13px;line-height:1.5;margin-bottom:12px"></div>
+      <div class="fgr"><label>CÓDIGO DE 6 DÍGITOS</label><input id="cd-in" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="000000" style="font-size:24px;letter-spacing:8px;text-align:center" onkeydown="if(event.key==='Enter')codigoConfirmar()"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px">
+        <button class="btn ol xs" id="cd-reenv" onclick="codigoPedir()">Reenviar código</button>
+        <span style="color:var(--text3)">3 erros e o código é cancelado</span>
+      </div>
+    </div>
+    <div class="mf"><button class="btn gh" onclick="codigoCancelar()">Cancelar</button><button class="btn gd" id="cd-ok" onclick="codigoConfirmar()">CONFIRMAR</button></div>
   </div>
 </div>
 
@@ -2019,6 +2036,7 @@ async function posLogin(){
   const {data:u}=await sb.auth.getUser();
   if(!u||!u.user){ return; }
   S.email=u.user.email;
+  if(!(await sessaoLiberada())) return; // pede o código do WhatsApp se a pessoa ligou essa proteção
   showLoad('Carregando seus salões...');
   const {data:ms,error}=await sb.from('membros').select('id,salao_id,papel,profissional_id,saloes(nome)').eq('user_id',u.user.id).eq('ativo',true);
   hideLoad();
@@ -2101,7 +2119,7 @@ function abrirConta(){
   document.getElementById('ct-pw').value=''; document.getElementById('ct-pw2').value='';
   const tr=document.getElementById('ct-troca');
   tr.innerHTML=SALOES.length>1?'<div style="font-size:12px;color:var(--text3);margin-bottom:6px">Trocar de salão</div>'+SALOES.filter(m=>m.salao_id!==S.salaoId).map(m=>`<button class="btn ol sm" style="margin:0 6px 6px 0" onclick="escolherSalao('${m.salao_id}')">🏠 ${relEsc(m.saloes?.nome||'Salão')}</button>`).join(''):'';
-  openModal('m-conta');
+  segRender(); openModal('m-conta');
 }
 async function trocarSenha(){
   const a=document.getElementById('ct-pw').value, b=document.getElementById('ct-pw2').value;
@@ -2132,6 +2150,93 @@ sb.auth.onAuthStateChange((ev)=>{ if(ev==='PASSWORD_RECOVERY'){ setTimeout(()=>{
     }
   }catch(e){}
 })();
+
+
+// ============================================================
+// CÓDIGO DE SEGURANÇA PELO WHATSAPP (cada pessoa liga em "Minha conta")
+// ============================================================
+let _codModo='login', _codTimer=null;
+async function sessaoLiberada(){
+  let ok=true;
+  try{ const {data,error}=await sb.rpc('sessao_ok'); if(!error&&data===false) ok=false; }catch(e){}
+  if(ok) return true;
+  codigoAbrir('login'); return false;
+}
+function codigoMsg(t,tipo){ const el=document.getElementById('cd-msg'); if(!el) return; el.textContent=t; el.style.color=tipo==='e'?'#e05050':tipo==='ok'?'#3fbf6f':'var(--text)'; }
+function codigoCooldown(seg){
+  const b=document.getElementById('cd-reenv'); clearInterval(_codTimer); let r=seg;
+  const t=()=>{ if(r<=0){ clearInterval(_codTimer); b.disabled=false; b.textContent='Reenviar código'; return; } b.disabled=true; b.textContent=`Reenviar em ${r}s`; r--; };
+  t(); _codTimer=setInterval(t,1000);
+}
+function codigoAbrir(modo){
+  _codModo=modo; document.getElementById('cd-in').value=''; openModal('m-codigo'); codigoPedir();
+}
+async function codigoPedir(){
+  codigoMsg('Enviando o código para o seu WhatsApp… se o servidor estiver dormindo, pode levar até 1 minuto.'); codigoCooldown(45);
+  try{
+    const {data:ses}=await sb.auth.getSession(); const tok=ses?.session?.access_token;
+    const {data:url}=await sb.rpc('servidor_codigo_url');
+    if(!tok||!url){ codigoMsg('O servidor do WhatsApp do salão não está configurado. Fale com a administradora.','e'); codigoCooldown(5); return; }
+    const ctl=new AbortController(); const to=setTimeout(()=>ctl.abort(),85000);
+    const r=await fetch(String(url).replace(/\/$/,'')+'/auth/codigo',{method:'POST',headers:{Authorization:'Bearer '+tok},signal:ctl.signal});
+    clearTimeout(to);
+    const j=await r.json().catch(()=>({}));
+    if(r.ok&&j.ok){ codigoMsg(`Enviamos um código de 6 dígitos para o seu WhatsApp (final ${String(j.destino||'').replace('…','')}). Vale por 10 minutos.`,'ok'); setTimeout(()=>{ try{ document.getElementById('cd-in').focus(); }catch(e){} },200); return; }
+    if(j.error==='aguarde'){ codigoMsg(`Aguarde ${j.segundos}s para pedir outro código.`,'e'); codigoCooldown(j.segundos||45); return; }
+    const m={whatsapp_desconectado:'O WhatsApp do salão está desconectado. Tente de novo em instantes.',sem_whatsapp:'Não há WhatsApp cadastrado para receber o código.',numero_sem_whatsapp:'O número cadastrado não tem WhatsApp.',limite_por_hora:'Muitos códigos pedidos. Tente de novo mais tarde.',sem_session_id:'Saia e entre de novo.',sessao_invalida:'Sua sessão expirou. Saia e entre de novo.'}[j.error];
+    codigoMsg(m||j.message||'Não consegui enviar o código agora.','e'); codigoCooldown(15);
+  }catch(e){ codigoMsg('Não consegui falar com o servidor do WhatsApp (ele pode estar acordando). Toque em "Reenviar código" em instantes.','e'); codigoCooldown(10); }
+}
+async function codigoConfirmar(){
+  const c=(document.getElementById('cd-in').value||'').replace(/\D/g,'');
+  if(c.length!==6){ codigoMsg('Digite os 6 dígitos do código.','e'); return; }
+  showLoad('Conferindo...');
+  const {data,error}=await sb.rpc('codigo_confirmar',{p_codigo:c,p_ativar:_codModo==='ativar'?true:null});
+  hideLoad();
+  if(error){ codigoMsg(error.message||'Erro ao conferir o código.','e'); return; }
+  if(data&&data.ok){
+    closeModal('m-codigo'); clearInterval(_codTimer);
+    if(_codModo==='ativar'){ toast('✅ Código no WhatsApp ativado. Vai ser pedido a cada novo login.','ok'); }
+    else { await posLogin(); }
+    return;
+  }
+  document.getElementById('cd-in').value='';
+  if(data&&data.motivo==='errado'){ codigoMsg(`Código incorreto. ${data.restam===1?'Resta 1 tentativa.':'Restam '+data.restam+' tentativas.'}`,'e'); return; }
+  codigoMsg(data&&data.motivo==='bloqueado'?'Muitos erros: esse código foi cancelado. Toque em "Reenviar código".':'Esse código venceu. Toque em "Reenviar código".','e');
+  const b=document.getElementById('cd-reenv'); clearInterval(_codTimer); b.disabled=false; b.textContent='Reenviar código';
+}
+function codigoCancelar(){
+  clearInterval(_codTimer); closeModal('m-codigo');
+  if(_codModo==='login'){ doLogout(); }
+}
+async function segRender(){
+  const el=document.getElementById('ct-seg'); if(!el) return;
+  let est=null; try{ const {data,error}=await sb.rpc('seguranca_estado'); if(!error) est=data; }catch(e){}
+  if(!est){ el.style.display='none'; return; }
+  el.style.display='block';
+  const box='padding:12px;border:var(--brd);border-radius:10px;font-size:12px;line-height:1.5';
+  if(est.exigir){
+    el.innerHTML=`<div style="${box}"><div style="font-weight:700;font-size:13px">🔐 Código no WhatsApp: <span style="color:#3fbf6f">ativado</span></div><div style="color:var(--text3);margin:4px 0 8px">A cada novo login pedimos um código de 6 dígitos enviado para ${est.whatsapp?'o número '+relEsc(est.whatsapp.replace(/^55/,'').replace(/(\d{2})(\d{4,5})(\d{4})$/,'($1) $2-$3')):'o seu WhatsApp'}.</div><button class="btn ol xs" onclick="segDesativar()">Desativar</button></div>`;
+  } else {
+    const num=est.whatsapp?est.whatsapp.replace(/^55/,''):'';
+    el.innerHTML=`<div style="${box}"><div style="font-weight:700;font-size:13px">🔓 Código no WhatsApp: desativado</div><div style="color:var(--text3);margin:4px 0 8px">Ative para que, a cada novo login, seja pedido um código enviado para o seu WhatsApp. Mais segurança para o salão.</div><div class="fgr"><label>SEU WHATSAPP (com DDD)</label><input id="ct-whats" inputmode="tel" placeholder="(11) 98888-7777" value="${relEsc(num)}"></div><button class="btn gd xs" style="margin-top:8px" onclick="segAtivar()">Ativar código</button></div>`;
+  }
+}
+async function segAtivar(){
+  const n=(document.getElementById('ct-whats').value||'').replace(/\D/g,'');
+  if(n.length<10||n.length>11){ toast('Digite o WhatsApp com DDD (ex.: 11 98888-7777)','e'); return; }
+  showLoad('Salvando...');
+  const {error}=await sb.rpc('seguranca_salvar_whatsapp',{p_whats:'55'+n});
+  hideLoad();
+  if(error){ toast(error.message,'e'); return; }
+  closeModal('m-conta'); codigoAbrir('ativar');
+}
+function segDesativar(){
+  confirm2('🔓','DESATIVAR CÓDIGO','Você voltará a entrar só com e-mail e senha. Tem certeza?',async()=>{
+    const {error}=await sb.rpc('seguranca_desativar');
+    if(error){ toast(error.message,'e'); return; } toast('Código no WhatsApp desativado','w'); segRender();
+  },'DESATIVAR','rd');
+}
 
 function doLogout(){
   closeModal('m-logout'); closeModal('m-novosalao'); closeModal('m-escsalao'); try{msgStop();}catch(e){}

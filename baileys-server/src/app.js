@@ -3,7 +3,7 @@
 // (connectionState e sendText), mais o envio em lote (sendBulk).
 import express from 'express';
 import QRCode from 'qrcode';
-import { timingSafeEqual, randomUUID } from 'node:crypto';
+import { timingSafeEqual, randomUUID, randomInt, createHash } from 'node:crypto';
 import { toWaNumber, phoneKey, jidToPhone } from './phone.js';
 import { parseReply, describeMessage, isOptOut, extractText as extractText0 } from './reply-parser.js';
 
@@ -39,7 +39,7 @@ export function createApp({ cfg, db, wa, log = console, sleep = defaultSleep }) 
   // ---------- CORS + JSON ----------
   app.use((req, res, next) => {
     res.set('Access-Control-Allow-Origin', cfg.corsOrigin || '*');
-    res.set('Access-Control-Allow-Headers', 'apikey, content-type');
+    res.set('Access-Control-Allow-Headers', 'apikey, content-type, authorization');
     res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.set('Access-Control-Max-Age', '86400');
     if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -92,7 +92,7 @@ export function createApp({ cfg, db, wa, log = console, sleep = defaultSleep }) 
     return true;
   }
 
-  async function sendOne(number, text) {
+  async function sendOne(number, text, opts = {}) {
     const sock = wa.getSock();
     if (!sock || wa.getStatus() !== 'open') return { ok: false, error: 'whatsapp_desconectado' };
     const num = toWaNumber(number);
@@ -106,7 +106,7 @@ export function createApp({ cfg, db, wa, log = console, sleep = defaultSleep }) 
         jid = hit.jid;
       } // se a consulta falhou (undefined), tenta enviar direto
       const res = await sock.sendMessage(jid, { text });
-      await recordMsg({ jid, phone: num, direction: 'out', text, waId: res?.key?.id });
+      if (!opts.semHistorico) await recordMsg({ jid, phone: num, direction: 'out', text, waId: res?.key?.id });
       return { ok: true, jid, id: res?.key?.id };
     } catch (e) {
       return { ok: false, error: 'falha_envio', detail: String(e?.message || e) };
@@ -208,6 +208,43 @@ export function createApp({ cfg, db, wa, log = console, sleep = defaultSleep }) 
   // ---------- rotas ----------
   const health = (_req, res) =>
     res.json({ ok: true, service: 'ns-baileys-server', state: wa.getStatus(), uptime: Math.round(process.uptime()) });
+  // ---------- código de segurança do login (enviado pelo WhatsApp do salão) ----------
+  // Quem chama é a pessoa já logada (com a senha); o app manda o token dela, que é conferido no Supabase.
+  // O código só é guardado como "hash" e a conferência acontece no banco (função codigo_confirmar).
+  const sessionIdDe = (token) => {
+    try { return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')).session_id || null; } catch (_) { return null; }
+  };
+  const mascara = (n) => { const d = String(n || '').replace(/\D/g, ''); return d.length >= 4 ? `…${d.slice(-4)}` : ''; };
+  app.post('/auth/codigo', async (req, res) => {
+    if (!db.getUsuarioDoToken) return res.status(501).json({ error: 'nao_suportado' });
+    const token = (req.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
+    if (!token) return res.status(401).json({ error: 'sem_token' });
+    let user = null;
+    try { user = await db.getUsuarioDoToken(token); } catch (_) { user = null; }
+    if (!user) return res.status(401).json({ error: 'sessao_invalida' });
+    const sessionId = sessionIdDe(token);
+    if (!sessionId) return res.status(400).json({ error: 'sem_session_id', message: 'Saia e entre de novo.' });
+    const sec = await db.getSeguranca(user.id);
+    if (!sec?.whatsapp) return res.status(400).json({ error: 'sem_whatsapp', message: 'Nenhum WhatsApp cadastrado para receber o código.' });
+    const recentes = await db.codigosRecentes(user.id, new Date(Date.now() - 3600 * 1000).toISOString());
+    const ultimo = recentes[0] ? Date.parse(recentes[0].criado_em) : 0;
+    if (ultimo && Date.now() - ultimo < 45000) {
+      return res.status(429).json({ error: 'aguarde', segundos: Math.ceil((45000 - (Date.now() - ultimo)) / 1000) });
+    }
+    if (recentes.length >= 6) return res.status(429).json({ error: 'limite_por_hora', message: 'Muitos códigos pedidos. Tente de novo mais tarde.' });
+    if (wa.getStatus() !== 'open') return res.status(503).json({ error: 'whatsapp_desconectado', message: 'O WhatsApp do salão está desconectado.' });
+    const codigo = String(randomInt(0, 1000000)).padStart(6, '0');
+    const hash = createHash('sha256').update(`${codigo}:${user.id}:${sessionId}`).digest('hex');
+    const id = await db.criarCodigo({ user_id: user.id, session_id: sessionId, hash, expira_em: new Date(Date.now() + 10 * 60000).toISOString() });
+    const r = await sendOne(sec.whatsapp, `🔐 Seu código de acesso ao NS Agenda: *${codigo}*\nVale por 10 minutos. Se não foi você que tentou entrar, ignore esta mensagem e troque sua senha.`, { semHistorico: true });
+    if (!r.ok) {
+      try { await db.invalidarCodigo(id); } catch (_) { /* ok */ }
+      return res.status(502).json({ error: r.error || 'falha_envio', message: r.error === 'numero_sem_whatsapp' ? 'Esse número não tem WhatsApp.' : 'Não consegui enviar o código.' });
+    }
+    log.info?.({ user: user.id }, 'código de login enviado');
+    res.json({ ok: true, destino: mascara(sec.whatsapp), expira_em_min: 10 });
+  });
+
   app.get('/', health);
   app.get('/health', health);
 

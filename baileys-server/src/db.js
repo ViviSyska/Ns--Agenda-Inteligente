@@ -27,6 +27,30 @@ export function createDb(sb) {
     },
 
     /** Agendamentos aguardando resposta dessas clientes (ainda ativos), do mais próximo pro mais distante. */
+    // ---------- código de segurança do login ----------
+    async getUsuarioDoToken(token) {
+      const { data, error } = await sb.auth.getUser(token);
+      return error || !data?.user ? null : data.user;
+    },
+    async getSeguranca(userId) {
+      const { data } = await sb.from('seguranca').select('whatsapp,exigir_codigo').eq('user_id', userId).maybeSingle();
+      return data || null;
+    },
+    async codigosRecentes(userId, desdeIso) {
+      const { data, error } = await sb.from('login_codigos').select('criado_em').eq('user_id', userId).gte('criado_em', desdeIso).order('criado_em', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    async criarCodigo(row) {
+      await sb.from('login_codigos').update({ usado: true }).eq('user_id', row.user_id).eq('session_id', row.session_id).eq('usado', false);
+      const { data, error } = await sb.from('login_codigos').insert(row).select('id').single();
+      if (error) throw error;
+      return data.id;
+    },
+    async invalidarCodigo(id) {
+      await sb.from('login_codigos').update({ usado: true }).eq('id', id);
+    },
+
     async marcarAguardando(id, iso) {
       const run = (f) => sb.from('agendamentos').update(f).eq('id', id).or('wa_status.is.null,wa_status.neq.confirmou');
       let { error } = await run({ wa_status: 'aguardando', wa_enviado_em: iso });
