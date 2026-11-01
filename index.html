@@ -737,6 +737,13 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <div style="font-family:var(--f2);font-size:34px;color:var(--gold);letter-spacing:2px">NS AGENDA</div>
       <div style="font-size:10px;color:var(--text3);letter-spacing:3px;margin-top:2px">INTELIGENTE · GESTÃO DE SALÃO</div>
     </div>
+    <div id="l-sessao" style="display:none;text-align:center">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:6px">Você está conectada como</div>
+      <div id="l-sessao-em" style="font-weight:700;font-size:15px;word-break:break-all;margin-bottom:18px"></div>
+      <button class="btn gd" style="width:100%;justify-content:center;padding:11px" onclick="sessaoEntrar()">ENTRAR</button>
+      <div style="margin-top:14px;font-size:12px"><a href="#" onclick="sessaoOutraConta();return false" style="color:var(--text3)">Entrar com outra conta</a></div>
+    </div>
+    <div id="l-form">
     <div class="fg" style="gap:12px">
       <div class="fgr"><label>E-MAIL</label><input type="email" id="l-em" autocomplete="username" placeholder="seu@email.com" oninput="loginDesbloqueioSeTrocou()" onkeydown="if(event.key==='Enter')loginEnviar()"></div>
       <div class="fgr"><label>SENHA</label><div class="pw-w"><input type="password" id="l-pw" autocomplete="current-password" placeholder="Sua senha" onkeydown="if(event.key==='Enter')loginEnviar()"><button type="button" class="pw-eye" onclick="verSenha('l-pw',this)" aria-label="Mostrar senha" title="Mostrar senha">👁</button></div></div>
@@ -747,6 +754,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
     <div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;margin-top:14px">
       <a href="#" id="l-esq" onclick="loginEsqueci();return false" style="color:var(--text3)">Esqueci a senha</a>
       <a href="#" id="l-modo" onclick="loginModo();return false" style="color:var(--gold);font-weight:700">Criar conta do meu salão</a>
+    </div>
     </div>
   </div>
 </div>
@@ -2015,6 +2023,7 @@ async function inatSair(){
   if(_inatSaindo) return; _inatSaindo=true;
   try{ localStorage.setItem('ns_msg','Sua sessão foi encerrada porque ficou 2 horas sem uso. Entre de novo.'); localStorage.removeItem('ns_ativo'); }catch(e){}
   try{ msgStop(); }catch(e){}
+  try{ sessionStorage.removeItem('ns_ok'); }catch(e){}
   try{ await sb.auth.signOut(); }catch(e){}
   location.reload();
 }
@@ -2090,6 +2099,7 @@ async function entrarSalao(m){
   document.getElementById('u-nm').textContent=user.nome;
   document.getElementById('u-rl').textContent=user.role==='admin'?'ADMINISTRADORA':'PROFISSIONAL';
   { const ue=document.getElementById('u-em'); if(ue){ ue.textContent=S.email||''; ue.title=S.email||''; } }
+  try{ sessionStorage.setItem('ns_ok','1'); }catch(e){}
   inatIniciar(); toast('Entrou como '+(S.email||'')+' · '+(S.salaoNome||''));
   ['n-cfg','n-rel','n-cx','n-dp','n-msg'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=user.role==='prof'?'none':''});
   bnPerfil();
@@ -2161,8 +2171,10 @@ sb.auth.onAuthStateChange((ev)=>{ if(ev==='PASSWORD_RECOVERY'){ setTimeout(()=>{
         try{ localStorage.setItem('ns_msg','Sua sessão foi encerrada porque ficou 2 horas sem uso. Entre de novo.'); localStorage.removeItem('ns_ativo'); }catch(e){}
         await sb.auth.signOut(); loginMsg('Sua sessão foi encerrada porque ficou 2 horas sem uso. Entre de novo.','ok'); try{ localStorage.removeItem('ns_msg'); }catch(e){} return;
       }
-      showLoad('Entrando como '+(data.session.user?.email||'')+'...');
-      try{ await posLogin(); } finally { hideLoad(); }
+      const emS=data.session.user?.email||'';
+      let jaEntrou=false; try{ jaEntrou=sessionStorage.getItem('ns_ok')==='1'; }catch(e){}
+      if(jaEntrou){ showLoad('Entrando como '+emS+'...'); try{ await posLogin(); } finally { hideLoad(); } } // só recarregou a página
+      else { document.getElementById('l-sessao-em').textContent=emS; document.getElementById('l-sessao').style.display='block'; document.getElementById('l-form').style.display='none'; } // app aberto de novo: pede o clique
     }
   }catch(e){}
 })();
@@ -2254,9 +2266,16 @@ function segDesativar(){
   },'DESATIVAR','rd');
 }
 
+async function sessaoEntrar(){ showLoad('Entrando...'); try{ inatMarcar(true); await posLogin(); } finally { hideLoad(); } }
+async function sessaoOutraConta(){
+  try{ await sb.auth.signOut(); }catch(e){}
+  try{ sessionStorage.removeItem('ns_ok'); localStorage.removeItem('ns_ativo'); }catch(e){}
+  document.getElementById('l-sessao').style.display='none'; document.getElementById('l-form').style.display='';
+  document.getElementById('l-pw').value=''; loginMsg('');
+}
 function doLogout(){
   closeModal('m-logout'); closeModal('m-novosalao'); closeModal('m-escsalao'); try{msgStop();}catch(e){}
-  try{ localStorage.removeItem('ns_ativo'); }catch(e){}
+  try{ localStorage.removeItem('ns_ativo'); sessionStorage.removeItem('ns_ok'); }catch(e){}
   sb.auth.signOut().finally(()=>{ location.reload(); });
 }
 
