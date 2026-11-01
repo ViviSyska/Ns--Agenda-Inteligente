@@ -1141,6 +1141,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
           </div>
         </div>
         <div id="ag-seq" style="display:none" class="info-box"></div>
+        <div id="ag-total-info" style="font-size:12px;color:var(--text2);margin-bottom:8px"></div>
         <!-- VALOR PERSONALIZADO — combina de antemão sem precisar anotar -->
         <div style="background:var(--bg3);border:1px dashed var(--gold3);border-radius:var(--r2);padding:10px 12px;margin-bottom:4px">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--text2);margin-bottom:6px">
@@ -1148,7 +1149,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
             <span>💰 Combinar valor diferente do calculado (inclusive R$ 0,00 / cortesia)</span>
           </label>
           <div id="ag-custom-wrap" style="display:none">
-            <input type="number" id="ag-custom-val" placeholder="0.00" step="0.01" min="0"
+            <input type="number" id="ag-custom-val" placeholder="0.00" step="0.01" min="0" oninput="atualizarAgTotal()"
               style="background:var(--inp);border:1px solid var(--gold3);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:14px;font-weight:700;outline:none;width:100%">
             <div style="font-size:10px;color:var(--text3);margin-top:4px">Esse valor já fica salvo no agendamento — no faturamento ele vem pronto, sem precisar anotar em outro lugar.</div>
           </div>
@@ -1334,7 +1335,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
           <input type="number" id="fat-custom-val" placeholder="Digite o valor a cobrar" step="0.01" min="0"
             oninput="calcFatTotal()"
             style="background:var(--inp);border:1px solid var(--gold3);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:14px;font-weight:700;outline:none;width:100%">
-          <div style="font-size:10px;color:var(--text3);margin-top:4px">Este valor será registrado no caixa e no histórico do cliente</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px">É o valor que você vai cobrar AGORA (o que já foi pago antes não entra nessa conta). Se for diferente do pacote/serviços, o sistema pergunta antes de confirmar.</div>
         </div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
@@ -1700,43 +1701,66 @@ const gSNm  = id => { const s=D.servicos.find(x=>x.id===id); return s?s.nome:'�
 const gSDur = id => { const s=D.servicos.find(x=>x.id===id); return s?s.duracao_min:0; };
 const gSVal = id => { const s=D.servicos.find(x=>x.id===id); return s?s.valor:0; };
 const agPkgIds = ag => { const l=Array.isArray(ag.pacote_ids)?ag.pacote_ids.filter(Boolean).map(String):[]; if(l.length) return l; const p=ag.pacote_id||ag.pkgId; return p?[String(p)]:[]; };
-const gAgtot= ag => {
-  // Se tem valor_cobrado salvo (personalizado), usa ele — INCLUSIVE ZERO (cortesia)
-  // Importante: verifica null/undefined, NÃO >0, para não ignorar valor combinado de R$ 0,00
-  if(ag.valor_cobrado!==null && ag.valor_cobrado!==undefined){
-    return Math.max(0, Number(ag.valor_cobrado));
-  }
+// Preço CALCULADO da comanda (pacote(s) + serviços fora do pacote − desconto), ignorando valor_cobrado.
+// Aceita um agendamento ou um objeto {pacote_ids, svcs, desconto} (usado ao editar, antes de salvar).
+const gAgBase = ag => {
   const pids = agPkgIds(ag);
   let base=0;
+  const svcs = ag.svcs||[];
+  const somaSvcs = lst => lst.reduce((t,sid)=>t+Number(gSVal(sid)||0),0);
   if(pids.length){
     const pks=pids.map(id=>D.pacotes.find(x=>x.id===id)).filter(Boolean);
     if(pks.length){
       base=pks.reduce((t,pk)=>t+(Number(pk.valor)||0),0);
       // soma serviços AVULSOS que não fazem parte de nenhum dos pacotes
       const cobertos=new Set(pks.flatMap(pk=>pk.svcs||[]));
-      base+=(ag.svcs||[]).filter(sid=>!cobertos.has(sid)).reduce((t,sid)=>t+Number(gSVal(sid)),0);
+      base+=somaSvcs(svcs.filter(sid=>!cobertos.has(sid)));
     } else {
-      // pacote não encontrado no cache — soma todos os serviços
-      base=(ag.svcs||[]).reduce((t,sid)=>t+Number(gSVal(sid)),0);
+      base=somaSvcs(svcs); // pacote não encontrado no cache — soma todos os serviços
     }
   } else {
-    base=(ag.svcs||[]).reduce((t,sid)=>t+Number(gSVal(sid)),0);
+    base=somaSvcs(svcs);
   }
   const desc=Number(ag.desconto)||0;
-  return Math.max(0,base-desc);
+  return Math.max(0,Math.round((base-desc)*100)/100);
+};
+const gAgtot= ag => {
+  // Se tem valor_cobrado salvo (personalizado/travado), usa ele — INCLUSIVE ZERO (cortesia)
+  if(ag.valor_cobrado!==null && ag.valor_cobrado!==undefined){
+    return Math.max(0, Number(ag.valor_cobrado));
+  }
+  return gAgBase(ag);
+};
+// Quanto JÁ FOI PAGO desta comanda: entradas no caixa + crédito do cliente usado nela
+// (o crédito não passa pelo caixa; é gravado em historico_cliente com a marca "comanda <id>").
+const gAgPago = ag => {
+  const cx = D.caixa.filter(x=>x.agendamento_id===ag.id && x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
+  const cr = (D.historico||[]).filter(h=>(h.descricao||'').startsWith('[CREDITO]') && (h.descricao||'').includes('comanda '+ag.id) && Number(h.valor)<0)
+    .reduce((t,h)=>t+Math.abs(Number(h.valor)),0);
+  return Math.round((cx+cr)*100)/100;
 };
 // Quanto AINDA FALTA PAGAR desta comanda — diferente de gAgtot (que é o preço TOTAL combinado)
-// SEMPRE calculado a partir do CAIXA REAL (fonte da verdade), não de um campo salvo que pode
-// ficar desatualizado por correções manuais de banco. Assim nunca mais "perde" o pagamento parcial.
+// Calculado a partir do que foi realmente pago (caixa + crédito), não de um campo salvo que pode ficar velho.
 const gAgSaldo = ag => {
-  const totalCombinado = gAgtot(ag);
-  const pagoReal = D.caixa
-    .filter(x=>x.agendamento_id===ag.id && x.tipo==='entrada')
-    .reduce((t,x)=>t+Number(x.valor),0);
-  if(pagoReal>0) return Math.max(0, totalCombinado-pagoReal);
-  // Sem nenhum pagamento no caixa ainda: usa saldo_devedor salvo, se existir; senão o total inteiro
-  if(ag.saldo_devedor!==null && ag.saldo_devedor!==undefined) return Math.max(0, Number(ag.saldo_devedor));
-  return totalCombinado;
+  const total = gAgtot(ag);
+  const pago = gAgPago(ag);
+  const stored = (ag.saldo_devedor!==null && ag.saldo_devedor!==undefined) ? Math.max(0,Number(ag.saldo_devedor)) : null;
+  if(pago>0){
+    const s = Math.max(0, Math.round((total-pago)*100)/100);
+    if(stored!==null && stored<s-0.01){
+      // comanda ANTIGA paga em parte com crédito do cliente (crédito sem marca da comanda):
+      // o caixa sozinho não mostra isso — confia no saldo gravado na hora do pagamento.
+      if(ag.status==='concluido' && stored<0.01) return 0;
+      const datas=new Set(D.caixa.filter(x=>x.agendamento_id===ag.id&&x.tipo==='entrada').map(x=>(x.data||'').substring(0,10)));
+      const cid=ag.cliente_id||ag.clienteId;
+      const credAntigo=(D.historico||[]).some(h=>h.cliente_id===cid&&(h.descricao||'').startsWith('[CREDITO] Saldo utilizado')&&!(h.descricao||'').includes('comanda ')&&Number(h.valor)<0&&datas.has((h.data||'').substring(0,10)));
+      if(credAntigo) return stored;
+    }
+    return s;
+  }
+  // Sem pagamento registrado: usa saldo_devedor gravado (ex.: quitada só com crédito, antigo), senão o total
+  if(stored!==null) return stored;
+  return total;
 };
 const TODAY = dStr(new Date());
 const CURYR = new Date().getFullYear().toString();
@@ -2375,7 +2399,7 @@ function renderDash(){
   const fat=cxFiltrado.filter(x=>x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
   const totalDesp=cxFiltrado.filter(x=>x.tipo==='saida').reduce((t,x)=>t+Number(x.valor),0);
   const concl=ags.filter(a=>a.status==='concluido').length;
-  const ticket=concl&&fat?fat/concl:0;
+  const ticket=concl?ags.filter(a=>a.status==='concluido').reduce((t,a)=>t+(gAgPago(a)||gAgtot(a)),0)/concl:0;
   const nConf=ags.filter(a=>a.status==='confirmado').length;
   const nPend=ags.filter(a=>a.status==='pendente').length;
   const nAtr =ags.filter(a=>a.status==='atendimento').length;
@@ -2387,7 +2411,7 @@ function renderDash(){
   // evitando que o mesmo dinheiro apareça contado duas vezes nos dois cards.
   const agsAbertos=agsPeriodo.filter(a=>{
     if(!['pendente','confirmado','atendimento','finalizado'].includes(a.status)) return false;
-    const pagoReal=D.caixa.filter(x=>x.agendamento_id===a.id&&x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
+    const pagoReal=gAgPago(a);
     return pagoReal<=0; // nunca foi cobrada
   });
   const prevPeriodo=agsAbertos.reduce((t,a)=>t+gAgSaldo(a),0);
@@ -2402,7 +2426,7 @@ function renderDash(){
     if(a.status==='cancelado') return false;
     const dt=(a.data||'').substring(0,10);
     if(dt!==TODAY) return false; // só hoje
-    const pagoReal=D.caixa.filter(x=>x.agendamento_id===a.id&&x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
+    const pagoReal=gAgPago(a);
     if(pagoReal<=0) return false; // nunca foi cobrada ainda — não é "em aberto", é só pendente de faturar
     return gAgSaldo(a)>0.01;
   });
@@ -2563,7 +2587,7 @@ function cancelarAg(id){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag) return;
   if(isCancelado(ag)){ toast('Já está cancelada','w'); return; }
   if(ag.status==='concluido'){ toast('Comanda já paga — toque em ↩ Reabrir antes de cancelar','w'); return; }
-  const pago=D.caixa.filter(x=>x.agendamento_id===id&&x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
+  const pago=gAgPago(ag);
   const aviso=pago>0.009?` Já foram pagos ${Rf(pago)} — esse valor continua no caixa.`:'';
   const quando=`${fBR((ag.data||'').substring(0,10)).slice(0,5)} ${ag.hora||''}`;
   confirm2('❌','CANCELAR COMANDA',`Cancelar a comanda de ${gCNm2(ag)} (${quando})? Ela sai da agenda e fica só no histórico (Comandas).${aviso}`,async()=>{
@@ -2586,7 +2610,7 @@ async function reativarAg(id){
 }
 function removerAg(id){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag) return;
-  if(D.caixa.some(x=>x.agendamento_id===id)){ toast('Esta comanda tem pagamento no caixa — não dá para remover','e'); return; }
+  if(D.caixa.some(x=>x.agendamento_id===id)||gAgPago(ag)>0){ toast('Esta comanda tem pagamento no caixa — não dá para remover','e'); return; }
   confirm2('🗑','REMOVER DA AGENDA','Remove de vez. Ela também sai da contagem de canceladas.',async()=>{
     showLoad('Removendo...');
     const {error}=await sb.from('agendamentos').delete().eq('id',id);
@@ -2607,7 +2631,7 @@ function dashRows(kind){
   const quando=a=>`${fBR((a.data||'').substring(0,10)).slice(0,5)} ${a.hora||''}`;
   const rowAg=a=>({t:gCNm2(a),s:`${quando(a)} · ${svc(a)}`,v:Rf(gAgtot(a)),tag:efLabel(a),id:a.id});
   const ord=l=>l.sort((x,y)=>((x.data||'')+(x.hora||'')).localeCompare((y.data||'')+(y.hora||'')));
-  const pago=a=>D.caixa.filter(x=>x.agendamento_id===a.id&&x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
+  const pago=a=>gAgPago(a);
   const nomeCx=x=>{ const a=D.agendamentos.find(z=>z.id===x.agendamento_id); return a?gCNm2(a):(x.descricao||'Lançamento'); };
   const dCx=x=>fBR((x.data||'').substring(0,10)).slice(0,5);
   if(kind==='previsto'){ const l=ord([...ativos]); return {tit:'PREVISTO',sub:`${l.length} comanda(s) — valor combinado`,tot:Rf(l.reduce((t,a)=>t+gAgtot(a),0)),rows:l.map(rowAg)}; }
@@ -2807,6 +2831,7 @@ function renderAgPkgChips(){
   const box=document.getElementById('ag-pkg-chips'); const info=document.getElementById('ag-pkg-info'); if(!box) return;
   const pks=(S.agPkgs||[]).map(id=>D.pacotes.find(x=>x.id===id)).filter(Boolean);
   box.innerHTML=pks.map(pk=>`<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,215,0,.12);border:1px solid var(--gold3);border-radius:20px;padding:5px 10px;font-size:12px;font-weight:600">📦 ${relEsc(pk.nome)} <span style="font-size:10px;color:var(--text3)">${Rf(pk.valor)}</span><button type="button" onclick="removerPacoteAg('${pk.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:15px;line-height:1;padding:0" title="Remover">×</button></span>`).join('');
+  atualizarAgTotal();
   if(!pks.length){ info.style.display='none'; info.textContent=''; return; }
   const svcs=[...new Set(pks.flatMap(pk=>pk.svcs||[]))];
   const dur=svcs.reduce((t,id)=>t+(gSDur(id)||0),0);
@@ -2846,6 +2871,26 @@ function toggleAgCustomVal(){
   if(!wrap)return;
   wrap.style.display=chk.checked?'block':'none';
   if(!chk.checked) document.getElementById('ag-custom-val').value='';
+  else { const v=document.getElementById('ag-custom-val'); if(v&&v.value==='') v.value=agBaseForm().toFixed(2); }
+  atualizarAgTotal();
+}
+// Preço calculado do que está marcado AGORA no formulário (pacotes + serviços fora do pacote − desconto já gravado)
+function agBaseForm(){
+  const old=S.editAgId?D.agendamentos.find(a=>a.id===S.editAgId):null;
+  return gAgBase({pacote_ids:(S.agPkgs||[]).slice(), svcs:(S.agSvcs||[]).slice(), desconto:old?old.desconto:0});
+}
+function atualizarAgTotal(){
+  const el=document.getElementById('ag-total-info'); if(!el) return;
+  const base=agBaseForm();
+  const chk=document.getElementById('ag-custom-chk');
+  const raw=document.getElementById('ag-custom-val')?.value;
+  const custom=chk?.checked && raw!=='' && raw!=null ? parseFloat(raw) : null;
+  let h=`💵 Valor calculado: <b>${Rf(base)}</b>`;
+  if(custom!==null && !isNaN(custom)){
+    const d=Math.round((custom-base)*100)/100;
+    h+=` · combinado: <b>${Rf(custom)}</b>`+(Math.abs(d)>0.01?` <span style="color:var(--red)">(${Rf(Math.abs(d))} a ${d<0?'menos':'mais'} que o calculado)</span>`:'');
+  }
+  el.innerHTML=h;
 }
 function abrirAg(data,hora,profId){
   S.editAgId=null;
@@ -2867,7 +2912,7 @@ function abrirAg(data,hora,profId){
   const ps=document.getElementById('ag-prf');
   if(profId){ for(const o of ps.options) if(o.value===profId){o.selected=true;break} }
   else if(D.profs.length && !ps.value) ps.value=D.profs[0].id;
-  openModal('m-ag');
+  atualizarAgTotal(); openModal('m-ag');
 }
 // O seletor de status só tem Pendente/Confirmado. Para comandas pagas/em atendimento/canceladas,
 // acrescenta a opção do status atual — senão o select fica vazio e o salvar apagava o status.
@@ -2894,7 +2939,10 @@ function editAg(id){
   const cChk=document.getElementById('ag-custom-chk');
   const cWrap=document.getElementById('ag-custom-wrap');
   const cVal=document.getElementById('ag-custom-val');
-  if(ag.valor_cobrado!==null && ag.valor_cobrado!==undefined){
+  // Só marca "valor diferente" se o valor gravado realmente difere do calculado (pacote/serviços).
+  // Um valor que apenas foi "travado" no pagamento e é igual ao calculado NÃO é combinado — assim,
+  // ao trocar o pacote, o preço acompanha em vez de ficar preso no valor do pacote antigo.
+  if(ag.valor_cobrado!==null && ag.valor_cobrado!==undefined && Math.abs(Number(ag.valor_cobrado)-gAgBase(ag))>0.01){
     if(cChk)cChk.checked=true;
     if(cWrap)cWrap.style.display='block';
     if(cVal)cVal.value=Number(ag.valor_cobrado).toFixed(2);
@@ -2908,7 +2956,7 @@ function editAg(id){
   if(!ps.value && D.profs.length) ps.value=D.profs[0].id;
   S.agSvcs=[...(ag.svcs||[])]; renderAgSvcChips();
   document.getElementById('ag-svc-search').value=''; document.getElementById('ag-svc-dd').classList.remove('open');
-  calcSeq(); openModal('m-ag');
+  calcSeq(); atualizarAgTotal(); openModal('m-ag');
 }
 // ── Chips de serviço no modal de agendamento ─────────────────
 function filtrarSvcsAg(){
@@ -2969,6 +3017,7 @@ function renderAgSvcChips(){
       <button type="button" onclick="remAgSvc(${idx})" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;line-height:1;padding:0 0 0 2px" title="Remover">×</button>
     </span>`;
   }).join('');
+  atualizarAgTotal();
 }
 function addAgSvc(presel){ if(presel) selAgSvc(presel); }
 function calcSeq(){
@@ -2980,7 +3029,7 @@ function calcSeq(){
   else box.style.display='none';
 }
 
-async function salvarAg(){
+async function salvarAg(confirmado){
   const cliId2=document.getElementById('ag-cli').value;
   const profId2=document.getElementById('ag-prf').value;
   const data=document.getElementById('ag-dt').value;
@@ -2994,14 +3043,55 @@ async function salvarAg(){
     const conf=D.agendamentos.find(a=>(S.editAgId?a.id!==S.editAgId:true)&&(a.profissional_id||a.profId)===profId2&&(a.data||'').substring(0,10)===data&&a.status!=='cancelado'&&toMin(a.hora)<nf&&toMin(a.hora)+(a.duracao_total||a.durTotal||30)>ni);
     if(conf){ toast('Conflito de horário. Marque "Forçar" para continuar.','e'); return; }
   }
-  showLoad('Salvando agendamento...');
   const pacote_ids=(S.agPkgs||[]).slice(); const pacote_id=pacote_ids[0]||null;
   // Valor personalizado — checa checkbox e permite valor ZERO (cortesia)
   const customChk=document.getElementById('ag-custom-chk');
   const customValRaw=document.getElementById('ag-custom-val')?.value;
-  const usandoCustomAg = customChk?.checked && customValRaw!=='' && customValRaw!=null;
-  const valor_cobrado = usandoCustomAg ? parseFloat(customValRaw) : null;
-  const agData={ cliente_id:cliId2, profissional_id:profId2, data, hora, duracao_total:durTotal, status:(document.getElementById('ag-st').value||(S.editAgId&&(D.agendamentos.find(a=>a.id===S.editAgId)||{}).status)||'pendente'), observacoes:document.getElementById('ag-ob').value, forcar:document.getElementById('ag-fc').checked, pacote_id, pacote_ids, valor_cobrado };
+  const usandoCustomAg = !!(customChk?.checked && customValRaw!=='' && customValRaw!=null);
+  if(usandoCustomAg && (isNaN(parseFloat(customValRaw)) || parseFloat(customValRaw)<0)){ toast('Valor combinado inválido','e'); return; }
+  const oldAg = S.editAgId ? D.agendamentos.find(a=>a.id===S.editAgId) : null;
+  // Preço calculado com o que está marcado AGORA (pacote(s) + serviços fora do pacote − desconto já gravado)
+  const baseNova = gAgBase({pacote_ids, svcs, desconto: oldAg?oldAg.desconto:0});
+  // AVISO: valor combinado diferente do pacote/serviços → pergunta se quer prosseguir
+  if(usandoCustomAg && !confirmado){
+    const vc=parseFloat(customValRaw), dif=Math.round((vc-baseNova)*100)/100;
+    if(Math.abs(dif)>0.01){
+      const nome=pacote_ids.length?('pacote '+pacote_ids.map(id=>(D.pacotes.find(x=>x.id===id)||{}).nome).filter(Boolean).join(' + ')):'serviços';
+      const el=document.getElementById('conf-s'); if(el) el.style.whiteSpace='pre-line';
+      confirm2('⚠️','VALOR DIFERENTE DO CALCULADO',
+        `${nome[0].toUpperCase()+nome.slice(1)}: ${Rf(baseNova)}\nVocê combinou: ${Rf(vc)} (${Rf(Math.abs(dif))} a ${dif<0?'menos':'mais'})\n\nDeseja prosseguir com ${Rf(vc)}?\n(Para usar o valor calculado, volte e desmarque "Combinar valor diferente".)`,
+        ()=>salvarAg(true),'SIM, PROSSEGUIR','gr');
+      return;
+    }
+  }
+  showLoad('Salvando agendamento...');
+  // Quanto desta comanda já foi efetivamente pago (caixa + crédito) — usado para manter o saldo certo
+  const totalAntes = oldAg?gAgtot(oldAg):0;
+  const pagoEf = oldAg?Math.max(0,Math.round((totalAntes-gAgSaldo(oldAg))*100)/100):0;
+  const jaPaga = !!oldAg && (pagoEf>0.009 || oldAg.status==='concluido');
+  // Comanda já paga: trava o preço calculado novo (não deixa o preço do catálogo mudar depois);
+  // sem pagamento: fica sem valor gravado e acompanha pacote/serviços ao vivo.
+  const valor_cobrado = usandoCustomAg ? parseFloat(customValRaw) : (jaPaga ? baseNova : null);
+  const novoTotal = valor_cobrado!==null ? valor_cobrado : baseNova;
+  let statusSel = (document.getElementById('ag-st').value||(oldAg&&oldAg.status)||'pendente');
+  const agData={ cliente_id:cliId2, profissional_id:profId2, data, hora, duracao_total:durTotal, status:statusSel, observacoes:document.getElementById('ag-ob').value, forcar:document.getElementById('ag-fc').checked, pacote_id, pacote_ids, valor_cobrado };
+  let avisoPos='';
+  if(oldAg){
+    // Recalcula o saldo para o NOVO total (antes ficava o saldo velho e a conta saía errada)
+    if(pagoEf>0.009){
+      agData.saldo_devedor = Math.max(0, Math.round((novoTotal-pagoEf)*100)/100);
+      if(statusSel===oldAg.status){
+        if(agData.saldo_devedor>=0.01 && statusSel==='concluido'){ agData.status='finalizado'; avisoPos=`Agora falta pagar ${Rf(agData.saldo_devedor)} — comanda voltou para "Finalizado · a pagar".`; }
+        else if(agData.saldo_devedor<0.01 && ['pendente','confirmado','atendimento','finalizado'].includes(statusSel)){ agData.status='concluido'; avisoPos='Já estava totalmente pago — comanda marcada como paga.'; }
+      }
+      if(pagoEf>novoTotal+0.01) avisoPos=`⚠️ Já foi pago ${Rf(pagoEf)}, mais que o novo valor (${Rf(novoTotal)}). Confira o caixa.`;
+    } else if(oldAg.status==='concluido'){
+      agData.saldo_devedor = Math.abs(novoTotal-totalAntes)<0.01 ? (oldAg.saldo_devedor===undefined?null:oldAg.saldo_devedor) : novoTotal;
+      if(statusSel==='concluido' && agData.saldo_devedor>=0.01){ agData.status='finalizado'; avisoPos=`Comanda sem pagamento no caixa: falta pagar ${Rf(agData.saldo_devedor)} — voltou para "Finalizado · a pagar".`; }
+    } else {
+      agData.saldo_devedor = null;
+    }
+  }
   let agId=S.editAgId;
   const semIds=()=>{ const {pacote_ids:_,...resto}=agData; return resto; };
   const semCol=e=>e&&/pacote_ids/.test(e.message||'');
@@ -3022,7 +3112,7 @@ async function salvarAg(){
     await sb.from('agendamento_servicos').insert(svcs.map(sid=>({agendamento_id:agId, servico_id:sid})));
   }
   await reloadSection('agendamentos');
-  hideLoad(); closeModal('m-ag'); renderAgenda(); toast(S.editAgId?'Agendamento atualizado!':'Agendamento criado!'); S.editAgId=null;
+  hideLoad(); closeModal('m-ag'); renderAgenda(); try{renderDash();}catch(_){} toast(avisoPos||(S.editAgId?'Agendamento atualizado!':'Agendamento criado!'), avisoPos?'w':undefined); S.editAgId=null;
 }
 
 // ============================================================
@@ -3432,21 +3522,87 @@ async function salvarCredito(){
 
 function reabrirComanda(id){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
+  const temCartao=D.caixa.some(x=>x.agendamento_id===id&&x.tipo==='entrada'&&(x.forma_pagamento==='credito'||x.forma_pagamento==='debito'));
+  const credTag=D.historico.filter(h=>(h.descricao||'').startsWith('[CREDITO]')&&(h.descricao||'').includes('comanda '+id)&&Number(h.valor)<0);
   confirm2('↩','REABRIR COMANDA',
-    'Isso vai estornar o pagamento e reabrir a comanda de '+gCNm2(ag)+' para edição.',
+    'Isso vai estornar o pagamento e reabrir a comanda de '+gCNm2(ag)+' para edição.'
+      +(credTag.length?' O crédito usado nela volta para o saldo do cliente.':'')
+      +(temCartao?' ⚠️ A taxa de cartão já lançada em Despesas não é estornada sozinha — apague lá se for o caso.':''),
     async()=>{
       showLoad('Reabrindo comanda...');
-      // Volta status para confirmado e restaura o saldo devedor para o valor total combinado
-      const totalCombinado = gAgtot(ag);
-      await sb.from('agendamentos').update({status:'confirmado', saldo_devedor: totalCombinado}).eq('id',id);
+      // Volta para confirmado SEM saldo gravado: o saldo passa a ser sempre (total − pago), calculado ao vivo.
+      // (Gravar o total aqui deixava um saldo velho quando a comanda era editada depois.)
+      const r1=await sb.from('agendamentos').update({status:'confirmado', saldo_devedor:null}).eq('id',id);
+      if(r1.error){ hideLoad(); toast('Não consegui reabrir: '+r1.error.message,'e'); return; }
       // Remove entradas de caixa vinculadas a este agendamento
       await sb.from('caixa').delete().eq('agendamento_id',id);
-      await Promise.all([reloadSection('agendamentos'),reloadSection('caixa')]);
+      // Devolve o crédito do cliente que foi usado nesta comanda
+      for(const h of credTag) await sb.from('historico_cliente').delete().eq('id',h.id);
+      await Promise.all([reloadSection('agendamentos'),reloadSection('caixa'),reloadSection('historico')]);
       hideLoad();
       renderComandas(); renderDash();
       toast('Comanda reaberta — pagamento estornado.','w');
     },'REABRIR','ol'
   );
+}
+
+// Divide um valor entre várias comandas, proporcional aos pesos, SEM perder nem inventar centavo
+// (a soma das partes é exatamente o valor). Devolve um array de números com 2 casas.
+function ratearCent(valor, pesos){
+  const cents=Math.round((Number(valor)||0)*100);
+  const tot=pesos.reduce((t,w)=>t+w,0);
+  const ws = tot>0 ? pesos : pesos.map(()=>1);
+  const wt = ws.reduce((t,w)=>t+w,0);
+  let acum=0, ant=0; const out=[];
+  ws.forEach((w,i)=>{
+    acum+=w;
+    const alvo = i===ws.length-1 ? cents : Math.round(cents*acum/wt);
+    out.push((alvo-ant)/100); ant=alvo;
+  });
+  return out;
+}
+// Monta o "plano" do faturamento: quanto cada comanda recebe, qual passa a ser o preço combinado e o saldo.
+function planFat(){
+  const ids=S.fatIds.slice();
+  const ags=ids.map(id=>D.agendamentos.find(a=>a.id===id)).filter(Boolean);
+  const desc=parseFloat(document.getElementById('fat-desc')?.value)||0;
+  const customChk=document.getElementById('fat-custom-chk');
+  const customValRaw=document.getElementById('fat-custom-val')?.value;
+  const usandoCustom = !!(customChk?.checked && customValRaw!=='' && customValRaw!=null);
+  const totalFinal=Math.round((S._fatTotal||0)*100)/100;
+  const totalPago=Math.round(S.pgtos.reduce((t,p)=>t+p.valor,0)*100)/100;
+  const pesos=ags.map(a=>gAgSaldo(a));
+  const alvo=ratearCent(totalFinal,pesos);                       // quanto cobrar AGORA de cada uma
+  const pgRat=S.pgtos.map(pg=>ratearCent(pg.valor,pesos));        // parte de cada pagamento em cada comanda
+  const linhas=ags.map((ag,i)=>{
+    const prior=gAgPago(ag);
+    const pagoAgora=Math.round(pgRat.reduce((t,r)=>t+r[i],0)*100)/100;
+    let novoTotal;
+    if(!usandoCustom && !(desc>0)) novoTotal=gAgtot(ag);          // nada mudou: preço continua o mesmo
+    else if(pesos[i]<0.01 && alvo[i]===0) novoTotal=gAgtot(ag);
+    else novoTotal=Math.round((prior+alvo[i])*100)/100;           // renegociado: já pago antes + o que cobra agora
+    const saldoNovo=Math.max(0,Math.round((novoTotal-prior-pagoAgora)*100)/100);
+    return {ag, prior, alvo:alvo[i], pagoAgora, novoTotal, saldoNovo, base:gAgBase(ag), peso:pesos[i], fatia:(pesos.reduce((t,w)=>t+w,0)>0?pesos[i]/pesos.reduce((t,w)=>t+w,0):1/ags.length)};
+  });
+  return {ags, linhas, desc, usandoCustom, totalFinal, totalPago, pgRat, pesos};
+}
+function nomePacoteOuSvc(ag){
+  const pks=agPkgIds(ag).map(id=>(D.pacotes.find(x=>x.id===id)||{}).nome).filter(Boolean);
+  return pks.length?('pacote '+pks.join(' + ')):'serviços';
+}
+// Aviso: valor cobrado diferente do pacote/serviços da comanda — pergunta se quer prosseguir.
+function avisosFat(pl){
+  const av=[];
+  pl.linhas.forEach(l=>{
+    const dif=Math.round((l.novoTotal-l.base)*100)/100;
+    if(Math.abs(dif)>0.01){
+      av.push(`• ${gCNm2(l.ag)} (${fBR((l.ag.data||'').substring(0,10))}): ${nomePacoteOuSvc(l.ag)} = ${Rf(l.base)} → cobrando ${Rf(l.novoTotal)} (${Rf(Math.abs(dif))} a ${dif<0?'menos':'mais'})`);
+    }
+  });
+  const out=[];
+  if(av.length) out.push('Valor diferente do combinado em:\n'+av.join('\n'));
+  if(pl.totalPago>pl.totalFinal+0.01) out.push(`• Você lançou ${Rf(pl.totalPago)} de pagamento, ${Rf(pl.totalPago-pl.totalFinal)} a MAIS que o total (${Rf(pl.totalFinal)}). Esse excedente entra no caixa como receita.`);
+  return out;
 }
 
 async function confirmarFat(){
@@ -3456,7 +3612,19 @@ async function confirmarFat(){
   // deixa fechar a comanda direto, sem nenhum lançamento no caixa.
   const isCortesiaZero = (S._fatTotal||0) < 0.01;
   if(S.pgtos.length===0 && !isCortesiaZero){ toast('Adicione pelo menos um pagamento','e'); return; }
-  // Proteção contra duplo clique / duplo envio
+  if(S._faturando) return;
+  calcFatTotal();
+  const pl=planFat();
+  const avisos=avisosFat(pl);
+  if(avisos.length){
+    const el=document.getElementById('conf-s'); if(el) el.style.whiteSpace='pre-line';
+    confirm2('⚠️','CONFERIR VALOR', avisos.join('\n\n')+'\n\nDeseja prosseguir mesmo assim?', ()=>executarFat(), 'SIM, PROSSEGUIR','gr');
+    return;
+  }
+  return executarFat();
+}
+
+async function executarFat(){
   if(S._faturando) return;
   S._faturando = true;
   const btnConfirmar = document.querySelector('#m-fat .mf .btn.gr');
@@ -3465,112 +3633,77 @@ async function confirmarFat(){
   try {
     showLoad('Faturando...');
     const hoje=document.getElementById('fat-dt')?.value || TODAY;
-    const desc=parseFloat(document.getElementById('fat-desc')?.value)||0;
-    const customChk=document.getElementById('fat-custom-chk');
-    const customValRaw=document.getElementById('fat-custom-val')?.value;
-    const usandoCustom = customChk?.checked && customValRaw!=='' && customValRaw!=null;
-    const totalFinal=S._fatTotal||0;
-
-    // ── Quanto foi REALMENTE pago (soma de todas as formas, incluindo saldo/crédito) ──
-    const totalPago = S.pgtos.reduce((t,p)=>t+p.valor,0);
-    const saldoDevedorTotal = Math.max(0, totalFinal - totalPago);
+    const pl=planFat();
+    const {linhas, desc, usandoCustom, totalFinal, totalPago}=pl;
+    const saldoDevedorTotal = Math.max(0, Math.round((totalFinal - totalPago)*100)/100);
     const pagouTudo = saldoDevedorTotal < 0.01; // tolerância de arredondamento
+    const ok=(r,msg)=>{ if(r&&r.error) throw new Error(msg+': '+r.error.message); return r; };
 
-    // ── Peso de cada comanda = quanto ELA ainda deve (não o total cheio) ──
-    // Garante distribuição justa quando há comandas com saldo parcial misturadas com novas
-    const pesos={};
-    let pesoTotal=0;
-    S.fatIds.forEach(id=>{
-      const ag=D.agendamentos.find(a=>a.id===id);
-      const w=ag?gAgSaldo(ag):0;
-      pesos[id]=w>0?w:0.01;
-      pesoTotal+=pesos[id];
-    });
-    if(pesoTotal<=0) pesoTotal=S.fatIds.length;
-
-    // ① Atualiza cada agendamento
-    for(const id of S.fatIds){
-      const ag=D.agendamentos.find(a=>a.id===id); if(!ag)continue;
-      const fatia = pesos[id]/pesoTotal;
-      const novoSaldo = saldoDevedorTotal*fatia;
-      const upd={ saldo_devedor: novoSaldo };
-      // Trava o valor_cobrado (preço combinado) na primeira cobrança dessa comanda —
-      // pagamentos parciais seguintes (sem "valor diferente" marcado) não reescrevem
-      // o preço já combinado. MAS se o usuário marcou "Cobrar valor diferente" agora,
-      // é uma renegociação explícita: o valor_cobrado TEM que ser atualizado, senão
-      // o saldo devedor fica calculado contra o preço antigo pra sempre.
-      if(usandoCustom){
-        upd.valor_cobrado = totalFinal*fatia;
-      } else if(ag.valor_cobrado===null || ag.valor_cobrado===undefined){
-        // trava o preço COMBINADO (total da comanda), não o que falta pagar agora
-        // (se já estava tudo pago, o que falta é zero e o preço não pode virar zero)
-        upd.valor_cobrado = Math.max(0, gAgtot(ag) - desc*fatia);
-      }
-      if(desc>0 && (ag.desconto===null||ag.desconto===undefined||ag.desconto===0)) upd.desconto = desc*fatia;
-      if(novoSaldo<0.01) upd.status='concluido'; // só fecha quando realmente quitou
-      await sb.from('agendamentos').update(upd).eq('id',id);
-      const agLocal=D.agendamentos.find(a=>a.id===id);
-      if(agLocal){
-        agLocal.saldo_devedor=novoSaldo;
-        if(upd.valor_cobrado!==undefined) agLocal.valor_cobrado=upd.valor_cobrado;
-        if(upd.desconto!==undefined) agLocal.desconto=upd.desconto;
-        if(upd.status) agLocal.status='concluido';
-      }
-    }
-
-    // ② Lança cada forma de pagamento — UMA LINHA POR COMANDA, com o valor proporcional
-    //    Só lança o que foi REALMENTE recebido — o que falta NÃO entra no caixa.
-    for(const pg of S.pgtos){
-      if(pg.tipo==='saldo') continue; // abatimento de crédito, não é entrada nova
-      for(const id of S.fatIds){
-        const ag=D.agendamentos.find(a=>a.id===id); if(!ag)continue;
-        const fatia = pesos[id]/pesoTotal;
-        const valorFatia = pg.valor*fatia;
+    // ① PRIMEIRO o dinheiro (caixa / crédito usado): o saldo da comanda é calculado a partir daí,
+    //    então se algo falhar no meio, o saldo continua certo.
+    for(let k=0;k<S.pgtos.length;k++){
+      const pg=S.pgtos[k];
+      for(let i=0;i<linhas.length;i++){
+        const l=linhas[i];
+        const valorFatia=pl.pgRat[k][i];
         if(valorFatia<=0) continue;
-        await sb.from('caixa').insert({
+        if(pg.tipo==='saldo'){
+          // crédito do cliente: não é entrada nova no caixa; fica gravado COM a comanda, para o saldo bater
+          ok(await sb.from('historico_cliente').insert({
+            cliente_id:S._fatCliId, valor:-valorFatia,
+            descricao:`[CREDITO] Saldo utilizado no faturamento · comanda ${l.ag.id}`, data:hoje
+          }),'Crédito');
+          continue;
+        }
+        ok(await sb.from('caixa').insert({
           tipo:'entrada',
-          descricao:`Comanda - ${gCNm2(ag)}${desc>0?` (desc. ${Rf(desc*fatia)})`:''}${usandoCustom?' (valor ajustado)':''}${!pagouTudo?' [PAGAMENTO PARCIAL]':''}`,
+          descricao:`Comanda - ${gCNm2(l.ag)}${desc>0?` (desc. ${Rf(desc*l.fatia)})`:''}${usandoCustom?' (valor ajustado)':''}${!pagouTudo?' [PAGAMENTO PARCIAL]':''}`,
           valor: valorFatia,
           data: hoje,
           forma_pagamento: pg.tipo,
-          agendamento_id: id,
-        });
+          agendamento_id: l.ag.id,
+        }),'Caixa');
       }
     }
 
-    // ③ Taxa do cartão → despesa automática (sobre o valor total, não precisa dividir)
+    // ② Taxa do cartão → despesa automática (sobre o valor do pagamento)
     for(const pg of S.pgtos){
       if((pg.tipo==='credito'||pg.tipo==='debito') && pg.taxa>0){
-        const taxaVal=pg.valor*(pg.taxa/100);
+        const taxaVal=Math.round(pg.valor*(pg.taxa/100)*100)/100;
         const nms={credito:'Crédito',debito:'Débito'};
-        await sb.from('despesas').insert({
+        ok(await sb.from('despesas').insert({
           descricao:`Taxa ${nms[pg.tipo]} (${pg.taxa}%) — faturamento`,
           valor:taxaVal, categoria:'Taxas Financeiras', data:hoje, status:'pago'
-        });
-        await sb.from('caixa').insert({
+        }),'Despesa');
+        ok(await sb.from('caixa').insert({
           tipo:'saida', descricao:`Taxa cartão ${nms[pg.tipo]} (${pg.taxa}%)`,
           valor:taxaVal, data:hoje, forma_pagamento:pg.tipo
-        });
+        }),'Caixa');
       }
-      if(pg.tipo==='saldo' && S._fatCliId){
-        await sb.from('historico_cliente').insert({
-          cliente_id:S._fatCliId, valor:-pg.valor,
-          descricao:`[CREDITO] Saldo utilizado no faturamento`, data:hoje
-        });
-      }
+    }
+
+    // ③ Atualiza cada agendamento: trava o preço combinado, grava o saldo e fecha só se quitou
+    for(const l of linhas){
+      const ag=l.ag;
+      const upd={ saldo_devedor: l.saldoNovo, valor_cobrado: l.novoTotal };
+      if(desc>0 && (ag.desconto===null||ag.desconto===undefined||Number(ag.desconto)===0)) upd.desconto = Math.round(desc*l.fatia*100)/100;
+      if(l.saldoNovo<0.01) upd.status='concluido'; // só fecha quando realmente quitou
+      ok(await sb.from('agendamentos').update(upd).eq('id',ag.id),'Comanda');
     }
     await Promise.all([reloadSection('agendamentos'),reloadSection('caixa'),reloadSection('despesas'),reloadSection('historico')]);
     hideLoad(); closeModal('m-fat');
     const taxTotal=S.pgtos.filter(p=>p.tipo==='credito'||p.tipo==='debito').reduce((t,p)=>t+p.valor*(p.taxa/100),0);
     if(pagouTudo){
-      toast(`${S.fatIds.length} comanda(s) faturada(s) · ${Rf(totalFinal)}${taxTotal>0?' · Taxa '+Rf(taxTotal):''}`);
+      toast(`${linhas.length} comanda(s) faturada(s) · ${Rf(totalFinal)}${taxTotal>0?' · Taxa '+Rf(taxTotal):''}`);
     } else {
       toast(`⚠️ Pagamento PARCIAL registrado: ${Rf(totalPago)} de ${Rf(totalFinal)} · Falta ${Rf(saldoDevedorTotal)}`,'w');
     }
     renderComandas(); renderDash();
   } catch(e){
     hideLoad();
-    toast('Erro ao faturar: '+e.message,'e');
+    // recarrega para a tela refletir exatamente o que foi gravado
+    try{ await Promise.all([reloadSection('agendamentos'),reloadSection('caixa'),reloadSection('despesas'),reloadSection('historico')]); renderComandas(); renderDash(); }catch(_){}
+    toast('Erro ao faturar: '+e.message+' — confira a comanda antes de tentar de novo','e');
   } finally {
     S._faturando = false;
     if(btnConfirmar){ btnConfirmar.disabled = false; btnConfirmar.style.opacity = '1'; btnConfirmar.style.pointerEvents = 'auto'; btnConfirmar.textContent = '✓ CONFIRMAR'; }
@@ -4220,7 +4353,7 @@ function reativarTexto(c){
 function renderRelFin(){
   const el=document.getElementById('rel-fin'); if(!el) return;
   const {ok}=relRange();
-  const pagoDe=a=>D.caixa.filter(x=>x.agendamento_id===a.id&&x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
+  const pagoDe=a=>gAgPago(a);
   const ags=D.agendamentos.filter(a=>!isCanc(a)&&ok(a.data));
   const previsto=ags.reduce((t,a)=>t+gAgtot(a),0);
   const concl=ags.filter(a=>a.status==='concluido');
@@ -4362,7 +4495,7 @@ function renderRel(){
   const desp=cxOk.filter(x=>x.tipo==='saida').reduce((t,x)=>t+Number(x.valor),0);
   const agsF=D.agendamentos.filter(a=>a.status==='concluido'&&ok(a.data));
   const nAt=agsF.length;
-  const ticket=nAt&&fat?fat/nAt:0;
+  const ticket=nAt?agsF.reduce((t,a)=>t+(gAgPago(a)||gAgtot(a)),0)/nAt:0;
 
   const periodoSuffix=f==='hoje'?'HOJE':f==='semana'?'SEMANA':f==='mes'?'MÊS':'ANO';
   document.getElementById('rel-cards').innerHTML=`
@@ -4461,8 +4594,7 @@ function renderRel(){
   const profFat={};
   agsF.forEach(a=>{
     const pid=profId(a);
-    const cxAg=D.caixa.filter(x=>x.agendamento_id===a.id&&x.tipo==="entrada");
-    const val=cxAg.length?cxAg.reduce((t,x)=>t+Number(x.valor),0):gAgtot(a);
+    const val=gAgPago(a)||gAgtot(a);
     profFat[pid]=(profFat[pid]||0)+val;
   });
   const topProf=Object.entries(profFat).sort((a,b)=>b[1]-a[1]);
