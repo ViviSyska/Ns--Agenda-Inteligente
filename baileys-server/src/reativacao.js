@@ -62,7 +62,7 @@ export function selecionarLaser({ clientes, agendamentos, contatos = [], hoje, s
     const o = porCli.get(a.cliente_id) || { ultima: null, visitas: 0, futura: false };
     const d = String(a.data || '').substring(0, 10);
     const fezServico = !servicoId || (a.servicos || []).includes(servicoId); // sem serviço = qualquer atendimento
-    if (a.status === 'concluido' && fezServico) {
+    if ((a.status === 'concluido' || a.status === 'finalizado') && fezServico) {
       o.visitas++;
       if (!o.ultima || d > o.ultima) o.ultima = d;
     }

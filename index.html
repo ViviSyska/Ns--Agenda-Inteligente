@@ -194,6 +194,8 @@ input::placeholder,textarea::placeholder{color:var(--text3)}
 [data-theme="dark"] .ag-ap.concluido{background:#0d2200;border-color:var(--green);color:#86efac}
 [data-theme="light"] .ag-ap.concluido{background:#f0fdf4;border-color:var(--green);color:#166534}
 /* EM ATENDIMENTO — roxo (automático) */
+[data-theme="dark"] .ag-ap.finalizado{background:#06142e;border-color:#3b82f6;color:#93c5fd}
+[data-theme="light"] .ag-ap.finalizado{background:#eff6ff;border-color:#2563eb;color:#1e40af}
 [data-theme="dark"] .ag-ap.atendimento{background:#1a0a2e;border-color:var(--purple);color:#c4b5fd}
 [data-theme="light"] .ag-ap.atendimento{background:#f5f3ff;border-color:var(--purple);color:#6d28d9}
 .ph{background:var(--bg3);border-bottom:var(--brd);border-right:var(--brd);padding:9px 12px;font-size:12px;font-weight:600;color:var(--gold);text-align:center}
@@ -892,6 +894,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
             <option value="pendente">— Agendado</option>
             <option value="confirmado">🟡 Confirmado</option>
             <option value="atendimento">🟣 Em Atendimento</option>
+            <option value="finalizado">🧾 Finalizado · a pagar</option>
             <option value="concluido">🟢 Pago</option>
             <option value="cancelado">❌ Cancelado</option>
             <option value="faltou">🚫 Faltou</option>
@@ -1752,6 +1755,7 @@ const SC = {
   pendente:    'nt',   // cinza
   confirmado:  'gd',   // amarelo
   atendimento: 'pr',   // roxo
+  finalizado:  'bl',   // azul: atendimento feito, falta pagar
   concluido:   'gr',   // verde
   cancelado:   'rd',   // vermelho: cancelada
   recusou:     'gy',   // cinza apagado (visual do wa)
@@ -1760,11 +1764,11 @@ const SC = {
 // efStatus: NUNCA muda status automaticamente — só lê o que está no banco
 // O "recusou" aparece como visual mas NÃO altera o status real
 // Cancelada de verdade OU cliente respondeu NÃO no WhatsApp (e ainda não foi atendida)
-const isCanc = ag => ag.status==='cancelado' || (ag.wa_status==='recusou' && ag.status!=='concluido' && ag.status!=='atendimento');
+const isCanc = ag => ag.status==='cancelado' || (ag.wa_status==='recusou' && ag.status!=='concluido' && ag.status!=='atendimento' && ag.status!=='finalizado');
 // Cancelado = você cancelou (some da agenda, fica só no histórico/Comandas)
 // Faltou   = a cliente respondeu NÃO no WhatsApp (continua visível na agenda, marcado)
 const isCancelado = ag => ag.status==='cancelado';
-const isFaltou = ag => ag.wa_status==='recusou' && ag.status!=='concluido' && ag.status!=='atendimento' && ag.status!=='cancelado';
+const isFaltou = ag => ag.wa_status==='recusou' && ag.status!=='concluido' && ag.status!=='atendimento' && ag.status!=='finalizado' && ag.status!=='cancelado';
 const efStatus = ag => {
   if(isCancelado(ag)) return 'cancelado';
   if(isFaltou(ag)) return 'faltou';
@@ -1775,6 +1779,7 @@ const efLabel = ag => ({
   pendente:    '📋 Agendado',
   confirmado:  '✅ Confirmado',
   atendimento: '🟣 Em Atendimento',
+  finalizado:  '🧾 Finalizado · a pagar',
   concluido:   '💰 Pago',
   cancelado:   '❌ Cancelado',
   faltou:      '🚫 Faltou',
@@ -2381,7 +2386,7 @@ function renderDash(){
   // Comandas já parcialmente cobradas saem daqui e ficam só em "Contas em Aberto",
   // evitando que o mesmo dinheiro apareça contado duas vezes nos dois cards.
   const agsAbertos=agsPeriodo.filter(a=>{
-    if(!['pendente','confirmado','atendimento'].includes(a.status)) return false;
+    if(!['pendente','confirmado','atendimento','finalizado'].includes(a.status)) return false;
     const pagoReal=D.caixa.filter(x=>x.agendamento_id===a.id&&x.tipo==='entrada').reduce((t,x)=>t+Number(x.valor),0);
     return pagoReal<=0; // nunca foi cobrada
   });
@@ -2647,6 +2652,7 @@ function verAg(id){
     {k:'pendente',    ic:'📋', lbl:'Agendado',       cor:'#888'},
     {k:'confirmado',  ic:'✅', lbl:'Confirmado',      cor:'var(--gold)'},
     {k:'atendimento', ic:'🟣', lbl:'Em Atendimento',  cor:'var(--purple)'},
+    {k:'finalizado',  ic:'🧾', lbl:'Finalizado · a pagar', cor:'#2563eb'},
     {k:'concluido',   ic:'💰', lbl:'Pago',            cor:'var(--green)'},
     {k:'cancelado',   ic:'❌', lbl:'Cancelado',       cor:'var(--red)'},
   ];
@@ -2676,7 +2682,7 @@ function verAg(id){
           </button>`;
         }).join('')}
       </div>
-      <div style="font-size:10px;color:var(--text3);margin-top:7px">💡 Clique para mudar. "Pago" abre o faturamento.</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:7px">💡 Clique para mudar. "Finalizado · a pagar" = atendimento feito, pagamento depois. "Pago" abre o faturamento.</div>
     </div>
 
     <div class="dv"></div>
@@ -2751,12 +2757,16 @@ async function mudarStatusAg(id, novoStatus, btnEl){
   _aplicarStatusManual(id, novoStatus, btnEl);
 }
 
+// Atendimento feito, mas o pagamento fica para depois (a comanda continua aberta, com o valor a receber)
+function finalizarAg(id){ _aplicarStatusManual(id,'finalizado',null); }
+
 function _aplicarStatusManual(id, novoStatus, btnEl){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
-  const labels={pendente:'Agendado',confirmado:'Confirmado',atendimento:'Em Atendimento',concluido:'Pago',cancelado:'Cancelado'};
-  const cores={pendente:'#888',confirmado:'var(--gold)',atendimento:'var(--purple)',concluido:'var(--green)',cancelado:'var(--red)'};
+  const labels={pendente:'Agendado',confirmado:'Confirmado',atendimento:'Em Atendimento',finalizado:'Finalizado · a pagar',concluido:'Pago',cancelado:'Cancelado'};
+  const cores={pendente:'#888',confirmado:'var(--gold)',atendimento:'var(--purple)',finalizado:'#2563eb',concluido:'var(--green)',cancelado:'var(--red)'};
 
   // ① Cache local imediato — reflete na hora
+  const statusAntesManual=ag.status;
   ag.status = novoStatus;
 
   // ② Atualiza visual dos botões no modal
@@ -2776,8 +2786,12 @@ function _aplicarStatusManual(id, novoStatus, btnEl){
   toast(`Status → ${labels[novoStatus]||novoStatus}`, novoStatus==='cancelado'?'w':'ok');
 
   // ④ Persiste no banco em background
+  const antes=statusAntesManual;
   sb.from('agendamentos').update({status:novoStatus}).eq('id',id).then(({error})=>{
-    if(error) toast('Erro ao salvar no banco: '+error.message,'e');
+    if(error){
+      ag.status=antes; renderAgenda(); renderComandas();
+      toast(/status_check/.test(error.message||'')?'O banco ainda não aceita o status "Finalizado". Rode o arquivo finalizado-status.sql no Supabase.':'Erro ao salvar no banco: '+error.message,'e');
+    }
   });
 }
 
@@ -2863,7 +2877,7 @@ function setAgStatusSel(st){
   st=st||'pendente';
   if(!['pendente','confirmado'].includes(st)){
     const o=document.createElement('option'); o.value=st; o.dataset.x='1';
-    o.textContent={concluido:'💰 Pago (concluído)',atendimento:'🟣 Em atendimento',cancelado:'❌ Cancelado'}[st]||st; sel.appendChild(o);
+    o.textContent={concluido:'💰 Pago (concluído)',atendimento:'🟣 Em atendimento',finalizado:'🧾 Finalizado · a pagar',cancelado:'❌ Cancelado'}[st]||st; sel.appendChild(o);
   }
   sel.value=st;
 }
@@ -3191,7 +3205,8 @@ function renderComandas(){
     </td>
     <td><span class="bd ${SC[efStatus(a)]||'gy'}">${efLabel(a)}</span></td>
     <td style="display:flex;gap:4px;flex-wrap:wrap">
-      ${['pendente','confirmado','atendimento'].includes(efStatus(a))||saldoDev>0.01?`<button class="btn gr xs" onclick="abrirFat('${a.id}')">${saldoDev>0.01?'✓ Receber saldo':'✓ Faturar'}</button>`:''}
+      ${['pendente','confirmado','atendimento','finalizado'].includes(efStatus(a))||saldoDev>0.01?`<button class="btn gr xs" onclick="abrirFat('${a.id}')">${saldoDev>0.01?'✓ Receber saldo':'✓ Faturar'}</button>`:''}
+      ${['pendente','confirmado','atendimento'].includes(efStatus(a))?`<button class="btn ol xs" style="color:#2563eb;border-color:#2563eb" onclick="finalizarAg('${a.id}')" title="Atendimento feito, pagamento depois">🧾 Finalizar</button>`:''}
       ${a.status==='concluido'&&saldoDev<=0.01?`<button class="btn ol xs" style="color:var(--purple);border-color:var(--purple)" onclick="reabrirComanda('${a.id}')">↩ Reabrir</button>`:''}
       ${canc?`<button class="btn gr xs" onclick="reativarAg('${a.id}')">↩ Reativar</button>`:''}
       ${(!isCancelado(a)&&a.status!=='concluido')?`<button class="btn ol xs" style="color:var(--red);border-color:var(--red)" onclick="cancelarAg('${a.id}')">✕ Cancelar</button>`:''}
@@ -3210,7 +3225,7 @@ function abrirFat(agId){
   if(ag.status==='cancelado'){ toast('Não é possível faturar comanda cancelada','e'); return; }
   // Inclui pendentes/confirmados normais + qualquer comanda com saldo devedor (mesmo já "concluída")
   // Exclui SEMPRE comandas canceladas, mesmo que gAgSaldo ainda "ache" que falta pagar
-  const pendentes=D.agendamentos.filter(a=>!isCanc(a)&&cliId(a)===cliId(ag)&&(a.status==='pendente'||a.status==='confirmado'||gAgSaldo(a)>0.01));
+  const pendentes=D.agendamentos.filter(a=>!isCanc(a)&&cliId(a)===cliId(ag)&&(a.status==='pendente'||a.status==='confirmado'||a.status==='finalizado'||gAgSaldo(a)>0.01));
   S.fatIds=[agId]; S.pgtos=[]; S.selPgTipo=null; S._faturando=false;
   const resumoEl=document.getElementById('fat-resumo-pgto'); if(resumoEl)resumoEl.style.display='none';
   const pgListEl=document.getElementById('pg-list'); if(pgListEl)pgListEl.innerHTML='';
@@ -3931,7 +3946,7 @@ function verUsoPkg(id){
   const pk=D.pacotes.find(x=>x.id===id); if(!pk) return;
   const u=pkgUso(id); const ses=Number(pk.sessoes)||1;
   document.getElementById('pu-t').textContent='📦 '+pk.nome.toUpperCase();
-  const st={pendente:['Agendado','gd'],confirmado:['Confirmado','gd'],atendimento:['Em atendimento','pr'],concluido:['Pago','gr'],cancelado:['Cancelado','rd']};
+  const st={pendente:['Agendado','gd'],confirmado:['Confirmado','gd'],atendimento:['Em atendimento','pr'],finalizado:['Finalizado · a pagar','bl'],concluido:['Pago','gr'],cancelado:['Cancelado','rd']};
   document.getElementById('pu-body').innerHTML=`
     <div class="cr" style="margin-bottom:12px">
       <div class="sc"><div class="sc-l">CLIENTES</div><div class="sc-v">${u.clientes.length}</div></div>
@@ -4125,7 +4140,7 @@ function cliStats(svcId){
     const cid=cliId(a); if(!cid) return;
     const o=porCli[cid]||(porCli[cid]={visitas:[],futura:false,faltas:0,canc:0});
     const d=(a.data||'').substring(0,10);
-    if(a.status==='concluido'){ if(!svcId||(a.svcs||[]).includes(svcId)) o.visitas.push({d,v:gAgtot(a)}); }
+    if(a.status==='concluido'||a.status==='finalizado'){ if(!svcId||(a.svcs||[]).includes(svcId)) o.visitas.push({d,v:gAgtot(a)}); }
     else if(isCancelado(a)) o.canc++;
     else if(isFaltou(a)) o.faltas++;
     else if(d>=hoje&&(a.status==='pendente'||a.status==='confirmado')) o.futura=true;
@@ -4230,7 +4245,7 @@ function renderRelFin(){
     const saldo=gAgSaldo(a); if(saldo<=0.01) return;
     let tipo=null;
     if(a.status==='concluido'||pago>0) tipo='parcial';          // foi faturada e faltou valor
-    else if(dt<TODAY) tipo='naofat';                           // dia já passou e ainda não foi cobrada
+    else if(a.status==='finalizado'||dt<TODAY) tipo='naofat';   // finalizada (ou dia já passou) e ainda não cobrada                           // dia já passou e ainda não foi cobrada
     if(!tipo) return;                                          // comanda futura não é pendência
     const cid=cliId(a); const nome=gCNm(cid);
     const g=grupos[cid]||(grupos[cid]={nome,saldo:0,parcial:0,naofat:0,datas:[]});
@@ -4247,7 +4262,7 @@ function renderRelFin(){
     if(isCanc(a)) return;
     const saldo=gAgSaldo(a); if(saldo<=0.01||gAgtot(a)<=0.009) return;
     const dt=(a.data||'').substring(0,10);
-    if(a.status==='concluido'||pagoDe(a)>0||dt<TODAY) totGeral+=saldo;
+    if(a.status==='concluido'||a.status==='finalizado'||pagoDe(a)>0||dt<TODAY) totGeral+=saldo;
   });
 
   // Despesas do período (pagas no caixa + a pagar)
