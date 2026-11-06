@@ -2791,7 +2791,11 @@ function _aplicarStatusManual(id, novoStatus, btnEl){
 
   // ① Cache local imediato — reflete na hora
   const statusAntesManual=ag.status;
+  const waAntesManual=ag.wa_status;
   ag.status = novoStatus;
+  // Confirmou na comanda → a mensagem de WhatsApp (aguardando/recusou) também vira "confirmou"
+  const updManual={status:novoStatus};
+  if(novoStatus==='confirmado' && ag.wa_status && ag.wa_status!=='confirmou'){ ag.wa_status='confirmou'; updManual.wa_status='confirmou'; }
 
   // ② Atualiza visual dos botões no modal
   document.querySelectorAll('[id^="ver-st-btn-"]').forEach(b=>{
@@ -2811,9 +2815,9 @@ function _aplicarStatusManual(id, novoStatus, btnEl){
 
   // ④ Persiste no banco em background
   const antes=statusAntesManual;
-  sb.from('agendamentos').update({status:novoStatus}).eq('id',id).then(({error})=>{
+  sb.from('agendamentos').update(updManual).eq('id',id).then(({error})=>{
     if(error){
-      ag.status=antes; renderAgenda(); renderComandas();
+      ag.status=antes; ag.wa_status=waAntesManual; renderAgenda(); renderComandas();
       toast(/status_check/.test(error.message||'')?'O banco ainda não aceita o status "Finalizado". Rode o arquivo finalizado-status.sql no Supabase.':'Erro ao salvar no banco: '+error.message,'e');
     }
   });
