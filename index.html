@@ -956,6 +956,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
         <div class="msg-wrap" id="msg-wrap">
           <div class="msg-side tw">
             <div class="th2"><span class="th2-t">CONVERSAS</span><div class="tb-sp"></div><button class="btn gh xs" onclick="msgAtivarAvisos()" id="msg-notif-btn">🔔 Ativar avisos</button><button class="btn gd xs" onclick="msgNova()">+ Nova conversa</button></div>
+            <div style="padding:8px 12px;border-bottom:var(--brd)"><input type="search" id="msg-q" placeholder="🔍 Buscar nome, número ou mensagem…" oninput="renderMsgs(true);msgDesenhar(false)" style="width:100%;background:var(--inp);border:1px solid var(--bc);border-radius:var(--r2);padding:8px 11px;color:var(--text);font-size:13px;outline:none"></div>
             <div id="msg-list"></div>
           </div>
           <div class="msg-main tw">
@@ -5161,7 +5162,9 @@ function renderMsgs(soLista){
   ban.style.display=avisos.length?'block':'none'; ban.innerHTML=avisos.join('<br>');
   const nb=document.getElementById('msg-notif-btn');
   if(nb) nb.style.display=('Notification' in window&&Notification.permission==='default')?'':'none';
-  list.innerHTML=MSG.chats.length?MSG.chats.map(c=>`
+  const q=(document.getElementById('msg-q')?.value||'').toLowerCase().trim(), qd=q.replace(/\D/g,'');
+  const chats=!q?MSG.chats:MSG.chats.filter(c=>msgNomeChat(c).toLowerCase().includes(q)||((c.last&&c.last.text)||'').toLowerCase().includes(q)||(qd&&String(c.phone||c.key||'').includes(qd)));
+  list.innerHTML=chats.length?chats.map(c=>`
     <div class="msg-item ${MSG.cur===c.key?'sel':''} ${c.unread?'unr':''}" onclick="msgAbrir('${c.key}')">
       <div class="c-av msg-av">${relEsc(ini(msgNomeChat(c).replace(/^\+/,'')||'?'))}</div>
       <div class="msg-item-main">
@@ -5169,7 +5172,7 @@ function renderMsgs(soLista){
         <div class="msg-item-l">${c.last&&c.last.direction==='out'?'Você: ':''}${relEsc(((c.last&&c.last.text)||'').slice(0,70))}</div>
       </div>
       ${c.unread?`<span class="ni-bdg" style="display:inline-flex">${c.unread}</span>`:''}
-    </div>`).join(''):`<div class="fin-empty">${MSG.seen===null&&!MSG.err?'Carregando…':'Nenhuma conversa ainda.<br>Quando alguém te escrever, aparece aqui.'}</div>`;
+    </div>`).join(''):`<div class="fin-empty">${q?'Nada encontrado.':MSG.seen===null&&!MSG.err?'Carregando…':'Nenhuma conversa ainda.<br>Quando alguém te escrever, aparece aqui.'}</div>`;
 }
 async function msgAbrir(key){
   MSG.cur=key; MSG.novoTel=null;
@@ -5203,10 +5206,12 @@ function msgDesenhar(rolar){
   const el=document.getElementById('msg-body'); if(!el) return;
   const perto=el.scrollHeight-el.scrollTop-el.clientHeight<80;
   let ult='';
+  const q=(document.getElementById('msg-q')?.value||'').toLowerCase().trim();
+  const hl=t=>{ const e=relEsc(t); if(!q) return e; const qe=relEsc(q).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); return e.replace(new RegExp(qe,'gi'),m=>`<mark>${m}</mark>`); };
   el.innerHTML=MSG.msgs.map(m=>{
     const d=dStr(new Date(m.ts)); let sep='';
     if(d!==ult){ ult=d; sep=`<div class="msg-day">${fBR(d)}</div>`; }
-    return `${sep}<div class="msg-b ${m.direction==='out'?'out':'in'}"><div class="msg-t">${relEsc(m.text)}</div><div class="msg-h">${new Date(m.ts).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div></div>`;
+    return `${sep}<div class="msg-b ${m.direction==='out'?'out':'in'}"><div class="msg-t">${hl(m.text)}</div><div class="msg-h">${new Date(m.ts).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div></div>`;
   }).join('')||'<div class="fin-empty">Sem mensagens</div>';
   if(rolar||perto) el.scrollTop=el.scrollHeight;
 }
