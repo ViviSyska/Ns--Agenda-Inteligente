@@ -1119,8 +1119,8 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
           <div class="fgr"><label>PROFISSIONAL *</label><select id="ag-prf"></select></div>
         </div>
         <div class="fg fg2">
-          <div class="fgr"><label>DATA *</label><input type="date" id="ag-dt"></div>
-          <div class="fgr"><label>HORÁRIO *</label><input type="time" id="ag-hr" onchange="calcSeq()"></div>
+          <div class="fgr"><label>DATA *</label><input type="date" id="ag-dt" onchange="atualizarAgTotal()"></div>
+          <div class="fgr"><label>HORÁRIO *</label><input type="time" id="ag-hr" onchange="calcSeq();atualizarAgTotal()"></div>
         </div>
         <div class="fgr">
           <label>📦 PACOTES (pode escolher mais de um)</label>
@@ -1704,6 +1704,18 @@ const gSVal = id => { const s=D.servicos.find(x=>x.id===id); return s?s.valor:0;
 const agPkgIds = ag => { const l=Array.isArray(ag.pacote_ids)?ag.pacote_ids.filter(Boolean).map(String):[]; if(l.length) return l; const p=ag.pacote_id||ag.pkgId; return p?[String(p)]:[]; };
 // Preço CALCULADO da comanda (pacote(s) + serviços fora do pacote − desconto), ignorando valor_cobrado.
 // Aceita um agendamento ou um objeto {pacote_ids, svcs, desconto} (usado ao editar, antes de salvar).
+// Pacote de várias sessões: a cliente tem N sessões; só a 1ª de cada "rodada" cobra o valor do pacote,
+// as demais (2..N) ficam R$ 0. Depois de N sessões, a próxima começa um pacote novo (cobra de novo).
+const pkgSessao = (ag, pk) => {
+  const N = Number(pk.sessoes)||1;
+  if(N<=1) return {n:1,N:1,paga:true,antes:0};
+  const cid = cliId(ag);
+  if(!cid || !ag.data) return {n:1,N,paga:true,antes:0};
+  const chave = a => (a.data||'').substring(0,10)+' '+(a.hora||'').substring(0,5)+' '+String(a.id||'~');
+  const minha = chave(ag);
+  const antes = D.agendamentos.filter(a=>a.id!==ag.id && cliId(a)===cid && !isCanc(a) && agPkgIds(a).includes(String(pk.id)) && chave(a)<minha).length;
+  return {n:antes%N+1, N, paga:antes%N===0, antes};
+};
 const gAgBase = ag => {
   const pids = agPkgIds(ag);
   let base=0;
@@ -1712,7 +1724,7 @@ const gAgBase = ag => {
   if(pids.length){
     const pks=pids.map(id=>D.pacotes.find(x=>x.id===id)).filter(Boolean);
     if(pks.length){
-      base=pks.reduce((t,pk)=>t+(Number(pk.valor)||0),0);
+      base=pks.reduce((t,pk)=>t+(pkgSessao(ag,pk).paga?(Number(pk.valor)||0):0),0);
       // soma serviços AVULSOS que não fazem parte de nenhum dos pacotes
       const cobertos=new Set(pks.flatMap(pk=>pk.svcs||[]));
       base+=somaSvcs(svcs.filter(sid=>!cobertos.has(sid)));
@@ -2718,6 +2730,7 @@ function verAg(id){
         <span style="color:var(--text3);font-size:12px">SERVIÇOS</span>
         <span style="text-align:right;max-width:60%">${(ag.svcs||[]).map(gSNm).join('<br>')||'—'}</span>
       </div>
+      ${agSessoesTxt(ag).length?`<div style="display:flex;justify-content:space-between;align-items:flex-start"><span style="color:var(--text3);font-size:12px">PACOTE</span><span style="text-align:right;max-width:60%;color:var(--gold);font-size:12px">${agSessoesTxt(ag).map(relEsc).join('<br>')}</span></div>`:''}
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="color:var(--text3);font-size:12px">VALOR PREVISTO</span>
         <span style="font-family:var(--fm);font-size:20px;font-weight:700;color:var(--gold)">${Rf(tot)}</span>
@@ -2882,7 +2895,17 @@ function toggleAgCustomVal(){
 // Preço calculado do que está marcado AGORA no formulário (pacotes + serviços fora do pacote − desconto já gravado)
 function agBaseForm(){
   const old=S.editAgId?D.agendamentos.find(a=>a.id===S.editAgId):null;
-  return gAgBase({pacote_ids:(S.agPkgs||[]).slice(), svcs:(S.agSvcs||[]).slice(), desconto:old?old.desconto:0});
+  return gAgBase(agFormObj());
+}
+function agFormObj(){
+  const old=S.editAgId?D.agendamentos.find(a=>a.id===S.editAgId):null;
+  return {id:S.editAgId||undefined, cliente_id:document.getElementById('ag-cli')?.value, data:document.getElementById('ag-dt')?.value, hora:document.getElementById('ag-hr')?.value,
+    pacote_ids:(S.agPkgs||[]).slice(), svcs:(S.agSvcs||[]).slice(), desconto:old?old.desconto:0};
+}
+// "Sessão 2/3" de cada pacote de várias sessões da comanda
+function agSessoesTxt(ag){
+  return agPkgIds(ag).map(id=>D.pacotes.find(x=>x.id===id)).filter(pk=>pk&&(Number(pk.sessoes)||1)>1)
+    .map(pk=>{ const i=pkgSessao(ag,pk); return `${pk.nome}: sessão ${i.n}/${i.N}`+(i.paga?' (cobra o pacote)':' (já pago na 1ª — R$ 0,00)'); });
 }
 function atualizarAgTotal(){
   const el=document.getElementById('ag-total-info'); if(!el) return;
@@ -2891,6 +2914,7 @@ function atualizarAgTotal(){
   const raw=document.getElementById('ag-custom-val')?.value;
   const custom=chk?.checked && raw!=='' && raw!=null ? parseFloat(raw) : null;
   let h=`💵 Valor calculado: <b>${Rf(base)}</b>`;
+  const ss=agSessoesTxt(agFormObj()); if(ss.length) h+=`<br><span style="color:var(--gold)">📦 ${ss.map(relEsc).join(' · ')}</span>`;
   if(custom!==null && !isNaN(custom)){
     const d=Math.round((custom-base)*100)/100;
     h+=` · combinado: <b>${Rf(custom)}</b>`+(Math.abs(d)>0.01?` <span style="color:var(--red)">(${Rf(Math.abs(d))} a ${d<0?'menos':'mais'} que o calculado)</span>`:'');
@@ -3056,9 +3080,20 @@ async function salvarAg(confirmado){
   if(usandoCustomAg && (isNaN(parseFloat(customValRaw)) || parseFloat(customValRaw)<0)){ toast('Valor combinado inválido','e'); return; }
   const oldAg = S.editAgId ? D.agendamentos.find(a=>a.id===S.editAgId) : null;
   // Preço calculado com o que está marcado AGORA (pacote(s) + serviços fora do pacote − desconto já gravado)
-  const baseNova = gAgBase({pacote_ids, svcs, desconto: oldAg?oldAg.desconto:0});
+  const baseNova = gAgBase({id:S.editAgId||undefined, cliente_id:cliId2, data, hora, pacote_ids, svcs, desconto: oldAg?oldAg.desconto:0});
+  // AVISO: cliente já usou todas as sessões do pacote → este agendamento abre um pacote NOVO (cobra de novo)
+  if(!confirmado){
+    const novos=pacote_ids.map(id=>D.pacotes.find(x=>x.id===id)).filter(pk=>{ if(!pk) return false; const i=pkgSessao({id:S.editAgId||undefined,cliente_id:cliId2,data,hora},pk); return i.N>1 && i.antes>0 && i.n===1; });
+    if(novos.length){
+      const el=document.getElementById('conf-s'); if(el) el.style.whiteSpace='pre-line';
+      confirm2('📦','PACOTE JÁ COMPLETO',
+        novos.map(pk=>`${gCNm(cliId2)} já usou as ${pk.sessoes} sessões do pacote ${pk.nome}.`).join('\n')+`\n\nEste agendamento será a sessão 1 de um NOVO pacote e vai cobrar o valor do pacote de novo.\nDeseja prosseguir?`,
+        ()=>salvarAg('pkg'),'SIM, NOVO PACOTE','gr');
+      return;
+    }
+  }
   // AVISO: valor combinado diferente do pacote/serviços → pergunta se quer prosseguir
-  if(usandoCustomAg && !confirmado){
+  if(usandoCustomAg && confirmado!==true){
     const vc=parseFloat(customValRaw), dif=Math.round((vc-baseNova)*100)/100;
     if(Math.abs(dif)>0.01){
       const nome=pacote_ids.length?('pacote '+pacote_ids.map(id=>(D.pacotes.find(x=>x.id===id)||{}).nome).filter(Boolean).join(' + ')):'serviços';
@@ -5692,6 +5727,7 @@ function _setAcCli(id){
   document.getElementById('ag-cli-chip').style.display='flex';
   document.getElementById('ag-cli-search').style.display='none';
   document.getElementById('ag-cli-dd').classList.remove('open');
+  try{ atualizarAgTotal(); }catch(e){}
 }
 function clearAcCli(){
   document.getElementById('ag-cli').value='';
