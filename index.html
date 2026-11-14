@@ -3263,11 +3263,12 @@ function renderClientes(){
     const totImport=D.historico.filter(h=>h.cliente_id===c.id&&!(h.descricao||'').startsWith('[CREDITO]')).reduce((t,h)=>t+Number(h.valor),0);
     const tot=totAgs+totImport;
     const credito=gCliCredito(c.id);
+    const deve=debitosCliente(c.id).reduce((t,a)=>t+gAgSaldo(a),0);
     return`<div class="c-card" onclick="verCli('${c.id}')">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
         <div class="c-av">${ini(c.nome)}</div>
         <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.nome}</div><div style="font-size:11px;color:var(--text3)">${c.whatsapp||'—'}</div></div>
-        ${credito>0?`<span class="bd gr" style="flex-shrink:0">💳 ${Rf(credito)}</span>`:`<span class="bd ${pend?'gd':'gr'}">${pend?'Pendente':'OK'}</span>`}
+        ${deve>0.01?`<span class="bd rd" style="flex-shrink:0">Deve ${Rf(deve)}</span>`:credito>0?`<span class="bd gr" style="flex-shrink:0">💳 ${Rf(credito)}</span>`:`<span class="bd ${pend?'gd':'gr'}">${pend?'Pendente':'OK'}</span>`}
       </div>
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3)">
         <span>Visitas: ${hist.length}</span>
@@ -4526,7 +4527,8 @@ function renderRelFin(){
   // Pendências por cliente
   const grupos={};
   let totPend=0, nPend=0;
-  ags.forEach(a=>{
+  // Quem deve aparece SEMPRE (hoje, semana, mês ou ano): a dívida não some por estar fora do período
+  D.agendamentos.filter(a=>!isCanc(a)&&(S.user?.role!=='prof'||profId(a)===S.user.profId)).forEach(a=>{
     const dt=(a.data||'').substring(0,10);
     const total=gAgtot(a); if(total<=0.009) return;
     const pago=pagoDe(a);
@@ -4618,7 +4620,7 @@ function renderRelFin(){
               ${g.parcial>0.01?'<span class="bd gd">faltou pagar</span>':''}${g.naofat>0.01?'<span class="bd gy">não faturada</span>':''}</div>
           </div>
           <div class="fin-row-v neg">${Rf(g.saldo)}</div>
-        </div>`).join(''):'<div class="fin-empty">🎉 Nenhum cliente com pendência neste período</div>'}
+        </div>`).join(''):'<div class="fin-empty">🎉 Nenhum cliente devendo</div>'}
       ${(totPendParcial>0.01&&totPendNaoFat>0.01)?`<div class="fin-note">Faltou pagar: ${Rf(totPendParcial)} · Não faturadas: ${Rf(totPendNaoFat)}</div>`:''}
       <div class="fin-note">Pendência total de todas as datas: <b>${Rf(totGeral)}</b></div>
     </div>
