@@ -3152,7 +3152,7 @@ async function salvarAg(confirmado){
     await sb.from('agendamento_servicos').insert(svcs.map(sid=>({agendamento_id:agId, servico_id:sid})));
   }
   await reloadSection('agendamentos');
-  hideLoad(); closeModal('m-ag'); renderAgenda(); try{renderDash();}catch(_){} toast(avisoPos||(S.editAgId?'Agendamento atualizado!':'Agendamento criado!'), avisoPos?'w':undefined); S.editAgId=null;
+  hideLoad(); closeModal('m-ag'); renderAgenda(); try{renderComandas();}catch(_){} try{renderDash();}catch(_){} toast(avisoPos||(S.editAgId?'Agendamento atualizado!':'Agendamento criado!'), avisoPos?'w':undefined); S.editAgId=null;
 }
 
 // ============================================================
