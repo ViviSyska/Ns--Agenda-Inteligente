@@ -1467,7 +1467,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <div id="cpk-info" class="info-box" style="margin-top:10px;font-size:12px"></div>
       <div style="font-size:11px;color:var(--text3);margin-top:8px">Fica guardado na ficha. Ao agendar esta cliente, o pacote e as áreas já entram sozinhos.</div>
     </div>
-    <div class="mf"><button class="btn gh" onclick="closeModal('m-cpk')">Cancelar</button><button class="btn gd" onclick="salvarCpk()">SALVAR</button></div>
+    <div class="mf"><button class="btn gh" onclick="closeModal('m-cpk');if(CPK.volta) verUsoPkg(CPK.volta)">Cancelar</button><button class="btn gd" onclick="salvarCpk()">SALVAR</button></div>
   </div>
 </div>
 <div class="ov" id="m-dcli">
@@ -4384,6 +4384,13 @@ function pkgUso(id){
   const clientes=Object.values(porCli).sort((a,b)=>b.feitos-a.feitos||b.usos-a.usos);
   return {ags,validos,clientes,feitos:validos.filter(a=>a.status==='concluido').length,receita:validos.filter(a=>a.status==='concluido').reduce((t,a)=>t+gAgtot(a),0)};
 }
+function pkgUsoBusca(pkId){
+  const q=(document.getElementById('pu-busca').value||'').toLowerCase().trim(); const r=document.getElementById('pu-busca-r');
+  if(q.length<2){ r.innerHTML=''; return; }
+  const l=D.clientes.filter(c=>(c.nome||'').toLowerCase().includes(q)||(c.whatsapp||'').includes(q)).slice(0,8);
+  r.innerHTML=`<div style="border:var(--brd);border-radius:var(--r2);margin-top:4px;background:var(--card)">${l.length?l.map(c=>`<div style="padding:8px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--bc)" onclick="abrirCpk('${c.id}',null,'${pkId}')">${relEsc(c.nome)} <span style="color:var(--text3);font-size:11px">${relEsc(c.whatsapp||'')}</span></div>`).join(''):'<div style="padding:8px 10px;font-size:12px;color:var(--text3)">Nenhuma cliente</div>'}</div>`;
+}
+
 function verUsoPkg(id){
   const pk=D.pacotes.find(x=>x.id===id); if(!pk) return;
   const u=pkgUso(id); const ses=Number(pk.sessoes)||1;
@@ -4395,6 +4402,12 @@ function verUsoPkg(id){
       <div class="sc"><div class="sc-l">VEZES FEITO</div><div class="sc-v">${u.feitos}</div></div>
       <div class="sc"><div class="sc-l">EM ANDAMENTO</div><div class="sc-v gd">${u.clientes.filter(c=>c.futuro).length}</div></div>
     </div>
+    <div style="display:flex;align-items:center;font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin:6px 0">CLIENTES DESTE PACOTE (áreas guardadas)</div>
+    <div style="position:relative;margin-bottom:8px"><input class="si" id="pu-busca" placeholder="＋ Adicionar cliente: digite o nome…" oninput="pkgUsoBusca('${id}')" style="width:100%"><div id="pu-busca-r"></div></div>
+    ${(()=>{ const l=D.clientes.map(c=>({c,i:cliPacotes(c.id).findIndex(x=>String(x.pacote_id)===String(id))})).filter(x=>x.i>=0).sort((a,b)=>a.c.nome.localeCompare(b.c.nome));
+      return l.length?l.map(({c,i})=>{ const it=cliPacotes(c.id)[i]; const tab=(it.svcs||[]).reduce((t,x)=>t+(Number(gSVal(x))||0),0);
+        return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bc);font-size:12px"><div class="c-av" style="flex-shrink:0">${relEsc(ini(c.nome))}</div><div style="flex:1;min-width:0"><div style="font-weight:600">${relEsc(c.nome)}</div><div style="color:var(--text3)">${(it.svcs||[]).map(gSNm).map(relEsc).join(', ')}${tab>0?` · ${((1-pk.valor/tab)*100).toFixed(0)}% desc.`:''}</div></div><button class="btn gh xs" onclick="abrirCpk('${c.id}',${i},'${id}')">✏</button><button class="btn gh xs" onclick="removerCpk('${c.id}',${i},'${id}')">×</button></div>`; }).join('')
+        :'<div style="font-size:12px;color:var(--text3);margin-bottom:6px">Nenhuma ainda. Digite o nome acima para escolher a cliente e as áreas dela.</div>'; })()}
     <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin:6px 0">QUEM USA <span style="font-weight:400">(pacote de ${ses} sessão${ses>1?'ões':''})</span></div>
     ${u.clientes.length?u.clientes.map(c=>{ const feitasTxt=ses>1?`${Math.min(c.feitos,ses)}/${ses} sessões`:`${c.feitos}x`; const acabou=ses>1&&c.feitos>=ses;
       return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bc)"><div class="c-av" style="flex-shrink:0">${relEsc(ini(gCNm(c.cid)))}</div><div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${relEsc(gCNm(c.cid))}</div><div style="font-size:11px;color:var(--text3)">${feitasTxt}${c.ultima?' · última '+fBR(c.ultima):''}${c.futuro?' · 📅 tem horário marcado':''}</div></div><span class="bd ${acabou?'gr':c.futuro?'bl':'gy'}">${acabou?'✔ Concluiu':c.futuro?'Em andamento':'Parou?'}</span></div>`; }).join(''):'<div class="fin-empty">Ninguém usou esse pacote ainda.</div>'}
@@ -6079,13 +6092,15 @@ function aplicarPacoteDaCliente(cid){
 }
 // ── janela para definir/editar o pacote da cliente (pela ficha da cliente) ──
 let CPK={cid:null,idx:-1,sel:new Set()};
-function abrirCpk(cid,idx){
-  CPK={cid,idx:idx==null?-1:idx,sel:new Set()};
-  const l=cliPacotes(cid); const it=idx!=null&&idx>=0?l[idx]:null;
+function abrirCpk(cid,idx,pkId){
+  CPK={cid,idx:idx==null?-1:idx,sel:new Set(),volta:pkId||null};
+  const l=cliPacotes(cid); let it=idx!=null&&idx>=0?l[idx]:null;
+  if(!it&&pkId){ const j=l.findIndex(x=>String(x.pacote_id)===String(pkId)); if(j>=0){ it=l[j]; CPK.idx=j; } }
+  if(pkId) closeModal('m-pkguso');
   const sel=document.getElementById('cpk-pk');
   const ord=[...D.pacotes].sort((a,b)=>(regraAtiva(pkgRegra(b))-regraAtiva(pkgRegra(a)))||a.nome.localeCompare(b.nome));
   sel.innerHTML='<option value="">Escolha o pacote / nível…</option>'+ord.map(p=>`<option value="${p.id}">${relEsc(p.nome)}${regraAtiva(pkgRegra(p))?' — '+relEsc(regraTxt(pkgRegra(p))):''} · ${Rf(p.valor)}</option>`).join('');
-  sel.value=it?it.pacote_id:'';
+  sel.value=it?it.pacote_id:(pkId||'');
   (it?.svcs||[]).forEach(x=>CPK.sel.add(String(x)));
   document.getElementById('cpk-t').textContent='📦 PACOTE DE '+(gCNm(cid)||'').toUpperCase();
   renderCpk(); openModal('m-cpk');
@@ -6112,11 +6127,11 @@ async function salvarCpk(){
   const l=cliPacotes(CPK.cid); const item={pacote_id:pk.id, svcs:[...CPK.sel], desde:dStr(new Date())};
   if(CPK.idx>=0) l[CPK.idx]=item; else { const j=l.findIndex(x=>String(x.pacote_id)===String(pk.id)); if(j>=0) l[j]=item; else l.push(item); }
   showLoad('Salvando...'); const ok=await salvarCliPacotes(CPK.cid,l); hideLoad();
-  if(ok){ closeModal('m-cpk'); toast('Pacote da cliente salvo'); verCli(CPK.cid); }
+  if(ok){ closeModal('m-cpk'); toast('Pacote da cliente salvo'); if(CPK.volta) verUsoPkg(CPK.volta); else verCli(CPK.cid); }
 }
-function removerCpk(cid,idx){
+function removerCpk(cid,idx,voltaPk){
   confirm2('📦','TIRAR PACOTE DA CLIENTE','Os agendamentos já feitos não mudam. Só deixa de entrar sozinho nos próximos.',async()=>{
-    const l=cliPacotes(cid); l.splice(idx,1); if(await salvarCliPacotes(cid,l)){ toast('Pacote retirado da ficha'); verCli(cid); }
+    const l=cliPacotes(cid); l.splice(idx,1); if(await salvarCliPacotes(cid,l)){ toast('Pacote retirado da ficha'); if(voltaPk) verUsoPkg(voltaPk); else verCli(cid); }
   },'TIRAR','rd');
 }
 
