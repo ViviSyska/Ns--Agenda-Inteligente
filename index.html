@@ -1850,8 +1850,23 @@ function toast(msg,t='ok'){
 // MODAL
 // ============================================================
 const openModal = id => document.getElementById(id).classList.add('open');
-const closeModal= id => document.getElementById(id).classList.remove('open');
-document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open')}));
+const closeModal= id => { document.getElementById(id).classList.remove('open'); atualizarTelas(); };
+// Redesenha a tela que está aberta com os dados atuais (agrupa várias chamadas seguidas numa só).
+// Chamada depois de qualquer recarga de dados e ao fechar qualquer janela — assim nenhuma ação deixa tela velha.
+let _atTelasT=null;
+function atualizarTelas(){
+  clearTimeout(_atTelasT);
+  _atTelasT=setTimeout(()=>{
+    try{
+      if(!S.user) return;
+      const ativa=document.querySelector('.sec.active'); if(!ativa) return;
+      const sec=ativa.id.replace('sec-','');
+      const rend={dashboard:renderDash,agenda:renderAgenda,clientes:renderClientes,comandas:renderComandas,caixa:renderCaixa,despesas:renderDesp,servicos:renderSvc,pacotes:renderPkg,relatorios:renderRel};
+      if(rend[sec]) rend[sec]();
+    }catch(e){ console.warn('atualizarTelas',e); }
+  },60);
+}
+document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.target===o){o.classList.remove('open');atualizarTelas()}}));
 
 function confirm2(ico,title,sub,cb,btnTxt='CONFIRMAR',btnCls='rd'){
   document.getElementById('conf-ic').textContent=ico;
@@ -1959,6 +1974,7 @@ async function reloadSection(sec){
     }
   }
   hideLoad();
+  atualizarTelas();
 }
 
 // ============================================================
@@ -2156,7 +2172,7 @@ async function entrarSalao(m){
       const idx=D.agendamentos.findIndex(a=>a.id===n.id);
       if(idx>=0){ D.agendamentos[idx]={...D.agendamentos[idx],...n}; }
       else D.agendamentos.push(n);
-      renderAgenda(); renderComandas();
+      renderAgenda(); renderComandas(); atualizarTelas();
       const ws=n.wa_status;
       if(ws==='confirmou'||ws==='recusou'){
         const nm=gCNm(n.cliente_id||'');
