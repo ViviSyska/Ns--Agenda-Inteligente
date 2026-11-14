@@ -728,6 +728,14 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 
 .sec-add{display:none}
 @media(max-width:768px){.sec-add{display:flex;width:100%;justify-content:center;padding:13px;font-size:14px;margin-bottom:12px;border-radius:12px}}
+
+/* ── Ajuste a qualquer tamanho de tela (notebook, tablet, celular) ── */
+.md{overflow-x:hidden}
+.fg>*,.fg2>*,.fg3>*,.sv-sel>*,.cr>*,.fin-grid>*,.fin-cols>*,.pg-g>*,.sv-item>div{min-width:0}
+@media(min-width:769px){ .sv-sel{grid-template-columns:repeat(2,minmax(0,1fr));max-height:clamp(150px,34vh,340px)} }
+.mb label,.mb .info-box{overflow-wrap:anywhere}
+#pkg-cat-bar{flex:1 1 100%}
+@media(max-height:700px) and (min-width:769px){ .md{max-height:96vh} .mh{padding:12px 20px 10px} .mb{padding:14px 20px} }
 </style>
 </head>
 <body>
@@ -1252,7 +1260,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
         </div>
         <div class="fgr" style="background:var(--bg3);border-radius:var(--r2);padding:10px">
           <label>NÍVEL (VALOR FIXO): A CLIENTE ESCOLHE ATÉ…</label>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:4px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-top:4px">
             <div><div style="font-size:10px;color:var(--text3)">Pequenas (P)</div><input type="number" id="pkg-lp" min="0" placeholder="—" oninput="calcPkgDesc()"></div>
             <div><div style="font-size:10px;color:var(--text3)">Médias (M)</div><input type="number" id="pkg-lm" min="0" placeholder="—" oninput="calcPkgDesc()"></div>
             <div><div style="font-size:10px;color:var(--text3)">Grandes (G)</div><input type="number" id="pkg-lg" min="0" placeholder="—" oninput="calcPkgDesc()"></div>
