@@ -1310,6 +1310,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
     <div class="mh"><div class="mt">FATURAR COMANDAS</div><button class="xb" onclick="closeModal('m-fat')">×</button></div>
     <div class="mb">
       <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:8px">COMANDAS DO CLIENTE (selecione as que deseja pagar)</div>
+      <div id="fat-debito"></div>
       <div id="fat-list"></div>
       <div class="dv"></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
@@ -1775,6 +1776,19 @@ const gAgSaldo = ag => {
   if(stored!==null) return stored;
   return total;
 };
+// Dívidas ANTERIORES da cliente: comandas já atendidas (Finalizado · a pagar / Pago) ou com pagamento parcial
+// que ainda têm saldo — não conta agendamento futuro que ainda nem aconteceu.
+const debitosCliente = (cid, excetoId) => D.agendamentos.filter(a=>a.id!==excetoId && cliId(a)===cid && !isCanc(a)
+  && (a.status==='finalizado'||a.status==='concluido'||gAgPago(a)>0.009) && gAgSaldo(a)>0.01)
+  .sort((a,b)=>(a.data||'').localeCompare(b.data||''));
+function avisoDebitoHtml(cid, excetoId, dica){
+  const ds=debitosCliente(cid, excetoId); if(!ds.length) return '';
+  const tot=ds.reduce((t,a)=>t+gAgSaldo(a),0);
+  return `<div style="background:rgba(220,38,38,.08);border:1px solid var(--red);border-radius:var(--r2);padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--text)">
+    <div style="font-weight:700;color:var(--red);font-size:13px">⚠️ Falta pagar ${Rf(tot)} de comanda${ds.length>1?'s':''} anterior${ds.length>1?'es':''}</div>
+    ${ds.map(a=>`<div style="margin-top:3px">• ${fBR((a.data||'').substring(0,10))} — falta ${Rf(gAgSaldo(a))} <span style="color:var(--text3)">(total ${Rf(gAgtot(a))}${gAgPago(a)>0.009?' · pago '+Rf(gAgPago(a)):''})</span></div>`).join('')}
+    ${dica?`<div style="margin-top:5px;color:var(--text3)">${dica}</div>`:''}</div>`;
+}
 const TODAY = dStr(new Date());
 const CURYR = new Date().getFullYear().toString();
 const CURMTH= TODAY.substring(0,7);
@@ -2805,6 +2819,7 @@ function verAg(id){
         <span style="color:var(--text3);font-size:12px">VALOR PREVISTO</span>
         <span style="font-family:var(--fm);font-size:20px;font-weight:700;color:var(--gold)">${Rf(tot)}</span>
       </div>
+      ${avisoDebitoHtml(cliId(ag), ag.id, 'Ao faturar, marque também a comanda anterior para cobrar junto.')}
       ${ag.observacoes||ag.obs?`<div style="font-size:12px;color:var(--text3);padding:8px;background:var(--bg3);border-radius:var(--r2)">📝 ${ag.observacoes||ag.obs}</div>`:''}
     </div>`;
 
@@ -2989,6 +3004,7 @@ function atualizarAgTotal(){
   const raw=document.getElementById('ag-custom-val')?.value;
   const custom=chk?.checked && raw!=='' && raw!=null ? parseFloat(raw) : null;
   let h=`💵 Valor calculado: <b>${Rf(base)}</b>`;
+  { const cid=document.getElementById('ag-cli')?.value; if(cid){ const ds=debitosCliente(cid, S.editAgId); if(ds.length) h=`<span style="color:var(--red);font-weight:700">⚠️ Cliente deve ${Rf(ds.reduce((t,a)=>t+gAgSaldo(a),0))} de comanda anterior</span><br>`+h; } }
   const ss=agSessoesTxt(agFormObj()); if(ss.length) h+=`<br><span style="color:var(--gold)">📦 ${ss.map(relEsc).join(' · ')}</span>`;
   if(custom!==null && !isNaN(custom)){
     const d=Math.round((custom-base)*100)/100;
@@ -3437,6 +3453,7 @@ function abrirFat(agId){
   const saldoInfoEl=document.getElementById('fat-saldo-info'); if(saldoInfoEl)saldoInfoEl.style.display='none';
   const restanteInfoEl=document.getElementById('fat-restante-info'); if(restanteInfoEl)restanteInfoEl.style.display='none';
   const list=document.getElementById('fat-list'); list.innerHTML='';
+  { const fd=document.getElementById('fat-debito'); if(fd) fd.innerHTML=avisoDebitoHtml(cliId(ag), agId, 'Marque na lista abaixo para cobrar junto.'); }
   pendentes.forEach(a=>{
     const item=document.createElement('div'); item.className='cc-item'+(a.id===agId?' sel':'');
     const chk=document.createElement('input'); chk.type='checkbox'; chk.checked=a.id===agId;
