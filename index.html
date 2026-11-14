@@ -2173,14 +2173,45 @@ async function entrarSalao(m){
       if(idx>=0){ D.agendamentos[idx]={...D.agendamentos[idx],...n}; }
       else D.agendamentos.push(n);
       renderAgenda(); renderComandas(); atualizarTelas();
+      sincOutroAparelho(); // traz serviços/valores atualizados (a edição pode ter vindo de outro celular)
       const ws=n.wa_status;
       if(ws==='confirmou'||ws==='recusou'){
         const nm=gCNm(n.cliente_id||'');
         toast(`${nm} respondeu: ${ws==='confirmou'?'✅ SIM — confirmado na agenda':'🚫 NÃO — marcado como Faltou'}`, ws==='confirmou'?'ok':'w');
       }
     })
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'agendamentos'},()=>sincOutroAparelho())
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'agendamentos'},()=>sincOutroAparelho())
+    .on('postgres_changes',{event:'*',schema:'public',table:'caixa'},()=>sincOutroAparelho())
     .subscribe();
+    // Ao voltar para o app (trocou de aba / desbloqueou o celular) e a cada 60s: busca o que mudou em outro aparelho
+    document.addEventListener('visibilitychange',()=>{ if(S.user&&!document.hidden) sincOutroAparelho(); });
+    window.addEventListener('focus',()=>{ if(S.user) sincOutroAparelho(); });
+    setInterval(()=>{ if(S.user&&!document.hidden) sincOutroAparelho(); },60000);
   }
+}
+// Sincroniza com mudanças feitas em OUTRO celular/computador: recarrega agendamentos (com serviços) e caixa,
+// redesenha a tela aberta e, se a janela do agendamento estiver aberta, mostra os dados novos.
+let _sincT=null, _sincRodando=false;
+function sincOutroAparelho(){
+  clearTimeout(_sincT);
+  _sincT=setTimeout(async()=>{
+    if(_sincRodando||!S.user) return;
+    // não atrapalha quem está editando/faturando agora
+    if(document.querySelector('#m-ag.open,#m-fat.open')) return;
+    _sincRodando=true;
+    try{
+      const [ra,rc]=await Promise.all([
+        sb.from('agendamentos').select('*, agendamento_servicos(servico_id)').order('data').order('hora'),
+        sb.from('caixa').select('*').order('data',{ascending:false})
+      ]);
+      if(!ra.error&&ra.data) D.agendamentos=ra.data.map(a=>({...a,svcs:(a.agendamento_servicos||[]).map(x=>x.servico_id),hora:a.hora?.substring(0,5)||'00:00'}));
+      if(!rc.error&&rc.data) D.caixa=rc.data;
+      atualizarTelas();
+      if(S.verAgId && document.getElementById('m-ver')?.classList.contains('open')) verAg(S.verAgId);
+    }catch(e){ console.warn('sinc',e); }
+    finally{ _sincRodando=false; }
+  },400);
 }
 // Comandas que ficaram com o status em branco (edição antiga de comanda paga): volta ao normal
 async function repararStatusVazio(){
@@ -2696,6 +2727,7 @@ function dashList(kind){
 
 function verAg(id){
   const ag=D.agendamentos.find(a=>a.id===id); if(!ag)return;
+  S.verAgId=id;
   const tot=gAgtot(ag);
   const ef=efStatus(ag);
   const waInfo=ag.wa_status
