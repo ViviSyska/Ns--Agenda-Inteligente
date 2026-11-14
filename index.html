@@ -989,6 +989,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
         <div class="rel-cal"><div id="rel-cal-body"></div></div>
         <!-- Painel financeiro do período: previsto x realizado, despesas, pendências -->
         <div id="rel-fin"></div>
+        <div id="rel-taxas"></div>
         <!-- Cards KPI -->
         <div class="cr" id="rel-cards"></div>
         <!-- Gráfico evolução + formas de pagamento -->
@@ -4642,10 +4643,49 @@ function renderRelFin(){
   </div>`;
 }
 
+// 💳 Quanto paguei de TAXA de cartão — fonte: saídas do caixa cuja descrição começa com "Taxa"
+// (lançadas sozinhas ao faturar no cartão, ou à mão em Despesas com a palavra "Taxa" no início).
+function ehTaxa(x){ return x.tipo==='saida' && /^taxa/i.test((x.descricao||'').trim()); }
+function tipoTaxa(x){ const d=(x.descricao||'').toLowerCase(); if(x.forma_pagamento==='debito'||/d[ée]bito/.test(d)) return 'debito'; return 'credito'; }
+function renderRelTaxas(){
+  const el=document.getElementById('rel-taxas'); if(!el) return;
+  const {ok,yr}=relRange();
+  const per=S.filter==='hoje'?'hoje':S.filter==='semana'?'na semana':S.filter==='mes'?'no mês':'no ano';
+  const tx=D.caixa.filter(x=>ehTaxa(x)&&ok(x.data));
+  const cartao=D.caixa.filter(x=>x.tipo==='entrada'&&(x.forma_pagamento==='credito'||x.forma_pagamento==='debito')&&ok(x.data));
+  const soma=l=>l.reduce((t,x)=>t+Number(x.valor||0),0);
+  const tCr=soma(tx.filter(x=>tipoTaxa(x)==='credito')), tDb=soma(tx.filter(x=>tipoTaxa(x)==='debito')), tTot=tCr+tDb;
+  const rCr=soma(cartao.filter(x=>x.forma_pagamento==='credito')), rDb=soma(cartao.filter(x=>x.forma_pagamento==='debito')), rTot=rCr+rDb;
+  const pc=(t,r)=>r>0.009?(t/r*100).toFixed(2).replace('.',',')+'%':'—';
+  // mês a mês do ano selecionado
+  const meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const porMes=meses.map((m,i)=>{ const k=`${yr}-${String(i+1).padStart(2,'0')}`;
+    const t=soma(D.caixa.filter(x=>ehTaxa(x)&&(x.data||'').startsWith(k)));
+    const r=soma(D.caixa.filter(x=>x.tipo==='entrada'&&(x.forma_pagamento==='credito'||x.forma_pagamento==='debito')&&(x.data||'').startsWith(k)));
+    return {m,t,r}; });
+  const totAno=porMes.reduce((t,x)=>t+x.t,0), maxM=Math.max(...porMes.map(x=>x.t),0.01);
+  el.innerHTML=`<div class="tw fin-box" style="margin-top:14px">
+    <div class="th2"><span class="th2-t">💳 TAXAS DE CARTÃO</span><div class="tb-sp"></div><span class="bd rd">${Rf(tTot)} ${per}</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;padding:10px 0">
+      <div class="sc"><div class="sc-l">CRÉDITO</div><div class="sc-v rd">${Rf(tCr)}</div><div class="sc-s">${pc(tCr,rCr)} de ${Rf(rCr)} recebidos</div></div>
+      <div class="sc"><div class="sc-l">DÉBITO</div><div class="sc-v rd">${Rf(tDb)}</div><div class="sc-s">${pc(tDb,rDb)} de ${Rf(rDb)} recebidos</div></div>
+      <div class="sc"><div class="sc-l">TOTAL ${per.toUpperCase()}</div><div class="sc-v rd">${Rf(tTot)}</div><div class="sc-s">${tx.length} lançamento(s) · ${pc(tTot,rTot)} do cartão</div></div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);letter-spacing:.6px;font-weight:600;margin:4px 0 6px">MÊS A MÊS — ${yr} · total ${Rf(totAno)}</div>
+    ${porMes.map(x=>`<div style="display:flex;align-items:center;gap:8px;font-size:12px;margin:3px 0">
+      <span style="width:30px;color:var(--text3)">${x.m}</span>
+      <div style="flex:1;background:var(--bg3);border-radius:3px;height:10px;overflow:hidden"><i style="display:block;height:100%;width:${(x.t/maxM*100).toFixed(1)}%;background:var(--red)"></i></div>
+      <span style="width:84px;text-align:right;font-family:var(--fm)">${Rf(x.t)}</span>
+      <span style="width:52px;text-align:right;color:var(--text3)">${x.r>0.009?pc(x.t,x.r):''}</span></div>`).join('')}
+    <div class="fin-note">Conta as saídas do caixa que começam com "Taxa" (lançadas sozinhas ao faturar no cartão). Se lançar uma taxa à mão em Despesas, comece a descrição com "Taxa".</div>
+  </div>`;
+}
+
 function renderRel(){
   renderRelCal();
   try{ renderRelFin(); }catch(e){ console.error('renderRelFin',e); }
   try{ renderRelCli(); }catch(e){ console.error('renderRelCli',e); }
+  try{ renderRelTaxas(); }catch(e){ console.error('renderRelTaxas',e); }
   const {ok,yr,mo,mth,day,wStart,wEnd}=relRange();
   const f=S.filter;
   // ✅ FONTE ÚNICA: caixa (valores reais)
