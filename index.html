@@ -979,7 +979,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
             <div id="msg-list"></div>
           </div>
           <div class="msg-main tw">
-            <div class="msg-top" id="msg-top"><button class="btn gh xs msg-back" onclick="msgVoltar()">← Voltar</button><div id="msg-top-n" style="font-weight:600"></div></div>
+            <div class="msg-top" id="msg-top"><button class="btn gh xs msg-back" onclick="msgVoltar()">← Voltar</button><div style="flex:1;min-width:0"><div id="msg-top-n" style="font-weight:600"></div><div id="msg-top-sub" style="font-size:11px;color:var(--text3)"></div></div><div id="msg-top-acao" style="display:flex;gap:6px;flex-wrap:wrap;position:relative"></div></div>
             <div class="msg-body" id="msg-body"><div class="fin-empty">Escolha uma conversa para responder</div></div>
             <div class="msg-quick" id="msg-quick" style="display:none">
               <button onclick="msgQuick('Oi! Tudo bem? 💛')">Oi! 💛</button>
@@ -5728,7 +5728,50 @@ function msgHora(ts){
   const hoje=dStr(new Date())===dStr(d);
   return hoje?d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
 }
-function msgNomeChat(c){ return c.nome||(c.phone?('+'+c.phone):'Contato'); }
+// O WhatsApp só manda o nome que a PESSOA colocou no perfil dela (ex.: "Naty"); o nome salvo na agenda do
+// celular não chega ao sistema. Por isso o nome mostrado vem do CADASTRO de clientes:
+// 1º vínculo feito por você nesta conversa · 2º cliente com o mesmo número · 3º nome do perfil do WhatsApp.
+const foneChave = v => { let d=String(v||'').replace(/\D/g,''); if(d.length>=12&&d.startsWith('55')) d=d.slice(2); if(d.length===11&&d[2]==='9') d=d.slice(0,2)+d.slice(3); return d.length>=10?d:''; };
+function msgVinculos(){ let v=(D.cfgRow&&D.cfgRow.wa_vinculos)||{}; if(typeof v==='string'){ try{ v=JSON.parse(v); }catch(_){ v={}; } } return v||{}; }
+function msgCliente(c){
+  if(!c) return null;
+  const vid=msgVinculos()[c.key]; if(vid){ const cl=D.clientes.find(x=>x.id===vid); if(cl) return cl; }
+  const k=foneChave(c.phone||(String(c.key||'').match(/^\d+/)||[''])[0]); if(!k) return null;
+  return D.clientes.find(x=>foneChave(x.whatsapp||x.telefone)===k)||null;
+}
+function msgNomeChat(c){ const cl=msgCliente(c); return cl?cl.nome:(c.nome||(c.phone?('+'+c.phone):'Contato')); }
+function msgTopo(){
+  const c=MSG.chats.find(x=>x.key===MSG.cur); const sub=document.getElementById('msg-top-sub'), ac=document.getElementById('msg-top-acao'); if(!sub||!ac) return;
+  if(!c){ sub.textContent=''; ac.innerHTML=''; return; }
+  const cl=msgCliente(c); const perfil=cl&&c.nome&&c.nome!==cl.nome?`“${c.nome}” no WhatsApp`:(cl?'':'não está no cadastro'); const tel=c.phone?'+'+c.phone:'';
+  sub.textContent=[perfil,tel].filter(Boolean).join(' · ');
+  ac.innerHTML=cl?`<button class="btn gh xs" onclick="msgDesvincular()" title="Trocar a cliente desta conversa">🔗 ${relEsc(cl.nome.split(' ')[0])} · trocar</button>`
+    :`<button class="btn ol xs" onclick="msgCadastrar()">＋ Cadastrar cliente</button><button class="btn ol xs" onclick="msgVincularAbrir()">🔗 Já é cliente</button><div id="msg-vinc" style="display:none;position:absolute;right:0;top:110%;z-index:20;width:260px;background:var(--card);border:var(--brd);border-radius:var(--r2);padding:8px;box-shadow:var(--sh)"><input class="si" id="msg-vinc-q" placeholder="Nome da cliente…" oninput="msgVincularBusca()" style="width:100%"><div id="msg-vinc-r" style="max-height:220px;overflow-y:auto;margin-top:6px"></div></div>`;
+}
+function msgCadastrar(){
+  const c=MSG.chats.find(x=>x.key===MSG.cur); abrirCliente(null);
+  setTimeout(()=>{ if(c){ document.getElementById('cli-nm').value=c.nome||''; document.getElementById('cli-wp').value=c.phone?String(c.phone).replace(/^55/,''):''; } },30);
+}
+function msgVincularAbrir(){ const b=document.getElementById('msg-vinc'); if(!b) return; b.style.display=b.style.display==='none'?'block':'none'; if(b.style.display==='block'){ document.getElementById('msg-vinc-q').focus(); msgVincularBusca(); } }
+function msgVincularBusca(){
+  const q=(document.getElementById('msg-vinc-q').value||'').toLowerCase().trim();
+  const l=D.clientes.filter(x=>!q||(x.nome||'').toLowerCase().includes(q)||(x.whatsapp||'').includes(q)).slice(0,30);
+  document.getElementById('msg-vinc-r').innerHTML=l.map(x=>`<div style="padding:7px 8px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--bc)" onclick="msgVincular('${x.id}')">${relEsc(x.nome)} <span style="font-size:11px;color:var(--text3)">${relEsc(x.whatsapp||'')}</span></div>`).join('')||'<div style="font-size:12px;color:var(--text3);padding:6px">Nenhuma</div>';
+}
+async function msgSalvarVinculos(v){
+  if(!D.cfgRow||!D.cfgRow.id){ toast('Configuração do salão não encontrada','e'); return false; }
+  const r=await sb.from('configuracoes').update({wa_vinculos:v}).eq('id',D.cfgRow.id);
+  if(r.error){ toast(/wa_vinculos/.test(r.error.message)?'Rode o contatos-whatsapp.sql no Supabase primeiro':'Erro: '+r.error.message,'e'); return false; }
+  D.cfgRow.wa_vinculos=v; return true;
+}
+async function msgVincular(cid){
+  const v={...msgVinculos(),[MSG.cur]:cid};
+  if(await msgSalvarVinculos(v)){ toast('Conversa ligada a '+gCNm(cid)); MSG.curNome=gCNm(cid); document.getElementById('msg-top-n').textContent=MSG.curNome; msgTopo(); renderMsgs(true); }
+}
+async function msgDesvincular(){
+  const v={...msgVinculos()}; delete v[MSG.cur];
+  if(await msgSalvarVinculos(v)){ msgTopo(); const c=MSG.chats.find(x=>x.key===MSG.cur); MSG.curNome=c?msgNomeChat(c):''; document.getElementById('msg-top-n').textContent=MSG.curNome; renderMsgs(true); if(!msgCliente(c)) msgVincularAbrir(); }
+}
 function msgAtiva(){ return document.getElementById('sec-mensagens')?.classList.contains('active'); }
 
 async function msgPoll(){
@@ -5780,6 +5823,7 @@ function msgStart(){
 function msgStop(){ clearTimeout(MSG.timer); MSG.chats=[]; MSG.unread=0; MSG.cur=null; MSG.seen=null; msgBadge(); }
 
 function renderMsgs(soLista){
+  try{ if(MSG.cur&&document.getElementById('msg-vinc')?.style.display!=='block'){ const cc=MSG.chats.find(x=>x.key===MSG.cur); if(cc){ MSG.curNome=msgNomeChat(cc); const tn=document.getElementById('msg-top-n'); if(tn) tn.textContent=MSG.curNome; msgTopo(); } } }catch(_){}
   const ban=document.getElementById('msg-banner'); const list=document.getElementById('msg-list');
   if(!list) return;
   if(!(WA_CFG.url&&WA_CFG.key)){
@@ -5809,7 +5853,7 @@ async function msgAbrir(key){
   MSG.cur=key; MSG.novoTel=null;
   const c=MSG.chats.find(x=>x.key===key); MSG.curNome=c?msgNomeChat(c):'';
   document.getElementById('msg-wrap').classList.add('open');
-  document.getElementById('msg-top-n').textContent=MSG.curNome;
+  document.getElementById('msg-top-n').textContent=MSG.curNome; msgTopo();
   document.getElementById('msg-send').style.display='flex';
   document.getElementById('msg-quick').style.display='flex';
   renderMsgs(true);
