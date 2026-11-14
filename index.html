@@ -2183,6 +2183,7 @@ async function entrarSalao(m){
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'agendamentos'},()=>sincOutroAparelho())
     .on('postgres_changes',{event:'DELETE',schema:'public',table:'agendamentos'},()=>sincOutroAparelho())
     .on('postgres_changes',{event:'*',schema:'public',table:'caixa'},()=>sincOutroAparelho())
+    .on('postgres_changes',{event:'*',schema:'public',table:'agendamento_servicos'},()=>sincOutroAparelho())
     .subscribe();
     // Ao voltar para o app (trocou de aba / desbloqueou o celular) e a cada 60s: busca o que mudou em outro aparelho
     document.addEventListener('visibilitychange',()=>{ if(S.user&&!document.hidden) sincOutroAparelho(); });
