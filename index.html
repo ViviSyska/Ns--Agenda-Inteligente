@@ -1248,8 +1248,17 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
         </div>
         <div class="fg fg2">
           <div class="fgr"><label>NÚMERO DE SESSÕES</label><input type="number" id="pkg-ss" value="1" min="1"></div>
-          <div class="fgr"><label>NÍVEL: ESCOLHE ATÉ QUANTAS ÁREAS?</label><input type="number" id="pkg-max" min="1" placeholder="vazio = todas (pacote fixo)" oninput="calcPkgDesc()"><div style="font-size:10px;color:var(--text3);margin-top:3px">Preencha para virar "nível": a cliente escolhe até X das áreas marcadas.</div></div>
-          <div class="fgr"><label>VALOR DO PACOTE (R$) *</label><input type="number" id="pkg-vl" placeholder="0.00" step="0.01" min="0" oninput="calcPkgDesc()"></div>
+          <div class="fgr"><label>VALOR FIXO DO PACOTE (R$) *</label><input type="number" id="pkg-vl" placeholder="0.00" step="0.01" min="0" oninput="calcPkgDesc()"></div>
+        </div>
+        <div class="fgr" style="background:var(--bg3);border-radius:var(--r2);padding:10px">
+          <label>NÍVEL (VALOR FIXO): A CLIENTE ESCOLHE ATÉ…</label>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:4px">
+            <div><div style="font-size:10px;color:var(--text3)">Pequenas (P)</div><input type="number" id="pkg-lp" min="0" placeholder="—" oninput="calcPkgDesc()"></div>
+            <div><div style="font-size:10px;color:var(--text3)">Médias (M)</div><input type="number" id="pkg-lm" min="0" placeholder="—" oninput="calcPkgDesc()"></div>
+            <div><div style="font-size:10px;color:var(--text3)">Grandes (G)</div><input type="number" id="pkg-lg" min="0" placeholder="—" oninput="calcPkgDesc()"></div>
+            <div><div style="font-size:10px;color:var(--text3)">Total</div><input type="number" id="pkg-max" min="1" placeholder="—" oninput="calcPkgDesc()"></div>
+          </div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px">Ex.: Plus = 3 pequenas + 1 média. Marque acima todas as áreas que podem entrar. Vazio = pacote fixo (todas as marcadas). P até R$ 80 · M até R$ 150 · G acima.</div>
         </div>
         <div id="pkg-desc" style="display:none" class="info-box"></div>
       </div>
@@ -2999,8 +3008,8 @@ function agFormObj(){
 // Pacote "nível": a cliente escolhe até N áreas da lista — avisa quando marcou mais
 function agNivelAvisos(ag){
   const sv=(ag.svcs||[]).map(String);
-  return agPkgIds(ag).map(id=>D.pacotes.find(x=>x.id===id)).filter(pk=>pk&&pk.max_areas)
-    .map(pk=>{ const lst=new Set((pk.svcs||[]).map(String)); const n=sv.filter(x=>lst.has(x)).length; return n>pk.max_areas?`${pk.nome}: até ${pk.max_areas} área(s) — marcou ${n}`:null; })
+  return agPkgIds(ag).map(id=>D.pacotes.find(x=>x.id===id)).filter(pk=>pk&&regraAtiva(pkgRegra(pk)))
+    .map(pk=>{ const lst=new Set((pk.svcs||[]).map(String)); const v=regraViolada(sv.filter(x=>lst.has(x)),pkgRegra(pk)); return v.length?`${pk.nome}: marcou ${v.join(', ')}`:null; })
     .filter(Boolean);
 }
 function agSessoesTxt(ag){
@@ -4202,10 +4211,10 @@ function abrirPkg(id){
   if(id){
     const pk=D.pacotes.find(x=>x.id===id); if(!pk)return;
     document.getElementById('m-pkg-t').textContent='EDITAR PACOTE';
-    document.getElementById('pkg-nm').value=pk.nome; document.getElementById('pkg-ss').value=pk.sessoes||1; document.getElementById('pkg-vl').value=pk.valor; document.getElementById('pkg-max').value=pk.max_areas||'';
+    document.getElementById('pkg-nm').value=pk.nome; document.getElementById('pkg-ss').value=pk.sessoes||1; document.getElementById('pkg-vl').value=pk.valor; pkgRegraParaForm(pk);
   } else {
     document.getElementById('m-pkg-t').textContent='NOVO PACOTE';
-    document.getElementById('pkg-nm').value=''; document.getElementById('pkg-ss').value='1'; document.getElementById('pkg-vl').value=''; document.getElementById('pkg-max').value='';
+    document.getElementById('pkg-nm').value=''; document.getElementById('pkg-ss').value='1'; document.getElementById('pkg-vl').value=''; pkgRegraParaForm(null);
     document.getElementById('pkg-desc').style.display='none';
   }
   calcPkgDesc(); openModal('m-pkg');
@@ -4233,67 +4242,96 @@ function renderPkgSvs(){
 function filterPkgSvs(){ renderPkgSvs(); calcPkgDesc(); }
 function filterPkgCat(c,btn){ PKG_FILTER_CAT=c; document.querySelectorAll('#m-pkg .cat-fb').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderPkgSvs(); }
 function getPkgSvcs(){ return Array.from(PKG_SEL); }
-// Análise de pacote/nível: tabela no pior caso (as N áreas mais caras), desconto, preço mínimo (60%) e ideal (55%)
+// ── PACOTE POR NÍVEL ───────────────────────────────────────────────────────
+// Valor FIXO; a cliente escolhe as áreas dentro das regras: "até X pequenas, Y médias, Z grandes" (e/ou até N no total).
+// Tamanho da área pela tabela: pequena até R$ 80 · média até R$ 150 · grande acima.
 const PKG_DESC_MAX=60, PKG_DESC_IDEAL=55;
-function pkgAnalise(svcs,val,max){
-  const precos=svcs.map(id=>Number(gSVal(id))||0).sort((a,b)=>b-a);
-  if(!precos.length) return null;
-  const n=max&&max<precos.length?max:precos.length;
-  const pior=precos.slice(0,n).reduce((t,x)=>t+x,0);
-  const melhor=precos.slice(-n).reduce((t,x)=>t+x,0);
+const TAM_NOME={p:'pequena',m:'média',g:'grande'}, TAM_PL={p:'pequenas',m:'médias',g:'grandes'};
+const areaTam = id => { const v=Number(gSVal(id))||0; return v<=80?'p':v<=150?'m':'g'; };
+// regra do pacote: {max,p,m,g} (null = sem limite). Aceita pacote antigo só com max_areas.
+function pkgRegra(pk){ let l=(pk&&pk.limites)||{}; if(typeof l==='string'){ try{ l=JSON.parse(l)||{}; }catch(_){ l={}; } } const n=v=>Number.isFinite(Number(v))&&v!==null&&v!==''?Number(v):null;
+  return {max:n(pk&&pk.max_areas), p:n(l.p), m:n(l.m), g:n(l.g)}; }
+const regraAtiva = R => !!R && (R.max!=null||R.p!=null||R.m!=null||R.g!=null);
+function regraTxt(R){ const parts=['p','m','g'].filter(k=>R[k]!=null&&R[k]>0).map(k=>`${R[k]} ${R[k]>1?TAM_PL[k]:TAM_NOME[k]}`);
+  return (parts.length?'até '+parts.join(' + '):'')+(R.max!=null?(parts.length?` (máx. ${R.max} no total)`:`até ${R.max} área(s)`):''); }
+// soma de tabela escolhendo as áreas (mais caras ou mais baratas) respeitando a regra; "forcado" entra obrigatoriamente
+function pkgCombo(svcs,R,maisCaras,forcado){
+  const ord=svcs.map(String).map(id=>({id,v:Number(gSVal(id))||0,t:areaTam(id)})).sort((a,b)=>maisCaras?b.v-a.v:a.v-b.v);
+  const usado={p:0,m:0,g:0}; let tot=0, n=0, soma=0; const cabe=x=>(R[x.t]==null||usado[x.t]<R[x.t])&&(R.max==null||n<R.max);
+  const pega=x=>{ usado[x.t]++; n++; soma+=x.v; };
+  if(forcado){ const f=ord.find(x=>x.id===String(forcado)); if(f){ if(!cabe(f)) return null; pega(f); } }
+  for(const x of ord){ if(forcado&&x.id===String(forcado)) continue; if(!maisCaras&&n>0&&!regraAtiva(R)) {} if(cabe(x)) pega(x); }
+  return {soma, n};
+}
+function pkgAnalise(svcs,val,R){
+  if(!svcs.length) return null;
+  if(typeof R==='number'||R==null) R={max:R||null,p:null,m:null,g:null};
+  const piorC=pkgCombo(svcs,R,true), melhorC=regraAtiva(R)?pkgCombo(svcs,R,false):piorC;
+  const pior=piorC.soma, melhor=melhorC.soma;
   const pct=t=>t>0?(1-val/t)*100:0;
-  return {n, pior, melhor, descPior:pct(pior), descMelhor:pct(melhor),
-    min60:Math.ceil(pior*(1-PKG_DESC_MAX/100)), ideal55:Math.ceil(pior*(1-PKG_DESC_IDEAL/100)),
-    tetoTabela:val/(1-PKG_DESC_MAX/100), idealTabela:val/(1-PKG_DESC_IDEAL/100)};
+  return {n:piorC.n, pior, melhor, descPior:pct(pior), descMelhor:pct(melhor),
+    min60:Math.ceil(pior*(1-PKG_DESC_MAX/100)), ideal55:Math.ceil(pior*(1-PKG_DESC_IDEAL/100))};
 }
-// Quais áreas cabem: maior preço de área que mantém o pior caso dentro de 60%
-function pkgAreasQueCabem(svcs,val,max){
-  const n=max||svcs.length; const teto=val/(1-PKG_DESC_MAX/100);
-  const sel=svcs.map(id=>({id,v:Number(gSVal(id))||0})).sort((a,b)=>a.v-b.v);
-  let corte=-1;
-  for(const x of sel){ const ate=sel.filter(y=>y.v<=x.v).map(y=>y.v).sort((a,b)=>b-a).slice(0,n).reduce((t,v)=>t+v,0); if(ate<=teto+0.01) corte=x.v; }
-  return {corte, foraIds:sel.filter(x=>x.v>corte).map(x=>x.id)};
+// Quais áreas passam do limite de 60%: no pior caso COM essa área, o desconto estoura
+function pkgAreasForaLimite(svcs,val,R){
+  const teto=val/(1-PKG_DESC_MAX/100);
+  return svcs.map(String).filter(id=>{ const c=pkgCombo(svcs,R,true,id); return c && c.soma>teto+0.01; });
 }
-// Dados reais: quantas comandas dos últimos 12 meses caberiam neste nível e quanto pagaram
-function pkgDadosReais(svcs,max){
+// Dados reais: quantas comandas (12 meses) caberiam neste nível e quanto pagaram
+function pkgDadosReais(svcs,R){
   const set=new Set(svcs.map(String)); const desde=dStr(new Date(Date.now()-365*864e5));
   const cats=new Set(svcs.map(id=>normCat((D.servicos.find(x=>String(x.id)===String(id))||{}).categoria)));
-  const l=D.agendamentos.filter(a=>!isCanc(a)&&(a.data||'')>=desde&&a.status==='concluido').map(a=>{
-    const doTipo=(a.svcs||[]).filter(id=>cats.has(normCat((D.servicos.find(x=>String(x.id)===String(id))||{}).categoria)));
-    return {a,doTipo};
-  }).filter(x=>x.doTipo.length&&x.doTipo.every(id=>set.has(String(id)))&&(!max||x.doTipo.length<=max)&&x.doTipo.length===(x.a.svcs||[]).length);
-  const pagos=l.map(x=>gAgtot(x.a)).filter(v=>v>0);
-  return {n:l.length, clientes:new Set(l.map(x=>cliId(x.a))).size, medio:pagos.length?pagos.reduce((t,v)=>t+v,0)/pagos.length:0};
+  const l=D.agendamentos.filter(a=>!isCanc(a)&&(a.data||'')>=desde&&a.status==='concluido').filter(a=>{
+    const sv=(a.svcs||[]).map(String); if(!sv.length||!sv.every(id=>set.has(id))) return false;
+    return !regraViolada(sv,R).length;
+  });
+  const pagos=l.map(a=>gAgtot(a)).filter(v=>v>0);
+  return {n:l.length, clientes:new Set(l.map(a=>cliId(a))).size, medio:pagos.length?pagos.reduce((t,v)=>t+v,0)/pagos.length:0};
+}
+// Lista o que passou da regra: ex. ["2 médias (até 1)"]
+function regraViolada(svIds,R){
+  if(!R) return [];
+  const c={p:0,m:0,g:0}; svIds.forEach(id=>c[areaTam(id)]++);
+  const out=['p','m','g'].filter(k=>R[k]!=null&&c[k]>R[k]).map(k=>`${c[k]} ${c[k]>1?TAM_PL[k]:TAM_NOME[k]} (até ${R[k]})`);
+  if(R.max!=null&&svIds.length>R.max) out.push(`${svIds.length} áreas (até ${R.max})`);
+  return out;
+}
+function pkgRegraParaForm(pk){ const R=pkgRegra(pk||{}); [['pkg-max','max'],['pkg-lp','p'],['pkg-lm','m'],['pkg-lg','g']].forEach(([id,k])=>{ const e=document.getElementById(id); if(e) e.value=R[k]==null?'':R[k]; }); }
+function pkgRegraForm(){
+  const n=id=>{ const v=parseInt(document.getElementById(id)?.value); return Number.isFinite(v)&&v>=0?v:null; };
+  return {max:n('pkg-max'), p:n('pkg-lp'), m:n('pkg-lm'), g:n('pkg-lg')};
 }
 function calcPkgDesc(){
-  const svcs=getPkgSvcs(); const pkval=parseFloat(document.getElementById('pkg-vl').value)||0; const el=document.getElementById('pkg-desc');
-  const maxRaw=parseInt(document.getElementById('pkg-max')?.value); const max=Number.isFinite(maxRaw)&&maxRaw>0?maxRaw:null;
-  // marca no seletor as áreas que estouram o limite de desconto
-  document.querySelectorAll('#pkg-svs .sv-item').forEach(it=>it.style.outline='');
+  const svcs=getPkgSvcs().map(String); const pkval=parseFloat(document.getElementById('pkg-vl').value)||0; const el=document.getElementById('pkg-desc');
+  const R=pkgRegraForm(); const nivel=regraAtiva(R);
+  // etiqueta de tamanho em cada área do seletor
+  document.querySelectorAll('#pkg-svs .sv-item').forEach(it=>{ it.style.outline=''; const id=it.dataset.sid; let tg=it.querySelector('.tam-tag');
+    if(!tg){ tg=document.createElement('span'); tg.className='tam-tag'; tg.style.cssText='font-size:9px;font-weight:700;border-radius:4px;padding:1px 4px;margin-left:4px;background:var(--bg3);color:var(--text2)'; it.appendChild(tg); }
+    tg.textContent=({p:'P',m:'M',g:'G'})[areaTam(id)]; });
   if(!svcs.length){ el.style.display='none'; return; }
-  const a=pkgAnalise(svcs,pkval||0,max); el.style.display='block';
+  const a=pkgAnalise(svcs,pkval||0,R); el.style.display='block';
   const cor=d=>d>PKG_DESC_MAX+0.05?'var(--red)':d>PKG_DESC_IDEAL+0.05?'var(--gold)':'var(--green)';
   const fmt=d=>d.toFixed(1).replace('.',',')+'%';
-  const nivel=max?`até <b>${a.n}</b> de ${svcs.length} áreas`:`${svcs.length} serviço(s) fixos`;
-  let h=`<div style="font-size:12px;margin-bottom:6px">📦 ${nivel} · tabela ${max?'no pior caso (as mais caras)':''}: <b>${Rf(a.pior)}</b>${max&&a.melhor!==a.pior?` · no melhor caso: ${Rf(a.melhor)}`:''}</div>`;
+  const cont={p:0,m:0,g:0}; svcs.forEach(id=>cont[areaTam(id)]++);
+  let h=`<div style="font-size:12px;margin-bottom:6px">📦 ${nivel?`<b>Valor fixo</b> · cliente escolhe ${regraTxt(R)}`:`${svcs.length} serviço(s) fixos`}<br><span style="color:var(--text3)">Marcadas: ${cont.p} pequena(s) · ${cont.m} média(s) · ${cont.g} grande(s) — P até R$ 80, M até R$ 150, G acima</span></div>`;
+  h+=`<div style="font-size:12px">Tabela ${nivel?'no pior caso (escolhendo as mais caras)':''}: <b>${Rf(a.pior)}</b>${nivel&&a.melhor!==a.pior?` · melhor caso: ${Rf(a.melhor)}`:''}</div>`;
   if(pkval>0){
-    h+=`<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px"><div>Desconto${max?' (pior caso)':''}: <b style="color:${cor(a.descPior)}">${fmt(a.descPior)}</b></div>${max&&a.melhor!==a.pior?`<div>melhor caso: <b style="color:${cor(a.descMelhor)}">${fmt(a.descMelhor)}</b></div>`:''}</div>`;
-    h+=a.descPior>PKG_DESC_MAX+0.05?`<div style="color:var(--red);font-size:12px;margin-top:4px">⚠️ Passa do limite de 60%. Suba para pelo menos <b>${Rf(a.min60)}</b> (ideal 55%: <b>${Rf(a.ideal55)}</b>) ou tire as áreas mais caras.</div>`
+    h+=`<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin-top:3px"><div>Desconto${nivel?' (pior caso)':''}: <b style="color:${cor(a.descPior)}">${fmt(a.descPior)}</b></div>${nivel&&a.melhor!==a.pior?`<div>melhor caso: <b style="color:${cor(a.descMelhor)}">${fmt(a.descMelhor)}</b></div>`:''}</div>`;
+    h+=a.descPior>PKG_DESC_MAX+0.05?`<div style="color:var(--red);font-size:12px;margin-top:4px">⚠️ Passa do limite de 60%. Suba para pelo menos <b>${Rf(a.min60)}</b> (ideal 55%: <b>${Rf(a.ideal55)}</b>) ou tire as áreas em vermelho.</div>`
       :a.descPior>PKG_DESC_IDEAL+0.05?`<div style="color:var(--gold);font-size:12px;margin-top:4px">Dentro do limite, acima do ideal. Ideal (55%): <b>${Rf(a.ideal55)}</b>.</div>`
-      :`<div style="color:var(--green);font-size:12px;margin-top:4px">✓ Dentro do ideal (até 55%).</div>`;
-    const c=pkgAreasQueCabem(svcs,pkval,max);
-    if(c.foraIds.length){
-      h+=`<div style="font-size:12px;margin-top:6px">Com ${Rf(pkval)}${max?' e até '+a.n+' áreas':''}, cabem áreas de até <b>${c.corte>=0?Rf(c.corte):'—'}</b> na tabela. Passam do limite: <b style="color:var(--red)">${c.foraIds.map(gSNm).map(relEsc).join(', ')}</b></div>`;
-      c.foraIds.forEach(id=>{ const it=document.querySelector(`#pkg-svs .sv-item[data-sid="${id}"]`); if(it) it.style.outline='2px solid var(--red)'; });
+      :`<div style="color:var(--green);font-size:12px;margin-top:4px">✓ Dentro do ideal (até 55%), qualquer que seja a escolha da cliente.</div>`;
+    const fora=pkgAreasForaLimite(svcs,pkval,R);
+    if(fora.length && a.descPior>PKG_DESC_MAX+0.05){
+      h+=`<div style="font-size:12px;margin-top:6px">Áreas que fazem passar de 60%: <b style="color:var(--red)">${fora.map(gSNm).map(relEsc).join(', ')}</b></div>`;
+      fora.forEach(id=>{ const it=document.querySelector(`#pkg-svs .sv-item[data-sid="${id}"]`); if(it) it.style.outline='2px solid var(--red)'; });
     }
-    // outras áreas da mesma categoria que também cabem
     const cats=new Set(svcs.map(id=>normCat((D.servicos.find(x=>String(x.id)===String(id))||{}).categoria)));
-    const cabe=D.servicos.filter(x=>x.categoria&&!svcs.includes(String(x.id))&&!svcs.includes(x.id)&&cats.has(normCat(x.categoria))&&pkgAnalise([...svcs,String(x.id)],pkval,max).descPior<=PKG_DESC_MAX+0.05);
-    if(cabe.length) h+=`<div style="font-size:12px;margin-top:4px;color:var(--text2)">Também cabem sem passar de 60%: ${cabe.map(x=>relEsc(x.nome)+' ('+Rf(gSVal(x.id))+')').join(', ')}</div>`;
+    const cabe=D.servicos.filter(x=>x.categoria&&!svcs.includes(String(x.id))&&cats.has(normCat(x.categoria))&&pkgAnalise([...svcs,String(x.id)],pkval,R).descPior<=PKG_DESC_MAX+0.05);
+    if(cabe.length) h+=`<div style="font-size:12px;margin-top:4px;color:var(--text2)">Também cabem sem passar de 60%: ${cabe.map(x=>relEsc(x.nome)+' ('+Rf(gSVal(x.id))+' · '+({p:'P',m:'M',g:'G'})[areaTam(x.id)]+')').join(', ')}</div>`;
   } else {
-    h+=`<div style="font-size:12px;color:var(--text2)">Sugestão: ideal (55%) <b>${Rf(a.ideal55)}</b> · mínimo (60%) <b>${Rf(a.min60)}</b></div>`;
+    h+=`<div style="font-size:12px;color:var(--text2);margin-top:3px">Sugestão de valor fixo: ideal (55%) <b>${Rf(a.ideal55)}</b> · mínimo (60%) <b>${Rf(a.min60)}</b></div>`;
   }
-  const r=pkgDadosReais(svcs,max);
+  const r=pkgDadosReais(svcs,R);
   if(r.n) h+=`<div style="font-size:12px;margin-top:6px;color:var(--text2)">📊 Últimos 12 meses: <b>${r.n}</b> comanda(s) de <b>${r.clientes}</b> cliente(s) caberiam aqui · pagaram em média <b>${Rf(r.medio)}</b></div>`;
   el.innerHTML=h;
 }
@@ -4335,7 +4373,7 @@ function duplicarPkg(id){
   PKG_SEL=new Set((pk.svcs||[]).map(String)); renderPkgSvs();
   document.getElementById('m-pkg-t').textContent='DUPLICAR PACOTE';
   document.getElementById('pkg-nm').value=pk.nome+' (cópia)';
-  document.getElementById('pkg-ss').value=pk.sessoes||1; document.getElementById('pkg-vl').value=pk.valor; document.getElementById('pkg-max').value=pk.max_areas||'';
+  document.getElementById('pkg-ss').value=pk.sessoes||1; document.getElementById('pkg-vl').value=pk.valor; pkgRegraParaForm(pk);
   calcPkgDesc();
 }
 function renderPkg(){
@@ -4345,24 +4383,23 @@ function renderPkg(){
   document.getElementById('pkg-empty').style.display=D.pacotes.length?'none':'block';
   const cnt=document.getElementById('pkg-count'); if(cnt) cnt.textContent=q?`${lst.length} de ${D.pacotes.length}`:`${D.pacotes.length} pacote(s)`;
   document.getElementById('pkg-grid').innerHTML=lst.length?lst.map(p=>{
-    const an=pkgAnalise((p.svcs||[]).map(String),Number(p.valor)||0,p.max_areas||null); const orig=an?an.pior:0; const desc=orig>0?((1-p.valor/orig)*100).toFixed(0):0;
+    const an=pkgAnalise((p.svcs||[]).map(String),Number(p.valor)||0,pkgRegra(p)); const orig=an?an.pior:0; const desc=orig>0?((1-p.valor/orig)*100).toFixed(0):0;
     const u=pkgUso(p.id);
-    return`<div class="pk-card"><div class="pk-nm">${relEsc(p.nome)}</div>${p.max_areas?`<div style="font-size:11px;color:var(--gold);font-weight:700;margin:-2px 0 4px">NÍVEL · escolhe até ${p.max_areas} área(s)${desc>PKG_DESC_MAX?' · <span style="color:var(--red)">desconto '+desc+'%</span>':''}</div>`:''}<div style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.5">${(p.svcs||[]).map(gSNm).join(' + ')||'—'}</div><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:12px;color:var(--text3);text-decoration:line-through">${Rf(orig)}</span><span style="font-family:var(--fm);font-size:19px;font-weight:700">${Rf(p.valor)}</span>${desc>0?`<span class="bd gr">-${desc}%</span>`:''}</div><div style="font-size:11px;color:var(--text3);margin-bottom:10px">${p.sessoes||1} sessão(ões) · 👥 ${u.clientes.length} cliente(s)</div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn gd xs" onclick="verUsoPkg('${p.id}')">👥 Quem usa</button><button class="btn ol xs" onclick="abrirPkg('${p.id}')">✏ Editar</button><button class="btn ol xs" onclick="duplicarPkg('${p.id}')">⧉ Duplicar</button><button class="btn rd xs" onclick="delPkg('${p.id}')">✕</button></div></div>`;
+    return`<div class="pk-card"><div class="pk-nm">${relEsc(p.nome)}</div>${regraAtiva(pkgRegra(p))?`<div style="font-size:11px;color:var(--gold);font-weight:700;margin:-2px 0 4px">NÍVEL · valor fixo · ${regraTxt(pkgRegra(p))}${desc>PKG_DESC_MAX?' · <span style="color:var(--red)">desconto '+desc+'%</span>':''}</div>`:''}<div style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.5">${(p.svcs||[]).map(gSNm).join(' + ')||'—'}</div><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:12px;color:var(--text3);text-decoration:line-through">${Rf(orig)}</span><span style="font-family:var(--fm);font-size:19px;font-weight:700">${Rf(p.valor)}</span>${desc>0?`<span class="bd gr">-${desc}%</span>`:''}</div><div style="font-size:11px;color:var(--text3);margin-bottom:10px">${p.sessoes||1} sessão(ões) · 👥 ${u.clientes.length} cliente(s)</div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn gd xs" onclick="verUsoPkg('${p.id}')">👥 Quem usa</button><button class="btn ol xs" onclick="abrirPkg('${p.id}')">✏ Editar</button><button class="btn ol xs" onclick="duplicarPkg('${p.id}')">⧉ Duplicar</button><button class="btn rd xs" onclick="delPkg('${p.id}')">✕</button></div></div>`;
   }).join(''):'<div class="fin-empty" style="grid-column:1/-1">Nenhum pacote encontrado.</div>';
 }
 async function salvarPkg(){
   const nm=document.getElementById('pkg-nm').value.trim();
   const val=parseFloat(document.getElementById('pkg-vl').value);
   const sess=parseInt(document.getElementById('pkg-ss').value)||1;
-  const maxRaw=parseInt(document.getElementById('pkg-max').value);
-  const max_areas=Number.isFinite(maxRaw)&&maxRaw>0?maxRaw:null;
+  const R=pkgRegraForm(); const max_areas=R.max; const limites=(R.p!=null||R.m!=null||R.g!=null)?{p:R.p,m:R.m,g:R.g}:null;
   const eid=document.getElementById('pkg-eid').value;
   const svcs=getPkgSvcs().map(String);
   if(!nm||svcs.length===0||!val){ toast('Preencha nome, selecione serviços e valor','e'); return; }
   if(max_areas && max_areas>svcs.length){ toast(`Marque pelo menos ${max_areas} áreas que podem entrar (marcou ${svcs.length})`,'e'); return; }
   // Regra do salão: desconto máximo 60% (ideal 55%) — pergunta antes de salvar acima disso
   if(!S._pkgDescOk){
-    const a=pkgAnalise(svcs,val,max_areas);
+    const a=pkgAnalise(svcs,val,R);
     if(a && a.descPior>60.05){
       confirm2('⚠️','DESCONTO ACIMA DE 60%',`No pior caso (${a.n} áreas mais caras) a tabela dá ${Rf(a.pior)} e o pacote sai por ${Rf(val)}: ${a.descPior.toFixed(1).replace('.',',')}% de desconto.\n\nMínimo para 60%: ${Rf(a.min60)} · ideal (55%): ${Rf(a.ideal55)}.\n\nSalvar mesmo assim (ex.: promoção)?`,()=>{ S._pkgDescOk=true; salvarPkg(); },'SALVAR ASSIM','gr');
       const el=document.getElementById('conf-s'); if(el) el.style.whiteSpace='pre-line';
@@ -4373,8 +4410,8 @@ async function salvarPkg(){
   showLoad('Salvando...');
   try{
     let pkgId = eid;
-    const dados={nome:nm,valor:val,sessoes:sess,svcs,max_areas};
-    const semMax=e=>e && /max_areas/.test(e.message||'');
+    const dados={nome:nm,valor:val,sessoes:sess,svcs,max_areas,limites};
+    const semMax=e=>e && /max_areas|limites/.test(e.message||'');
     if(eid){
       let {error} = await sb.from('pacotes').update(dados).eq('id',eid);
       if(semMax(error)){ ({error} = await sb.from('pacotes').update({nome:nm,valor:val,sessoes:sess,svcs}).eq('id',eid)); if(!error) toast('Rode o niveis-pacote.sql para guardar o limite de áreas','w'); }
