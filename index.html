@@ -3256,10 +3256,11 @@ function renderClientes(){
   if(q) clis=clis.filter(c=>c.nome.toLowerCase().includes(q)||(c.whatsapp||'').includes(q));
   document.getElementById('cli-empty').style.display=clis.length?'none':'block';
   document.getElementById('cli-grid').innerHTML=clis.map(c=>{
-    const hist=D.agendamentos.filter(a=>cliId(a)===c.id&&a.status==='concluido');
+    // visita = atendida (paga OU finalizada a pagar); o valor continua contando só o que foi pago
+    const hist=D.agendamentos.filter(a=>cliId(a)===c.id&&(a.status==='concluido'||a.status==='finalizado'));
     const last=hist.sort((a,b)=>(b.data||'').localeCompare(a.data||''))[0];
     const pend=D.agendamentos.some(a=>cliId(a)===c.id&&a.status==='pendente');
-    const totAgs=hist.reduce((t,a)=>t+gAgtot(a),0);
+    const totAgs=hist.filter(a=>a.status==='concluido').reduce((t,a)=>t+gAgtot(a),0);
     const totImport=D.historico.filter(h=>h.cliente_id===c.id&&!(h.descricao||'').startsWith('[CREDITO]')).reduce((t,h)=>t+Number(h.valor),0);
     const tot=totAgs+totImport;
     const credito=gCliCredito(c.id);
