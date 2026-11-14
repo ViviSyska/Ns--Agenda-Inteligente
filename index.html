@@ -2533,7 +2533,7 @@ function renderDash(){
   const previstoTotal=agsPeriodo.reduce((t,a)=>t+gAgtot(a),0);
   const nCancel=todosPeriodo.filter(isCancelado).length; const nFaltou=todosPeriodo.filter(isFaltou).length;
   const nAgend=agsPeriodo.length;
-  const nFeitas=agsPeriodo.filter(a=>a.status==='concluido').length;
+  const nFeitas=agsPeriodo.filter(a=>a.status==='concluido'||a.status==='finalizado').length;
   const nPorVir=nAgend-nFeitas;
   const pctCancel=todosPeriodo.length?Math.round(nCancel/todosPeriodo.length*100):0;
   document.getElementById('d-cards').innerHTML=`
