@@ -4978,31 +4978,17 @@ function renderRelFin(){
 // (lançadas sozinhas ao faturar no cartão, ou à mão em Despesas com a palavra "Taxa" no início).
 function ehTaxa(x){ return x.tipo==='saida' && /^taxa/i.test((x.descricao||'').trim()); }
 function tipoTaxa(x){ const d=(x.descricao||'').toLowerCase(); if(x.forma_pagamento==='debito'||/d[ée]bito/.test(d)) return 'debito'; return 'credito'; }
-// Gráfico das taxas mês a mês: colunas em R$ e, separado embaixo, a linha da % sobre o que entrou no cartão.
-// (dois gráficos, um eixo cada — nunca dois eixos no mesmo gráfico)
-function graficoTaxasMes(porMes,larg){
-  const W=Math.max(320,Math.min(900,Math.round(larg||760))), L=46, Rm=8, plotW=W-L-Rm, n=porMes.length, cx=i=>L+(i+.5)*plotW/n, bw=Math.min(36,plotW/n*.58);
-  const vmax=Math.max(...porMes.map(x=>x.t),1), passo=[1,2,5,10,20,25,50,100,200,250,500,1000].find(p=>vmax/p<=4)||Math.ceil(vmax/4);
-  const top=Math.ceil(vmax/passo)*passo, H=190, T=16, B=22, y=v=>T+(H-T-B)*(1-v/top);
-  const ticks=[]; for(let v=0;v<=top+0.001;v+=passo) ticks.push(v);
-  const fmt=v=>v.toFixed(2).replace('.',',');
-  const pc=porMes.map(x=>x.r>0.009?x.t/x.r*100:null);
-  const maiores=porMes.map((x,i)=>[x.t,i]).filter(a=>a[0]>0).sort((a,b)=>b[0]-a[0]).slice(0,3).map(a=>a[1]);
-  const barras=porMes.map((x,i)=>{ if(x.t<=0) return ''; const h=Math.max(2,y(0)-y(x.t)), r=Math.min(4,h/2), x0=cx(i)-bw/2;
-    return `<g><title>${x.m}: ${Rf(x.t)}${pc[i]!=null?' · '+fmt(pc[i])+'% do cartão':''}</title>
-      <rect x="${cx(i)-plotW/n/2}" y="${T}" width="${plotW/n}" height="${H-T-B}" fill="transparent"/>
-      <path d="M${x0},${y(0)} V${y(x.t)+r} q0,-${r} ${r},-${r} h${bw-2*r} q${r},0 ${r},${r} V${y(0)}Z" style="fill:var(--red)"/>
-      ${maiores.includes(i)?`<text x="${cx(i)}" y="${y(x.t)-5}" text-anchor="middle" style="fill:var(--text2);font-size:10px">${fmt(x.t)}</text>`:''}</g>`; }).join('');
-  const eixo=(yy,lbl)=>`<line x1="${L}" x2="${W-Rm}" y1="${yy}" y2="${yy}" style="stroke:var(--bc)"/><text x="${L-6}" y="${yy+3}" text-anchor="end" style="fill:var(--text3);font-size:10px">${lbl}</text>`;
-  const meses=(yy)=>porMes.map((x,i)=>`<text x="${cx(i)}" y="${yy}" text-anchor="middle" style="fill:var(--text3);font-size:10px">${x.m}</text>`).join('');
-  const g1=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;overflow:visible" role="img" aria-label="Taxas de cartão por mês em reais">${ticks.map(v=>eixo(y(v),v)).join('')}${barras}${meses(H-6)}</svg>`;
-  // linha da %
-  const pmax=Math.max(6,Math.ceil(Math.max(...pc.filter(v=>v!=null),0)+1)), H2=96, T2=10, B2=20, y2=v=>T2+(H2-T2-B2)*(1-v/pmax);
-  const pts=pc.map((v,i)=>v!=null?[cx(i),y2(v),v,i]:null).filter(Boolean);
-  const linha=pts.length?`<path d="M${pts.map(p=>p[0]+','+p[1]).join(' L')}" fill="none" style="stroke:var(--text2)" stroke-width="2"/>`+pts.map(p=>`<g><title>${porMes[p[3]].m}: ${fmt(p[2])}% do que entrou no cartão</title><circle cx="${p[0]}" cy="${p[1]}" r="9" fill="transparent"/><circle cx="${p[0]}" cy="${p[1]}" r="4" style="fill:var(--text2);stroke:var(--card)" stroke-width="2"/></g>`).join(''):'';
-  const t2=[0,Math.round(pmax/2),pmax];
-  const g2=`<div style="font-size:11px;color:var(--text3);margin:10px 0 2px">% DA TAXA SOBRE O QUE ENTROU NO CARTÃO</div><svg viewBox="0 0 ${W} ${H2}" width="100%" style="display:block;overflow:visible" role="img" aria-label="Porcentagem da taxa por mês">${t2.map(v=>eixo(y2(v),v+'%')).join('')}${linha}${meses(H2-4)}</svg>`;
-  return `<div style="font-size:11px;color:var(--text3);margin:0 0 2px">TAXA EM R$</div>${g1}${g2}`;
+// Taxas mês a mês, resumido: um cartãozinho por mês que teve taxa (valor + % sobre o que entrou no cartão)
+function cardsTaxasMes(porMes){
+  const l=porMes.filter(x=>x.t>0.009);
+  if(!l.length) return '<div style="font-size:12px;color:var(--text3);padding:6px 0">Nenhuma taxa lançada neste ano.</div>';
+  const max=Math.max(...l.map(x=>x.t));
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px">${l.map(x=>{
+    const pc=x.r>0.009?(x.t/x.r*100).toFixed(2).replace('.',',')+'%':'';
+    return `<div style="border:var(--brd);border-radius:var(--r2);padding:8px 10px;${x.t===max?'border-color:var(--red);':''}">
+      <div style="font-size:11px;color:var(--text3)">${x.m}${x.t===max?' · maior':''}</div>
+      <div style="font-family:var(--fm);font-weight:700;font-size:15px;color:var(--text)">${Rf(x.t)}</div>
+      <div style="font-size:11px;color:var(--text3)">${pc?pc+' do cartão':''}</div></div>`; }).join('')}</div>`;
 }
 
 function renderRelTaxas(){
@@ -5029,8 +5015,8 @@ function renderRelTaxas(){
       <div class="sc"><div class="sc-l">DÉBITO</div><div class="sc-v rd">${Rf(tDb)}</div><div class="sc-s">${pc(tDb,rDb)} de ${Rf(rDb)} recebidos</div></div>
       <div class="sc"><div class="sc-l">TOTAL ${per.toUpperCase()}</div><div class="sc-v rd">${Rf(tTot)}</div><div class="sc-s">${tx.length} lançamento(s) · ${pc(tTot,rTot)} do cartão</div></div>
     </div>
-    <div style="font-size:11px;color:var(--text3);letter-spacing:.6px;font-weight:600;margin:4px 0 6px">MÊS A MÊS — ${yr} · total ${Rf(totAno)}</div>
-    ${graficoTaxasMes(porMes,(el.clientWidth||760)-32)}
+    <div style="padding:0 16px 14px"><div style="font-size:11px;color:var(--text3);letter-spacing:.6px;font-weight:600;margin:4px 0 8px">MÊS A MÊS — ${yr} · total ${Rf(totAno)}</div>
+    ${cardsTaxasMes(porMes)}</div>
     <div class="fin-note">Conta as saídas do caixa que começam com "Taxa" (lançadas sozinhas ao faturar no cartão). Se lançar uma taxa à mão em Despesas, comece a descrição com "Taxa".</div>
   </div>`;
 }
