@@ -2852,6 +2852,11 @@ async function mudarStatusAg(id, novoStatus, btnEl){
     return;
   }
 
+  // Comanda PAGA: mudar só o status não devolve o pagamento (ela continuaria "nada a cobrar").
+  // Para refazer a cobrança, oferece Reabrir (estorna e volta para Confirmado).
+  if(ag.status==='concluido' && gAgPago(ag)>0.009 && novoStatus!=='cancelado'){
+    closeModal('m-ver'); reabrirComanda(id); return;
+  }
   // "Cancelado" pede confirmação antes
   if(novoStatus==='cancelado'){
     confirm2('❌','CANCELAR AGENDAMENTO',
@@ -3441,6 +3446,7 @@ function abrirFat(agId){
     const temSaldo=gAgSaldo(a)>0.01;
     info.innerHTML=`<div style="font-weight:600;font-size:13px">${gCNm2(a)}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${fBR((a.data||'').substring(0,10))} ${a.hora} · ${(a.svcs||[]).map(gSNm).join(', ')||'—'}${temSaldo?' <span style="color:var(--red)">(saldo pendente)</span>':''}</div>`;
     const val=document.createElement('div'); val.style.cssText='font-family:var(--fm);font-size:14px;font-weight:700;color:var(--gold);white-space:nowrap'; val.textContent=Rf(gAgSaldo(a));
+    { const pg=gAgPago(a), tt=gAgtot(a); if(pg>0.009||Math.abs(tt-gAgSaldo(a))>0.009){ const d=document.createElement('div'); d.style.cssText='font-size:11px;color:var(--text3);margin-top:3px'; d.textContent=`Total ${Rf(tt)} · já pago ${Rf(pg)} · falta ${Rf(gAgSaldo(a))}`; info.appendChild(d); } }
     item.appendChild(info); item.appendChild(val);
     item.onclick=e=>{ if(e.target!==chk){ chk.checked=!chk.checked; chk.onchange(); } };
     list.appendChild(item);
@@ -3498,7 +3504,13 @@ function calcFatTotal(){
   const zeroInfo=document.getElementById('fat-zero-info');
   const pgWrap=document.getElementById('fat-pg-wrap');
   const isZero = tot<0.01;
-  if(zeroInfo) zeroInfo.style.display = isZero?'block':'none';
+  if(zeroInfo){
+    zeroInfo.style.display = isZero?'block':'none';
+    const pagoSel=(S.fatIds||[]).map(id=>D.agendamentos.find(x=>x.id===id)).filter(Boolean).reduce((t,x)=>t+gAgPago(x),0);
+    zeroInfo.innerHTML = (isZero && !usandoCustom && pagoSel>0.009)
+      ? `✓ Já está pago — ${Rf(pagoSel)} no caixa. Nada a cobrar.<div style="font-weight:400;font-size:12px;color:var(--text2);margin-top:6px">Para mudar itens ou valor: feche aqui, toque em ✏ Editar (o sistema recalcula o que falta) ou use ↩ Reabrir para estornar o pagamento.</div>`
+      : '✓ Nada a cobrar — clique em Confirmar para encerrar a comanda';
+  }
   if(pgWrap) pgWrap.style.display = isZero?'none':'block';
 }
 function selPg(el,tipo){
@@ -3740,6 +3752,7 @@ async function executarFat(){
   const btnConfirmar = document.querySelector('#m-fat .mf .btn.gr');
   if(btnConfirmar){ btnConfirmar.disabled = true; btnConfirmar.style.opacity = '0.5'; btnConfirmar.style.pointerEvents = 'none'; btnConfirmar.textContent = 'Processando...'; }
 
+  let feitos=null, avisoTaxa='';
   try {
     showLoad('Faturando...');
     const hoje=document.getElementById('fat-dt')?.value || TODAY;
@@ -3748,6 +3761,9 @@ async function executarFat(){
     const saldoDevedorTotal = Math.max(0, Math.round((totalFinal - totalPago)*100)/100);
     const pagouTudo = saldoDevedorTotal < 0.01; // tolerância de arredondamento
     const ok=(r,msg)=>{ if(r&&r.error) throw new Error(msg+': '+r.error.message); return r; };
+    // guarda o que foi gravado: se algo falhar no meio, desfaz (não deixa pagamento pela metade/duplicado)
+    feitos={caixa:[],hist:[],desp:[]};
+    const anota=(r,tab)=>{ const id=r&&r.data&&(r.data.id||(Array.isArray(r.data)&&r.data[0]&&r.data[0].id)); if(id) feitos[tab].push(id); return r; };
 
     // ① PRIMEIRO o dinheiro (caixa / crédito usado): o saldo da comanda é calculado a partir daí,
     //    então se algo falhar no meio, o saldo continua certo.
@@ -3759,20 +3775,20 @@ async function executarFat(){
         if(valorFatia<=0) continue;
         if(pg.tipo==='saldo'){
           // crédito do cliente: não é entrada nova no caixa; fica gravado COM a comanda, para o saldo bater
-          ok(await sb.from('historico_cliente').insert({
+          anota(ok(await sb.from('historico_cliente').insert({
             cliente_id:S._fatCliId, valor:-valorFatia,
             descricao:`[CREDITO] Saldo utilizado no faturamento · comanda ${l.ag.id}`, data:hoje
-          }),'Crédito');
+          }).select('id').single(),'Crédito'),'hist');
           continue;
         }
-        ok(await sb.from('caixa').insert({
+        anota(ok(await sb.from('caixa').insert({
           tipo:'entrada',
           descricao:`Comanda - ${gCNm2(l.ag)}${desc>0?` (desc. ${Rf(desc*l.fatia)})`:''}${usandoCustom?' (valor ajustado)':''}${!pagouTudo?' [PAGAMENTO PARCIAL]':''}`,
           valor: valorFatia,
           data: hoje,
           forma_pagamento: pg.tipo,
           agendamento_id: l.ag.id,
-        }),'Caixa');
+        }).select('id').single(),'Caixa'),'caixa');
       }
     }
 
@@ -3781,14 +3797,19 @@ async function executarFat(){
       if((pg.tipo==='credito'||pg.tipo==='debito') && pg.taxa>0){
         const taxaVal=Math.round(pg.valor*(pg.taxa/100)*100)/100;
         const nms={credito:'Crédito',debito:'Débito'};
-        ok(await sb.from('despesas').insert({
-          descricao:`Taxa ${nms[pg.tipo]} (${pg.taxa}%) — faturamento`,
-          valor:taxaVal, categoria:'Taxas Financeiras', data:hoje, status:'pago'
-        }),'Despesa');
-        ok(await sb.from('caixa').insert({
+        // Taxa vira despesa. Se o banco recusar a categoria, grava em "Outros"; se ainda falhar, só avisa —
+        // a despesa da taxa NUNCA pode impedir o recebimento de ser registrado.
+        const dsp={descricao:`Taxa ${nms[pg.tipo]} (${pg.taxa}%) — faturamento`, valor:taxaVal, categoria:'Taxas Financeiras', data:hoje, status:'pago'};
+        let rd=await sb.from('despesas').insert(dsp).select('id').single();
+        if(rd.error) rd=await sb.from('despesas').insert({...dsp, categoria:'Outros'}).select('id').single();
+        if(!rd.error) anota(rd,'desp');
+        if(rd.error) avisoTaxa=`Pagamento registrado, mas a taxa (${Rf(taxaVal)}) não entrou em Despesas: ${rd.error.message}`;
+        const rcx=await sb.from('caixa').insert({
           tipo:'saida', descricao:`Taxa cartão ${nms[pg.tipo]} (${pg.taxa}%)`,
           valor:taxaVal, data:hoje, forma_pagamento:pg.tipo
-        }),'Caixa');
+        }).select('id').single();
+        if(!rcx.error) anota(rcx,'caixa');
+        if(rcx.error) avisoTaxa=`Pagamento registrado, mas a taxa (${Rf(taxaVal)}) não entrou no caixa: ${rcx.error.message}`;
       }
     }
 
@@ -3809,11 +3830,18 @@ async function executarFat(){
       toast(`⚠️ Pagamento PARCIAL registrado: ${Rf(totalPago)} de ${Rf(totalFinal)} · Falta ${Rf(saldoDevedorTotal)}`,'w');
     }
     renderComandas(); renderDash();
+    if(avisoTaxa) setTimeout(()=>toast(avisoTaxa,'w'),2500);
   } catch(e){
+    // desfaz o que já tinha sido gravado neste faturamento
+    if(feitos){
+      for(const id of feitos.caixa) await sb.from('caixa').delete().eq('id',id);
+      for(const id of feitos.hist) await sb.from('historico_cliente').delete().eq('id',id);
+      for(const id of feitos.desp) await sb.from('despesas').delete().eq('id',id);
+    }
     hideLoad();
     // recarrega para a tela refletir exatamente o que foi gravado
     try{ await Promise.all([reloadSection('agendamentos'),reloadSection('caixa'),reloadSection('despesas'),reloadSection('historico')]); renderComandas(); renderDash(); }catch(_){}
-    toast('Erro ao faturar: '+e.message+' — confira a comanda antes de tentar de novo','e');
+    toast('Erro ao faturar: '+e.message+' — nada foi lançado, pode tentar de novo','e');
   } finally {
     S._faturando = false;
     if(btnConfirmar){ btnConfirmar.disabled = false; btnConfirmar.style.opacity = '1'; btnConfirmar.style.pointerEvents = 'auto'; btnConfirmar.textContent = '✓ CONFIRMAR'; }
