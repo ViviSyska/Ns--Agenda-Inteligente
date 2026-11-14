@@ -1691,7 +1691,7 @@ const D = {
 // ============================================================
 const uid = () => crypto.randomUUID();
 const Rf  = v => 'R$ ' + Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-const toMin = t => { const[h,m]=t.split(':').map(Number); return h*60+m; };
+const toMin = t => { const[h,m]=String(t||'00:00').split(':').map(Number); return (h||0)*60+(m||0); }; // tolera hora vazia (não derruba a Agenda)
 const frMin = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
 const dStr  = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const fBR   = s => { if(!s)return'—'; const[y,m,dd]=s.split('-'); return`${dd}/${m}/${y}`; };
@@ -2556,8 +2556,8 @@ function renderAgenda(){
   g.style.gridTemplateColumns=`56px ${profs.map(()=>'1fr').join(' ')}`;
   g.innerHTML='';
   const corner=document.createElement('div'); corner.className='tc'; g.appendChild(corner);
-  profs.forEach(p=>{ const h=document.createElement('div'); h.className='ph'; h.innerHTML=`<div>${p.nome.split(' ')[0]}</div><div style="font-size:10px;color:var(--text3)">${p.comissao||p.com||0}% com.</div>`; g.appendChild(h); });
-  const ab=toMin(D.cfg.abertura), fe=toMin(D.cfg.fechamento);
+  profs.forEach(p=>{ const h=document.createElement('div'); h.className='ph'; h.innerHTML=`<div>${String(p.nome||'').split(' ')[0]}</div><div style="font-size:10px;color:var(--text3)">${p.comissao||p.com||0}% com.</div>`; g.appendChild(h); });
+  const ab=toMin((D.cfg&&D.cfg.abertura)||'08:00'), fe=toMin((D.cfg&&D.cfg.fechamento)||'19:00');
   for(let t=ab; t<fe; t+=S.agIv){
     const tc=document.createElement('div'); tc.className='ag-tc'; tc.textContent=frMin(t); g.appendChild(tc);
     profs.forEach(prof=>{
