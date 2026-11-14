@@ -1680,6 +1680,7 @@ const S = {
 };
 
 // Cache local (evita chamadas repetidas)
+const numOu=(v,d)=>{ const n=parseFloat(v); return Number.isFinite(n)?n:d; }; // aceita 0 (não troca 0% pelo padrão)
 const D = {
   profs:[], clientes:[], servicos:[], pacotes:[],
   agendamentos:[], bloqueios:[], despesas:[], caixa:[],
@@ -1944,8 +1945,8 @@ async function loadAll(){
     loadCats();
     if(cfg.data){
       D.cfg = {
-        taxaCred: parseFloat(cfg.data.taxa_credito)||3.5,
-        taxaDeb:  parseFloat(cfg.data.taxa_debito)||1.5,
+        taxaCred: numOu(cfg.data.taxa_credito,3.5),
+        taxaDeb:  numOu(cfg.data.taxa_debito,1.5),
         abertura: cfg.data.horario_abertura||'08:00',
         fechamento: cfg.data.horario_fechamento||'20:00',
       };
@@ -1989,8 +1990,8 @@ async function carregarSecao(sec){
     if(data){
       D.cfgRow=data;
       D.cfg = {...(D.cfg||{}),
-        taxaCred: parseFloat(data.taxa_credito)||3.5,
-        taxaDeb:  parseFloat(data.taxa_debito)||1.5,
+        taxaCred: numOu(data.taxa_credito,3.5),
+        taxaDeb:  numOu(data.taxa_debito,1.5),
         abertura: data.horario_abertura||'08:00',
         fechamento: data.horario_fechamento||'20:00',
       };
@@ -4837,8 +4838,8 @@ function renderConfig(){
 }
 async function saveConfig(){
   showLoad();
-  await sb.from('configuracoes').update({taxa_credito:parseFloat(document.getElementById('cfg-cr').value)||3.5, taxa_debito:parseFloat(document.getElementById('cfg-db').value)||1.5, horario_abertura:document.getElementById('cfg-ab').value||'08:00', horario_fechamento:document.getElementById('cfg-fe').value||'20:00'}).neq('id','00000000-0000-0000-0000-000000000000');
-  D.cfg.taxaCred=parseFloat(document.getElementById('cfg-cr').value)||3.5; D.cfg.taxaDeb=parseFloat(document.getElementById('cfg-db').value)||1.5; D.cfg.abertura=document.getElementById('cfg-ab').value; D.cfg.fechamento=document.getElementById('cfg-fe').value;
+  await sb.from('configuracoes').update({taxa_credito:numOu(document.getElementById('cfg-cr').value,3.5), taxa_debito:numOu(document.getElementById('cfg-db').value,1.5), horario_abertura:document.getElementById('cfg-ab').value||'08:00', horario_fechamento:document.getElementById('cfg-fe').value||'20:00'}).neq('id','00000000-0000-0000-0000-000000000000');
+  D.cfg.taxaCred=numOu(document.getElementById('cfg-cr').value,3.5); D.cfg.taxaDeb=numOu(document.getElementById('cfg-db').value,1.5); D.cfg.abertura=document.getElementById('cfg-ab').value; D.cfg.fechamento=document.getElementById('cfg-fe').value;
   hideLoad(); toast('Configurações salvas!');
 }
 
