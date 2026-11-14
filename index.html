@@ -1095,6 +1095,23 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
             <button class="btn gd sm" onclick="adicionarCat()" style="white-space:nowrap">+ Adicionar</button>
           </div>
         </div>
+        <!-- CLASSIFICAÇÃO DE SERVIÇOS (opcional) -->
+        <div class="tw" style="padding:16px;margin-top:14px">
+          <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:6px">🧩 CLASSIFICAÇÃO DE SERVIÇOS <span style="font-weight:400">(opcional — usada nos pacotes por nível)</span></div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Agrupe os serviços para montar pacotes do tipo "a cliente escolhe até 3 de um grupo + 1 de outro" com valor fixo.</div>
+          <div class="fgr"><label>TIPO</label>
+            <select id="cl-modelo" onchange="clModeloTrocar()">
+              <option value="nenhuma">Sem classificação</option>
+              <option value="tamanho">Tamanho (Pequena / Média / Grande)</option>
+              <option value="regiao">Região do corpo (Facial / Corporal / Íntima)</option>
+              <option value="complexidade">Complexidade (Básico / Intermediário / Avançado)</option>
+              <option value="personalizada">Personalizada (você dá os nomes)</option>
+            </select>
+          </div>
+          <div id="cl-grupos" style="margin-top:10px"></div>
+          <label id="cl-auto-box" style="display:flex;gap:8px;align-items:center;font-size:12px;margin-top:8px;cursor:pointer"><input type="checkbox" id="cl-auto" onchange="clRender(true)"> Classificar sozinho pelo valor quando o serviço não tiver grupo escolhido</label>
+          <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn gd sm" onclick="salvarClassif()">Salvar classificação</button></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1222,14 +1239,7 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
             <option value="GERAL">🏷 Geral</option>
           </select>
         </div>
-        <div class="fgr"><label>TAMANHO DA ÁREA (para níveis de pacote)</label>
-          <select id="svc-tm">
-            <option value="">Automático pelo valor (até R$ 80 = P · até R$ 150 = M · acima = G)</option>
-            <option value="P">P — Pequena (ex.: buço, queixo, axila, linha alba)</option>
-            <option value="M">M — Média (ex.: virilha, meia perna, braço, rosto)</option>
-            <option value="G">G — Grande (ex.: perna inteira, costas, peito + abdômen)</option>
-          </select>
-        </div>
+        <div class="fgr" id="svc-tm-box"><label id="svc-tm-lbl">CLASSIFICAÇÃO</label><select id="svc-tm"></select></div>
         <div class="fg fg2">
           <div class="fgr"><label>VALOR (R$) *</label><input type="number" id="svc-vl" placeholder="0.00" step="0.01" min="0"></div>
           <div class="fgr"><label>DURAÇÃO (min) *</label><input type="number" id="svc-dr" placeholder="60" min="5"></div>
@@ -1267,14 +1277,9 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
           <div class="fgr"><label>VALOR FIXO DO PACOTE (R$) *</label><input type="number" id="pkg-vl" placeholder="0.00" step="0.01" min="0" oninput="calcPkgDesc()"></div>
         </div>
         <div class="fgr" style="background:var(--bg3);border-radius:var(--r2);padding:10px">
-          <label>NÍVEL (VALOR FIXO): A CLIENTE ESCOLHE ATÉ…</label>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-top:4px">
-            <div><div style="font-size:10px;color:var(--text3)">Pequenas (P)</div><input type="number" id="pkg-lp" min="0" placeholder="—" oninput="calcPkgDesc()"></div>
-            <div><div style="font-size:10px;color:var(--text3)">Médias (M)</div><input type="number" id="pkg-lm" min="0" placeholder="—" oninput="calcPkgDesc()"></div>
-            <div><div style="font-size:10px;color:var(--text3)">Grandes (G)</div><input type="number" id="pkg-lg" min="0" placeholder="—" oninput="calcPkgDesc()"></div>
-            <div><div style="font-size:10px;color:var(--text3)">Total</div><input type="number" id="pkg-max" min="1" placeholder="—" oninput="calcPkgDesc()"></div>
-          </div>
-          <div style="font-size:10px;color:var(--text3);margin-top:4px">Ex.: Plus = 3 pequenas + 1 média. Marque acima todas as áreas que podem entrar. Vazio = pacote fixo (todas as marcadas). O tamanho (P/M/G) vem do cadastro do serviço; sem tamanho definido: até R$ 80 = P, até R$ 150 = M, acima = G.</div>
+          <label>NÍVEL (VALOR FIXO): A CLIENTE ESCOLHE ATÉ… <span style="font-weight:400">(opcional)</span></label>
+          <div id="pkg-lims" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-top:4px"></div>
+          <div id="pkg-lims-ex" style="font-size:10px;color:var(--text3);margin-top:4px"></div>
         </div>
         <div id="pkg-desc" style="display:none" class="info-box"></div>
       </div>
@@ -4080,12 +4085,12 @@ function abrirSvc(id){
     document.getElementById('m-svc-t').textContent='EDITAR SERVIÇO';
     document.getElementById('svc-nm').value=s.nome; document.getElementById('svc-vl').value=s.valor;
     document.getElementById('svc-dr').value=s.duracao_min||s.dur; document.getElementById('svc-cm').value=s.comissao||s.com||'';
-    document.getElementById('svc-ct').value=normCat(s.categoria)||D.categorias[0]?.id||'ESTETICA'; document.getElementById('svc-tm').value=(s.tamanho||'').toUpperCase();
+    document.getElementById('svc-ct').value=normCat(s.categoria)||D.categorias[0]?.id||'ESTETICA'; svcTmPreencher(s.tamanho);
     const ps=document.getElementById('svc-pf'); for(const o of ps.options) if(o.value===(s.profissional_id||s.profId||'')){o.selected=true;break}
   } else {
     document.getElementById('m-svc-t').textContent='NOVO SERVIÇO';
     ['svc-nm','svc-vl','svc-dr','svc-cm'].forEach(id=>{ document.getElementById(id).value=''; });
-    document.getElementById('svc-pf').value=''; document.getElementById('svc-ct').value=D.categorias[0]?.id||'ESTETICA'; document.getElementById('svc-tm').value='';
+    document.getElementById('svc-pf').value=''; document.getElementById('svc-ct').value=D.categorias[0]?.id||'ESTETICA'; svcTmPreencher('');
   }
   openModal('m-svc');
 }
@@ -4192,7 +4197,7 @@ function renderSvc(){
   const isMob=window.innerWidth<=768;
   // --- TABELA (desktop) ---
   document.getElementById('tb-svc').innerHTML=lst.map(s=>{ const cm=CAT_META[normCat(s.categoria)]; return `<tr>
-    <td><strong>${s.nome}</strong>${s.tamanho?` <span class="bd gy" title="Tamanho da área">${String(s.tamanho).toUpperCase()}</span>`:''}</td>
+    <td><strong>${s.nome}</strong>${siglaDe(s.id)?` <span class="bd gy" title="${relEsc(classif().nome)}: ${relEsc(grupoNm(classeDe(s.id),1))}">${relEsc(siglaDe(s.id))}</span>`:''}</td>
     <td><span class="bd" style="background:${cm.bg};color:${cm.cor}">${cm.lbl}</span></td>
     <td>${s.profissional_id?gPNm(s.profissional_id):'Qualquer'}</td>
     <td>${s.duracao_min||s.dur||0} min</td>
@@ -4226,6 +4231,15 @@ function renderSvc(){
     cardsEl.innerHTML='';
   }
 }
+function svcTmPreencher(v){
+  const C=classif(); const box=document.getElementById('svc-tm-box'); if(!box) return;
+  box.style.display=C.grupos.length?'':'none'; if(!C.grupos.length) return;
+  document.getElementById('svc-tm-lbl').textContent=C.nome.toUpperCase()+' (para níveis de pacote)';
+  const autoTxt=C.auto?'Automático pelo valor ('+C.grupos.map((g,i)=>g.ate!=null&&g.ate!==''&&i<C.grupos.length-1?`até ${Rf(g.ate)} = ${g.sigla}`:`acima = ${g.sigla}`).join(' · ')+')':'Sem grupo';
+  document.getElementById('svc-tm').innerHTML=`<option value="">${autoTxt}</option>`+C.grupos.map(g=>`<option value="${g.id}">${relEsc(g.sigla)} — ${relEsc(g.nome)}</option>`).join('');
+  const t=String(v||'').toLowerCase(); document.getElementById('svc-tm').value=C.grupos.some(g=>g.id===t)?t:'';
+}
+
 async function salvarSvc(){
   const nm=document.getElementById('svc-nm').value.trim();
   const val=parseFloat(document.getElementById('svc-vl').value);
@@ -4234,11 +4248,11 @@ async function salvarSvc(){
   if(!nm||!val||!dur){ toast('Nome, valor e duração obrigatórios','e'); return; }
   showLoad('Salvando...');
   const payload={nome:nm, valor:val, duracao_min:dur, categoria:document.getElementById('svc-ct').value, comissao:parseFloat(document.getElementById('svc-cm').value)||0, profissional_id:document.getElementById('svc-pf').value||null};
-  payload.tamanho=document.getElementById('svc-tm').value||null;
+  if(classif().grupos.length) payload.tamanho=document.getElementById('svc-tm').value||null;
   const semTam=r=>r&&r.error&&/tamanho/.test(r.error.message||'');
   let r;
-  if(eid){ r=await sb.from('servicos').update(payload).eq('id',eid); if(semTam(r)){ delete payload.tamanho; r=await sb.from('servicos').update(payload).eq('id',eid); toast('Rode o tamanho-area.sql para guardar o tamanho','w'); } }
-  else { r=await sb.from('servicos').insert(payload); if(semTam(r)){ delete payload.tamanho; r=await sb.from('servicos').insert(payload); toast('Rode o tamanho-area.sql para guardar o tamanho','w'); } }
+  if(eid){ r=await sb.from('servicos').update(payload).eq('id',eid); if(semTam(r)){ delete payload.tamanho; r=await sb.from('servicos').update(payload).eq('id',eid); toast('Rode o classificacao.sql para guardar a classificação','w'); } }
+  else { r=await sb.from('servicos').insert(payload); if(semTam(r)){ delete payload.tamanho; r=await sb.from('servicos').insert(payload); toast('Rode o classificacao.sql para guardar a classificação','w'); } }
   if(r&&r.error){ hideLoad(); toast('Erro ao salvar: '+r.error.message,'e'); return; }
   toast(eid?'Serviço atualizado!':'Serviço cadastrado!');
   await reloadSection('servicos'); hideLoad(); closeModal('m-svc'); renderSvc(); popProfs();
@@ -4294,26 +4308,54 @@ function getPkgSvcs(){ return Array.from(PKG_SEL); }
 // Valor FIXO; a cliente escolhe as áreas dentro das regras: "até X pequenas, Y médias, Z grandes" (e/ou até N no total).
 // Tamanho da área pela tabela: pequena até R$ 80 · média até R$ 150 · grande acima.
 const PKG_DESC_MAX=60, PKG_DESC_IDEAL=55;
-const TAM_NOME={p:'pequena',m:'média',g:'grande'}, TAM_PL={p:'pequenas',m:'médias',g:'grandes'};
-const areaTam = id => { const sv=D.servicos.find(x=>String(x.id)===String(id)); const t=(sv&&sv.tamanho||'').toLowerCase(); if(t==='p'||t==='m'||t==='g') return t; const v=Number(gSVal(id))||0; return v<=80?'p':v<=150?'m':'g'; };
-// regra do pacote: {max,p,m,g} (null = sem limite). Aceita pacote antigo só com max_areas.
-function pkgRegra(pk){ let l=(pk&&pk.limites)||{}; if(typeof l==='string'){ try{ l=JSON.parse(l)||{}; }catch(_){ l={}; } } const n=v=>Number.isFinite(Number(v))&&v!==null&&v!==''?Number(v):null;
-  return {max:n(pk&&pk.max_areas), p:n(l.p), m:n(l.m), g:n(l.g)}; }
-const regraAtiva = R => !!R && (R.max!=null||R.p!=null||R.m!=null||R.g!=null);
-function regraTxt(R){ const parts=['p','m','g'].filter(k=>R[k]!=null&&R[k]>0).map(k=>`${R[k]} ${R[k]>1?TAM_PL[k]:TAM_NOME[k]}`);
+// ── CLASSIFICAÇÃO DE SERVIÇOS (opcional, cada salão escolhe em Configurações) ──
+const CLASSIF_MODELOS={
+  nenhuma:{nome:'Sem classificação',grupos:[]},
+  tamanho:{nome:'Tamanho',grupos:[{id:'p',nome:'Pequena',pl:'Pequenas',sigla:'P',ate:80},{id:'m',nome:'Média',pl:'Médias',sigla:'M',ate:150},{id:'g',nome:'Grande',pl:'Grandes',sigla:'G'}]},
+  regiao:{nome:'Região do corpo',grupos:[{id:'f',nome:'Facial',pl:'Faciais',sigla:'F'},{id:'c',nome:'Corporal',pl:'Corporais',sigla:'C'},{id:'i',nome:'Íntima',pl:'Íntimas',sigla:'I'}]},
+  complexidade:{nome:'Complexidade',grupos:[{id:'b',nome:'Básico',pl:'Básicos',sigla:'B',ate:80},{id:'n',nome:'Intermediário',pl:'Intermediários',sigla:'I',ate:150},{id:'a',nome:'Avançado',pl:'Avançados',sigla:'A'}]},
+  personalizada:{nome:'Personalizada',grupos:[{id:'a',nome:'Grupo A',pl:'Grupo A',sigla:'A'},{id:'b',nome:'Grupo B',pl:'Grupo B',sigla:'B'},{id:'c',nome:'Grupo C',pl:'Grupo C',sigla:'C'}]}
+};
+// configuração do salão: {modelo, nome, grupos:[{id,nome,pl,sigla,ate}], auto:bool}. Sem nada salvo = Tamanho automático pelo valor.
+function classif(){
+  let c=(D.cfgRow&&D.cfgRow.classificacao)||null; if(typeof c==='string'){ try{ c=JSON.parse(c); }catch(_){ c=null; } }
+  if(!c||!c.modelo){ const m=CLASSIF_MODELOS.tamanho; return {modelo:'tamanho',nome:m.nome,grupos:m.grupos,auto:true}; }
+  if(c.modelo==='nenhuma') return {modelo:'nenhuma',nome:'',grupos:[],auto:false};
+  return {modelo:c.modelo,nome:c.nome||CLASSIF_MODELOS[c.modelo]?.nome||'Classificação',grupos:(c.grupos&&c.grupos.length?c.grupos:CLASSIF_MODELOS[c.modelo]?.grupos)||[],auto:!!c.auto};
+}
+const grupoInfo = gid => classif().grupos.find(g=>g.id===gid);
+const grupoNm = (gid,n) => { const g=grupoInfo(gid); return g?(n>1?(g.pl||g.nome):g.nome):'sem grupo'; };
+// grupo de um serviço: o que foi escolhido no cadastro; senão, se "automático pelo valor", pela faixa de preço
+const classeDe = id => {
+  const C=classif(); if(!C.grupos.length) return null;
+  const sv=D.servicos.find(x=>String(x.id)===String(id)); const t=String(sv&&sv.tamanho||'').toLowerCase();
+  if(C.grupos.some(g=>g.id===t)) return t;
+  if(C.auto){ const v=Number(gSVal(id))||0; const g=C.grupos.find(g=>g.ate!=null&&g.ate!==''&&v<=Number(g.ate)); return (g||C.grupos[C.grupos.length-1]).id; }
+  return null;
+};
+const areaTam = classeDe; // compatibilidade
+const siglaDe = id => { const g=grupoInfo(classeDe(id)); return g?g.sigla:''; };
+// regra do pacote: {max, lim:{grupo:n}} (null = sem limite). Aceita pacote antigo só com max_areas.
+function pkgRegra(pk){ let l=(pk&&pk.limites)||{}; if(typeof l==='string'){ try{ l=JSON.parse(l)||{}; }catch(_){ l={}; } }
+  const n=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))?Number(v):null;
+  const lim={}; const gids=new Set(classif().grupos.map(g=>g.id)); Object.keys(l||{}).forEach(k=>{ if(gids.has(k)&&n(l[k])!=null) lim[k]=n(l[k]); });
+  return {max:n(pk&&pk.max_areas), lim}; }
+const regraAtiva = R => !!R && (R.max!=null || Object.keys(R.lim||{}).length>0);
+function regraTxt(R){ const parts=Object.entries(R.lim||{}).filter(([k,v])=>v>0).map(([k,v])=>`${v} ${grupoNm(k,v).toLowerCase()}`);
   return (parts.length?'até '+parts.join(' + '):'')+(R.max!=null?(parts.length?` (máx. ${R.max} no total)`:`até ${R.max} área(s)`):''); }
 // soma de tabela escolhendo as áreas (mais caras ou mais baratas) respeitando a regra; "forcado" entra obrigatoriamente
 function pkgCombo(svcs,R,maisCaras,forcado){
-  const ord=svcs.map(String).map(id=>({id,v:Number(gSVal(id))||0,t:areaTam(id)})).sort((a,b)=>maisCaras?b.v-a.v:a.v-b.v);
-  const usado={p:0,m:0,g:0}; let tot=0, n=0, soma=0; const cabe=x=>(R[x.t]==null||usado[x.t]<R[x.t])&&(R.max==null||n<R.max);
-  const pega=x=>{ usado[x.t]++; n++; soma+=x.v; };
+  const L=R.lim||{};
+  const ord=svcs.map(String).map(id=>({id,v:Number(gSVal(id))||0,t:classeDe(id)||'_'})).sort((a,b)=>maisCaras?b.v-a.v:a.v-b.v);
+  const usado={}; let n=0, soma=0; const cabe=x=>(L[x.t]==null||(usado[x.t]||0)<L[x.t])&&(R.max==null||n<R.max);
+  const pega=x=>{ usado[x.t]=(usado[x.t]||0)+1; n++; soma+=x.v; };
   if(forcado){ const f=ord.find(x=>x.id===String(forcado)); if(f){ if(!cabe(f)) return null; pega(f); } }
   for(const x of ord){ if(forcado&&x.id===String(forcado)) continue; if(!maisCaras&&n>0&&!regraAtiva(R)) {} if(cabe(x)) pega(x); }
   return {soma, n};
 }
 function pkgAnalise(svcs,val,R){
   if(!svcs.length) return null;
-  if(typeof R==='number'||R==null) R={max:R||null,p:null,m:null,g:null};
+  if(typeof R==='number'||R==null) R={max:R||null,lim:{}};
   const piorC=pkgCombo(svcs,R,true), melhorC=regraAtiva(R)?pkgCombo(svcs,R,false):piorC;
   const pior=piorC.soma, melhor=melhorC.soma;
   const pct=t=>t>0?(1-val/t)*100:0;
@@ -4339,15 +4381,25 @@ function pkgDadosReais(svcs,R){
 // Lista o que passou da regra: ex. ["2 médias (até 1)"]
 function regraViolada(svIds,R){
   if(!R) return [];
-  const c={p:0,m:0,g:0}; svIds.forEach(id=>c[areaTam(id)]++);
-  const out=['p','m','g'].filter(k=>R[k]!=null&&c[k]>R[k]).map(k=>`${c[k]} ${c[k]>1?TAM_PL[k]:TAM_NOME[k]} (até ${R[k]})`);
+  const c={}; svIds.forEach(id=>{ const g=classeDe(id)||'_'; c[g]=(c[g]||0)+1; });
+  const out=Object.entries(R.lim||{}).filter(([k,v])=>(c[k]||0)>v).map(([k,v])=>`${c[k]} ${grupoNm(k,c[k]).toLowerCase()} (até ${v})`);
   if(R.max!=null&&svIds.length>R.max) out.push(`${svIds.length} áreas (até ${R.max})`);
   return out;
 }
-function pkgRegraParaForm(pk){ const R=pkgRegra(pk||{}); [['pkg-max','max'],['pkg-lp','p'],['pkg-lm','m'],['pkg-lg','g']].forEach(([id,k])=>{ const e=document.getElementById(id); if(e) e.value=R[k]==null?'':R[k]; }); }
+// campos "até X de cada grupo" no cadastro do pacote, montados conforme a classificação do salão
+function renderPkgLimCampos(){
+  const C=classif(); const box=document.getElementById('pkg-lims'); if(!box) return;
+  box.innerHTML=C.grupos.map(g=>`<div><div style="font-size:10px;color:var(--text3)">${relEsc(g.pl||g.nome)} (${relEsc(g.sigla||'')})</div><input type="number" id="pkg-l-${g.id}" min="0" placeholder="—" oninput="calcPkgDesc()"></div>`).join('')
+    +`<div><div style="font-size:10px;color:var(--text3)">Total</div><input type="number" id="pkg-max" min="1" placeholder="—" oninput="calcPkgDesc()"></div>`;
+  const ex=document.getElementById('pkg-lims-ex');
+  if(ex) ex.textContent=C.grupos.length?`Marque acima tudo o que pode entrar e diga quantos de cada grupo a cliente escolhe (classificação: ${C.nome}, definida em Configurações). Vazio = pacote fixo.`:'Diga quantos serviços a cliente escolhe da lista marcada (Total). Vazio = pacote fixo. Para limitar por grupos (ex.: tamanho, região), ative uma classificação em Configurações.';
+}
+function pkgRegraParaForm(pk){ renderPkgLimCampos(); const R=pkgRegra(pk||{}); const e=document.getElementById('pkg-max'); if(e) e.value=R.max==null?'':R.max;
+  classif().grupos.forEach(g=>{ const x=document.getElementById('pkg-l-'+g.id); if(x) x.value=R.lim[g.id]==null?'':R.lim[g.id]; }); }
 function pkgRegraForm(){
   const n=id=>{ const v=parseInt(document.getElementById(id)?.value); return Number.isFinite(v)&&v>=0?v:null; };
-  return {max:n('pkg-max'), p:n('pkg-lp'), m:n('pkg-lm'), g:n('pkg-lg')};
+  const lim={}; classif().grupos.forEach(g=>{ const v=n('pkg-l-'+g.id); if(v!=null) lim[g.id]=v; });
+  return {max:n('pkg-max'), lim};
 }
 function calcPkgDesc(){
   const svcs=getPkgSvcs().map(String); const pkval=parseFloat(document.getElementById('pkg-vl').value)||0; const el=document.getElementById('pkg-desc');
@@ -4355,13 +4407,14 @@ function calcPkgDesc(){
   // etiqueta de tamanho em cada área do seletor
   document.querySelectorAll('#pkg-svs .sv-item').forEach(it=>{ it.style.outline=''; const id=it.dataset.sid; let tg=it.querySelector('.tam-tag');
     if(!tg){ tg=document.createElement('span'); tg.className='tam-tag'; tg.style.cssText='font-size:9px;font-weight:700;border-radius:4px;padding:1px 4px;margin-left:4px;background:var(--bg3);color:var(--text2)'; it.appendChild(tg); }
-    tg.textContent=({p:'P',m:'M',g:'G'})[areaTam(id)]; });
+    tg.textContent=siglaDe(id); tg.style.display=tg.textContent?'':'none'; });
   if(!svcs.length){ el.style.display='none'; return; }
   const a=pkgAnalise(svcs,pkval||0,R); el.style.display='block';
   const cor=d=>d>PKG_DESC_MAX+0.05?'var(--red)':d>PKG_DESC_IDEAL+0.05?'var(--gold)':'var(--green)';
   const fmt=d=>d.toFixed(1).replace('.',',')+'%';
-  const cont={p:0,m:0,g:0}; svcs.forEach(id=>cont[areaTam(id)]++);
-  let h=`<div style="font-size:12px;margin-bottom:6px">📦 ${nivel?`<b>Valor fixo</b> · cliente escolhe ${regraTxt(R)}`:`${svcs.length} serviço(s) fixos`}<br><span style="color:var(--text3)">Marcadas: ${cont.p} pequena(s) · ${cont.m} média(s) · ${cont.g} grande(s) — tamanho definido no cadastro do serviço</span></div>`;
+  const C=classif(); const cont={}; svcs.forEach(id=>{ const g=classeDe(id)||'_'; cont[g]=(cont[g]||0)+1; });
+  const contTxt=C.grupos.length?C.grupos.map(g=>`${cont[g.id]||0} ${(cont[g.id]||0)===1?g.nome:(g.pl||g.nome)}`.toLowerCase()).join(' · ')+(cont._?` · ${cont._} sem grupo`:''):'';
+  let h=`<div style="font-size:12px;margin-bottom:6px">📦 ${nivel?`<b>Valor fixo</b> · cliente escolhe ${regraTxt(R)}`:`${svcs.length} serviço(s) fixos`}${contTxt?`<br><span style="color:var(--text3)">Marcadas: ${contTxt} (${relEsc(C.nome)})</span>`:''}</div>`;
   h+=`<div style="font-size:12px">Tabela ${nivel?'no pior caso (escolhendo as mais caras)':''}: <b>${Rf(a.pior)}</b>${nivel&&a.melhor!==a.pior?` · melhor caso: ${Rf(a.melhor)}`:''}</div>`;
   if(pkval>0){
     h+=`<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin-top:3px"><div>Desconto${nivel?' (pior caso)':''}: <b style="color:${cor(a.descPior)}">${fmt(a.descPior)}</b></div>${nivel&&a.melhor!==a.pior?`<div>melhor caso: <b style="color:${cor(a.descMelhor)}">${fmt(a.descMelhor)}</b></div>`:''}</div>`;
@@ -4375,7 +4428,7 @@ function calcPkgDesc(){
     }
     const cats=new Set(svcs.map(id=>normCat((D.servicos.find(x=>String(x.id)===String(id))||{}).categoria)));
     const cabe=D.servicos.filter(x=>x.categoria&&!svcs.includes(String(x.id))&&cats.has(normCat(x.categoria))&&pkgAnalise([...svcs,String(x.id)],pkval,R).descPior<=PKG_DESC_MAX+0.05);
-    if(cabe.length) h+=`<div style="font-size:12px;margin-top:4px;color:var(--text2)">Também cabem sem passar de 60%: ${cabe.map(x=>relEsc(x.nome)+' ('+Rf(gSVal(x.id))+' · '+({p:'P',m:'M',g:'G'})[areaTam(x.id)]+')').join(', ')}</div>`;
+    if(cabe.length) h+=`<div style="font-size:12px;margin-top:4px;color:var(--text2)">Também cabem sem passar de 60%: ${cabe.map(x=>relEsc(x.nome)+' ('+Rf(gSVal(x.id))+(siglaDe(x.id)?' · '+siglaDe(x.id):'')+')').join(', ')}</div>`;
   } else {
     h+=`<div style="font-size:12px;color:var(--text2);margin-top:3px">Sugestão de valor fixo: ideal (55%) <b>${Rf(a.ideal55)}</b> · mínimo (60%) <b>${Rf(a.min60)}</b></div>`;
   }
@@ -4453,7 +4506,7 @@ async function salvarPkg(){
   const nm=document.getElementById('pkg-nm').value.trim();
   const val=parseFloat(document.getElementById('pkg-vl').value);
   const sess=parseInt(document.getElementById('pkg-ss').value)||1;
-  const R=pkgRegraForm(); const max_areas=R.max; const limites=(R.p!=null||R.m!=null||R.g!=null)?{p:R.p,m:R.m,g:R.g}:null;
+  const R=pkgRegraForm(); const max_areas=R.max; const limites=Object.keys(R.lim).length?R.lim:null;
   const eid=document.getElementById('pkg-eid').value;
   const svcs=getPkgSvcs().map(String);
   if(!nm||svcs.length===0||!val){ toast('Preencha nome, selecione serviços e valor','e'); return; }
@@ -5055,12 +5108,56 @@ function exportCSV(){
 // ============================================================
 // CONFIG
 // ============================================================
+// ── Configurações → Classificação de serviços ──
+let CL_EDIT=null;
+function clCarregar(){ const C=classif(); CL_EDIT={modelo:C.modelo,nome:C.nome,auto:C.auto,grupos:C.grupos.map(g=>({...g}))}; }
+function clModeloTrocar(){
+  const m=document.getElementById('cl-modelo').value; const M=CLASSIF_MODELOS[m];
+  CL_EDIT={modelo:m,nome:M.nome,auto:m==='tamanho'||m==='complexidade',grupos:M.grupos.map(g=>({...g}))};
+  clRender();
+}
+function clLerCampos(){
+  if(!CL_EDIT) return;
+  CL_EDIT.grupos.forEach((g,i)=>{ const v=k=>document.getElementById(`cl-${k}-${i}`)?.value;
+    if(v('nome')!=null){ const nv=v('nome').trim()||g.nome; if(nv!==g.nome){ g.nome=nv; g.pl=nv; } g.sigla=(v('sigla')||g.sigla||'').trim().slice(0,3).toUpperCase(); const a=v('ate'); g.ate=a===''||a==null?null:Number(a); } });
+  const n=document.getElementById('cl-nome'); if(n&&n.value.trim()) CL_EDIT.nome=n.value.trim();
+  CL_EDIT.auto=!!document.getElementById('cl-auto')?.checked;
+}
+function clRender(lerAntes){
+  if(lerAntes) clLerCampos();
+  if(!CL_EDIT) clCarregar();
+  document.getElementById('cl-modelo').value=CL_EDIT.modelo;
+  const box=document.getElementById('cl-grupos'); const ab=document.getElementById('cl-auto-box');
+  if(CL_EDIT.modelo==='nenhuma'){ box.innerHTML='<div style="font-size:12px;color:var(--text3)">Os pacotes por nível usam só o "Total" (ex.: escolhe até 4 serviços da lista).</div>'; ab.style.display='none'; return; }
+  ab.style.display=''; document.getElementById('cl-auto').checked=!!CL_EDIT.auto;
+  const last=CL_EDIT.grupos.length-1;
+  box.innerHTML=`<div class="fgr" style="margin-bottom:8px"><label>NOME DA CLASSIFICAÇÃO</label><input id="cl-nome" value="${relEsc(CL_EDIT.nome)}"></div>`
+    +CL_EDIT.grupos.map((g,i)=>`<div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(0,.7fr) minmax(0,1.2fr) auto;gap:6px;align-items:end;margin-bottom:6px">
+      <div><div style="font-size:10px;color:var(--text3)">GRUPO</div><input id="cl-nome-${i}" value="${relEsc(g.nome)}"></div>
+      <div><div style="font-size:10px;color:var(--text3)">SIGLA</div><input id="cl-sigla-${i}" maxlength="3" value="${relEsc(g.sigla||'')}"></div>
+      <div style="${CL_EDIT.auto?'':'visibility:hidden'}"><div style="font-size:10px;color:var(--text3)">${i<last?'VALOR ATÉ (R$)':'ACIMA DISSO'}</div>${i<last?`<input id="cl-ate-${i}" type="number" step="0.01" value="${g.ate??''}">`:'<div style="padding:9px 0;font-size:12px;color:var(--text3)">resto</div>'}</div>
+      <button class="btn gh xs" ${CL_EDIT.grupos.length<=1?'disabled':''} onclick="clLerCampos();CL_EDIT.grupos.splice(${i},1);clRender()">×</button></div>`).join('')
+    +(CL_EDIT.grupos.length<6?`<button class="btn ol xs" onclick="clLerCampos();const ids='abcdefghjk'.split('').filter(x=>!CL_EDIT.grupos.some(g=>g.id===x));CL_EDIT.grupos.push({id:ids[0],nome:'Novo grupo',pl:'Novo grupo',sigla:ids[0].toUpperCase()});clRender()">＋ Grupo</button>`:'');
+}
+async function salvarClassif(){
+  clLerCampos();
+  if(!D.cfgRow||!D.cfgRow.id){ toast('Configuração do salão não encontrada','e'); return; }
+  const val=CL_EDIT.modelo==='nenhuma'?{modelo:'nenhuma'}:{modelo:CL_EDIT.modelo,nome:CL_EDIT.nome,auto:!!CL_EDIT.auto,grupos:CL_EDIT.grupos.map(g=>({id:g.id,nome:g.nome,pl:g.pl||g.nome,sigla:g.sigla,ate:g.ate??null}))};
+  showLoad('Salvando...');
+  const r=await sb.from('configuracoes').update({classificacao:val}).eq('id',D.cfgRow.id);
+  hideLoad();
+  if(r.error){ toast(/classificacao/.test(r.error.message)?'Rode o classificacao.sql no Supabase primeiro':'Erro: '+r.error.message,'e'); return; }
+  D.cfgRow.classificacao=val; clCarregar(); clRender();
+  toast('Classificação salva'); try{ renderSvc(); renderPkg(); }catch(_){}
+}
+
 function renderConfig(){
   document.getElementById('cfg-cr').value=D.cfg.taxaCred; document.getElementById('cfg-db').value=D.cfg.taxaDeb;
   document.getElementById('cfg-ab').value=D.cfg.abertura; document.getElementById('cfg-fe').value=D.cfg.fechamento;
   renderConfigWA();
   try{ renderSeries(); renderAutos(); }catch(e){ console.error(e); }
   renderCatConfig();
+  try{ clCarregar(); clRender(); }catch(e){ console.error('classif',e); }
   document.getElementById('tb-prof').innerHTML=D.profs.length?D.profs.map(p=>`<tr>
     <td><div style="font-weight:600">${p.nome}</div><div style="font-size:11px;color:var(--text3)">${p.email}</div></td>
     <td>${p.comissao||p.com||0}%</td>
@@ -6125,7 +6222,7 @@ function renderCpk(){
   const ids=(pk.svcs||[]).map(String); [...CPK.sel].forEach(x=>{ if(!ids.includes(x)) CPK.sel.delete(x); });
   const R=pkgRegra(pk); const nivel=regraAtiva(R);
   if(!nivel && !CPK.sel.size) ids.forEach(x=>CPK.sel.add(x));
-  box.innerHTML=ids.map(id=>`<label class="sv-item${CPK.sel.has(id)?' sel':''}" style="cursor:pointer"><input type="checkbox" ${CPK.sel.has(id)?'checked':''} onchange="CPK.sel[this.checked?'add':'delete']('${id}');renderCpk()"><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${relEsc(gSNm(id))}</div><div style="font-size:10px;color:var(--text3)">${Rf(gSVal(id))}</div></div><span style="font-size:9px;font-weight:700;background:var(--bg3);border-radius:4px;padding:1px 4px">${({p:'P',m:'M',g:'G'})[areaTam(id)]}</span></label>`).join('');
+  box.innerHTML=ids.map(id=>`<label class="sv-item${CPK.sel.has(id)?' sel':''}" style="cursor:pointer"><input type="checkbox" ${CPK.sel.has(id)?'checked':''} onchange="CPK.sel[this.checked?'add':'delete']('${id}');renderCpk()"><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${relEsc(gSNm(id))}</div><div style="font-size:10px;color:var(--text3)">${Rf(gSVal(id))}</div></div>${siglaDe(id)?`<span style="font-size:9px;font-weight:700;background:var(--bg3);border-radius:4px;padding:1px 4px">${siglaDe(id)}</span>`:''}</label>`).join('');
   const v=regraViolada([...CPK.sel],R);
   const tab=[...CPK.sel].reduce((t,id)=>t+(Number(gSVal(id))||0),0);
   inf.innerHTML=`${nivel?`Regra do nível: <b>${relEsc(regraTxt(R))}</b><br>`:''}Marcadas: <b>${CPK.sel.size}</b> · tabela ${Rf(tab)} · paga o valor fixo <b>${Rf(pk.valor)}</b>${tab>0?` (${((1-pk.valor/tab)*100).toFixed(0)}% de desconto)`:''}`
