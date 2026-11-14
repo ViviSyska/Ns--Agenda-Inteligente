@@ -1457,6 +1457,19 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
 </div>
 
 <!-- DETALHE CLIENTE -->
+<div class="ov" id="m-cpk">
+  <div class="md w">
+    <div class="mh"><div class="mt" id="cpk-t">📦 PACOTE DA CLIENTE</div><button class="xb" onclick="closeModal('m-cpk')">×</button></div>
+    <div class="mb">
+      <div class="fgr"><label>PACOTE / NÍVEL</label><select id="cpk-pk" onchange="CPK.sel=new Set();renderCpk()"></select></div>
+      <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin:12px 0 6px">ÁREAS DESTA CLIENTE</div>
+      <div class="sv-sel" id="cpk-areas"></div>
+      <div id="cpk-info" class="info-box" style="margin-top:10px;font-size:12px"></div>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px">Fica guardado na ficha. Ao agendar esta cliente, o pacote e as áreas já entram sozinhos.</div>
+    </div>
+    <div class="mf"><button class="btn gh" onclick="closeModal('m-cpk')">Cancelar</button><button class="btn gd" onclick="salvarCpk()">SALVAR</button></div>
+  </div>
+</div>
 <div class="ov" id="m-dcli">
   <div class="md w">
     <div class="mh"><div class="mt" id="dcli-t">CLIENTE</div><button class="xb" onclick="closeModal('m-dcli')">×</button></div>
@@ -2982,7 +2995,13 @@ function aplicarPacoteAg(){
   S.agPkgs=S.agPkgs||[];
   if(S.agPkgs.includes(pid)){ toast('Esse pacote já está no agendamento','w'); return; }
   S.agPkgs.push(pid);
-  S.agSvcs=S.agSvcs||[]; pk.svcs.forEach(sid=>{ if(!S.agSvcs.includes(sid)) S.agSvcs.push(sid); });
+  S.agSvcs=S.agSvcs||[];
+  if(regraAtiva(pkgRegra(pk))){
+    // NÍVEL: não marca todas as áreas — usa as guardadas na ficha da cliente, se houver; senão você escolhe
+    const cid=document.getElementById('ag-cli')?.value; const g=cid&&cliPacotes(cid).find(x=>String(x.pacote_id)===String(pid));
+    if(g){ (g.svcs||[]).forEach(sid=>{ if(!S.agSvcs.includes(sid)) S.agSvcs.push(sid); }); toast('Áreas da cliente: '+(g.svcs||[]).map(gSNm).join(', ')); }
+    else toast(`Nível ${pk.nome}: escolha as áreas (${regraTxt(pkgRegra(pk))}) em Serviços`,'w');
+  } else pk.svcs.forEach(sid=>{ if(!S.agSvcs.includes(sid)) S.agSvcs.push(sid); });
   renderAgSvcChips(); renderAgPkgChips(); filtrarAcPkg(); calcSeq();
 }
 function removerPacoteAg(pid){
@@ -3033,6 +3052,12 @@ function atualizarAgTotal(){
   let h=`💵 Valor calculado: <b>${Rf(base)}</b>`;
   { const cid=document.getElementById('ag-cli')?.value; if(cid){ const ds=debitosCliente(cid, S.editAgId); if(ds.length) h=`<span style="color:var(--red);font-weight:700">⚠️ Cliente deve ${Rf(ds.reduce((t,a)=>t+gAgSaldo(a),0))} de comanda anterior</span><br>`+h; } }
   const ss=agSessoesTxt(agFormObj()); if(ss.length) h+=`<br><span style="color:var(--gold)">📦 ${ss.map(relEsc).join(' · ')}</span>`;
+  { const cid=document.getElementById('ag-cli')?.value; const pks=(S.agPkgs||[]);
+    if(cid && pks.length && (S.agSvcs||[]).length){
+      const atual=pks.map(pid=>{ const pk=D.pacotes.find(p=>p.id===pid); const set=new Set(((pk&&pk.svcs)||[]).map(String)); return pid+':'+(S.agSvcs||[]).map(String).filter(x=>set.has(x)).sort().join(','); }).sort().join('|');
+      const salvo=cliPacotes(cid).filter(x=>pks.includes(x.pacote_id)).map(x=>x.pacote_id+':'+(x.svcs||[]).map(String).sort().join(',')).sort().join('|');
+      if(atual!==salvo && !agNivelAvisos(agFormObj()).length) h+=`<br><a href="#" onclick="guardarPacoteDaCliente();return false" style="color:var(--gold);font-weight:700">💾 Guardar como pacote da cliente</a> <span style="color:var(--text3)">(no próximo agendamento já entra sozinho)</span>`;
+    } }
   const nv=agNivelAvisos(agFormObj()); if(nv.length) h+=`<br><span style="color:var(--red);font-weight:700">⚠️ ${nv.map(relEsc).join(' · ')} (passe para o nível acima ou cobre a área extra)</span>`;
   if(custom!==null && !isNaN(custom)){
     const d=Math.round((custom-base)*100)/100;
@@ -3376,6 +3401,8 @@ function verCli(id){
         <div class="sc-s" style="color:var(--text3);font-size:10px">toque p/ gerenciar</div>
       </div>
     </div>
+    <div style="display:flex;align-items:center;font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.7px;margin-bottom:6px">📦 PACOTE DA CLIENTE<div style="flex:1"></div><button class="btn ol xs" onclick="abrirCpk('${id}')">＋ Definir</button></div>
+    <div style="margin-bottom:14px">${cliPacotes(id).length?cliPacotes(id).map((x,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:var(--brd);border-radius:var(--r2);margin-bottom:6px;font-size:12px"><div style="flex:1;min-width:0">${relEsc(cpkTxt(x))}</div><button class="btn gh xs" onclick="abrirCpk('${id}',${i})">✏</button><button class="btn gh xs" onclick="removerCpk('${id}',${i})">×</button></div>`).join(''):'<div style="font-size:12px;color:var(--text3)">Nenhum. Defina aqui ou, ao agendar, marque o pacote e as áreas e toque em "Guardar como pacote da cliente".</div>'}</div>
     ${rank.length?`<div style="font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.7px;margin-bottom:6px">SERVIÇOS FAVORITOS</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">${rank.map(([s,n])=>`<span class="bd gd">${gSNm(s)} (${n}x)</span>`).join('')}</div>`:''}
     <div style="font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.7px;margin-bottom:6px">
       HISTÓRICO DE COMANDAS
@@ -6018,6 +6045,81 @@ function selAcCli(id){
   _setAcCli(id);
   document.getElementById('ag-cli-dd').classList.remove('open');
 }
+// ── PACOTE DA CLIENTE ─────────────────────────────────────────────────────
+// Guarda, na ficha da cliente, qual pacote/nível ela tem e QUAIS áreas escolheu.
+// Ao agendar, escolhendo a cliente, o pacote e as áreas já entram sozinhos.
+function cliPacotes(cid){
+  const c=D.clientes.find(x=>x.id===cid); let l=c&&c.pacotes_cliente;
+  if(typeof l==='string'){ try{ l=JSON.parse(l); }catch(_){ l=[]; } }
+  return (Array.isArray(l)?l:[]).filter(x=>x&&D.pacotes.some(p=>String(p.id)===String(x.pacote_id)));
+}
+async function salvarCliPacotes(cid,lista){
+  const r=await sb.from('clientes').update({pacotes_cliente:lista}).eq('id',cid);
+  if(r.error){ toast(/pacotes_cliente/.test(r.error.message)?'Rode o pacote-cliente.sql no Supabase primeiro':'Não consegui salvar: '+r.error.message,'e'); return false; }
+  const c=D.clientes.find(x=>x.id===cid); if(c) c.pacotes_cliente=lista;
+  return true;
+}
+function cpkTxt(item){ const pk=D.pacotes.find(p=>String(p.id)===String(item.pacote_id)); return (pk?pk.nome:'?')+': '+(item.svcs||[]).map(gSNm).join(', '); }
+// guarda as áreas marcadas no agendamento como o pacote da cliente
+async function guardarPacoteDaCliente(){
+  const cid=document.getElementById('ag-cli')?.value; if(!cid) return;
+  const lista=cliPacotes(cid).filter(x=>!(S.agPkgs||[]).includes(String(x.pacote_id))&&!(S.agPkgs||[]).includes(x.pacote_id));
+  (S.agPkgs||[]).forEach(pid=>{ const pk=D.pacotes.find(p=>p.id===pid); if(!pk) return; const set=new Set((pk.svcs||[]).map(String));
+    lista.push({pacote_id:pid, svcs:(S.agSvcs||[]).map(String).filter(x=>set.has(x)), desde:dStr(new Date())}); });
+  if(await salvarCliPacotes(cid,lista)){ toast('Pacote guardado na ficha de '+gCNm(cid)+' — no próximo agendamento já entra sozinho'); atualizarAgTotal(); }
+}
+// aplica o pacote guardado ao escolher a cliente (só em agendamento novo e se ainda não marcou nada)
+function aplicarPacoteDaCliente(cid){
+  if(S.editAgId || (S.agPkgs||[]).length || (S.agSvcs||[]).length) return;
+  const l=cliPacotes(cid); if(!l.length) return;
+  S.agPkgs=l.map(x=>x.pacote_id); S.agSvcs=[];
+  l.forEach(x=>(x.svcs||[]).forEach(sid=>{ if(!S.agSvcs.includes(sid)) S.agSvcs.push(sid); }));
+  renderAgSvcChips(); renderAgPkgChips(); try{ filtrarAcPkg(); }catch(_){} calcSeq();
+  toast('📦 Pacote da cliente aplicado: '+l.map(cpkTxt).join(' · '));
+}
+// ── janela para definir/editar o pacote da cliente (pela ficha da cliente) ──
+let CPK={cid:null,idx:-1,sel:new Set()};
+function abrirCpk(cid,idx){
+  CPK={cid,idx:idx==null?-1:idx,sel:new Set()};
+  const l=cliPacotes(cid); const it=idx!=null&&idx>=0?l[idx]:null;
+  const sel=document.getElementById('cpk-pk');
+  const ord=[...D.pacotes].sort((a,b)=>(regraAtiva(pkgRegra(b))-regraAtiva(pkgRegra(a)))||a.nome.localeCompare(b.nome));
+  sel.innerHTML='<option value="">Escolha o pacote / nível…</option>'+ord.map(p=>`<option value="${p.id}">${relEsc(p.nome)}${regraAtiva(pkgRegra(p))?' — '+relEsc(regraTxt(pkgRegra(p))):''} · ${Rf(p.valor)}</option>`).join('');
+  sel.value=it?it.pacote_id:'';
+  (it?.svcs||[]).forEach(x=>CPK.sel.add(String(x)));
+  document.getElementById('cpk-t').textContent='📦 PACOTE DE '+(gCNm(cid)||'').toUpperCase();
+  renderCpk(); openModal('m-cpk');
+}
+function renderCpk(){
+  const pid=document.getElementById('cpk-pk').value; const pk=D.pacotes.find(p=>String(p.id)===String(pid));
+  const box=document.getElementById('cpk-areas'), inf=document.getElementById('cpk-info');
+  if(!pk){ box.innerHTML='<div style="color:var(--text3);font-size:12px">Escolha um pacote acima.</div>'; inf.innerHTML=''; return; }
+  const ids=(pk.svcs||[]).map(String); [...CPK.sel].forEach(x=>{ if(!ids.includes(x)) CPK.sel.delete(x); });
+  const R=pkgRegra(pk); const nivel=regraAtiva(R);
+  if(!nivel && !CPK.sel.size) ids.forEach(x=>CPK.sel.add(x));
+  box.innerHTML=ids.map(id=>`<label class="sv-item${CPK.sel.has(id)?' sel':''}" style="cursor:pointer"><input type="checkbox" ${CPK.sel.has(id)?'checked':''} onchange="CPK.sel[this.checked?'add':'delete']('${id}');renderCpk()"><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${relEsc(gSNm(id))}</div><div style="font-size:10px;color:var(--text3)">${Rf(gSVal(id))}</div></div><span style="font-size:9px;font-weight:700;background:var(--bg3);border-radius:4px;padding:1px 4px">${({p:'P',m:'M',g:'G'})[areaTam(id)]}</span></label>`).join('');
+  const v=regraViolada([...CPK.sel],R);
+  const tab=[...CPK.sel].reduce((t,id)=>t+(Number(gSVal(id))||0),0);
+  inf.innerHTML=`${nivel?`Regra do nível: <b>${relEsc(regraTxt(R))}</b><br>`:''}Marcadas: <b>${CPK.sel.size}</b> · tabela ${Rf(tab)} · paga o valor fixo <b>${Rf(pk.valor)}</b>${tab>0?` (${((1-pk.valor/tab)*100).toFixed(0)}% de desconto)`:''}`
+    +(v.length?`<div style="color:var(--red);font-weight:700;margin-top:4px">⚠️ Passou da regra: ${v.join(', ')}</div>`:'');
+}
+async function salvarCpk(){
+  const pid=document.getElementById('cpk-pk').value; const pk=D.pacotes.find(p=>String(p.id)===String(pid));
+  if(!pk){ toast('Escolha o pacote','e'); return; }
+  if(!CPK.sel.size){ toast('Marque as áreas da cliente','e'); return; }
+  const v=regraViolada([...CPK.sel],pkgRegra(pk));
+  if(v.length){ toast('Passou da regra do nível: '+v.join(', '),'e'); return; }
+  const l=cliPacotes(CPK.cid); const item={pacote_id:pk.id, svcs:[...CPK.sel], desde:dStr(new Date())};
+  if(CPK.idx>=0) l[CPK.idx]=item; else { const j=l.findIndex(x=>String(x.pacote_id)===String(pk.id)); if(j>=0) l[j]=item; else l.push(item); }
+  showLoad('Salvando...'); const ok=await salvarCliPacotes(CPK.cid,l); hideLoad();
+  if(ok){ closeModal('m-cpk'); toast('Pacote da cliente salvo'); verCli(CPK.cid); }
+}
+function removerCpk(cid,idx){
+  confirm2('📦','TIRAR PACOTE DA CLIENTE','Os agendamentos já feitos não mudam. Só deixa de entrar sozinho nos próximos.',async()=>{
+    const l=cliPacotes(cid); l.splice(idx,1); if(await salvarCliPacotes(cid,l)){ toast('Pacote retirado da ficha'); verCli(cid); }
+  },'TIRAR','rd');
+}
+
 function _setAcCli(id){
   const c=D.clientes.find(x=>x.id===id); if(!c)return;
   document.getElementById('ag-cli').value=id;
@@ -6025,6 +6127,7 @@ function _setAcCli(id){
   document.getElementById('ag-cli-chip').style.display='flex';
   document.getElementById('ag-cli-search').style.display='none';
   document.getElementById('ag-cli-dd').classList.remove('open');
+  try{ aplicarPacoteDaCliente(id); }catch(e){ console.warn(e); }
   try{ atualizarAgTotal(); }catch(e){}
 }
 function clearAcCli(){
