@@ -1044,6 +1044,8 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
               <div class="fgr"><label>CRÉDITO (%)</label><input type="number" id="cfg-cr" step="0.1"></div>
               <div class="fgr"><label>DÉBITO (%)</label><input type="number" id="cfg-db" step="0.1"></div>
             </div>
+            <div style="font-size:11px;color:var(--text3);font-weight:600;margin:4px 0 6px">CRÉDITO PARCELADO (% por nº de parcelas — vazio = não oferece)</div>
+            <div id="cfg-parc" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(64px,1fr));gap:6px"></div>
             <div class="dv"></div>
             <div style="font-size:11px;color:var(--text3);letter-spacing:.7px;font-weight:600;margin-bottom:14px">HORÁRIO DE FUNCIONAMENTO</div>
             <div class="fg fg2">
@@ -1297,14 +1299,26 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
       <div class="fg">
         <div class="fgr"><label>DESCRIÇÃO *</label><input id="dp-dc" placeholder="Ex: Compra de produtos"></div>
         <div class="fg fg2">
-          <div class="fgr"><label>VALOR (R$) *</label><input type="number" id="dp-vl" placeholder="0.00" step="0.01" min="0"></div>
+          <div class="fgr"><label>VALOR (R$) *</label><input type="number" id="dp-vl" placeholder="0.00" step="0.01" min="0" oninput="dpRepInfo()"></div>
           <div class="fgr"><label>CATEGORIA</label>
             <select id="dp-ct"><option>Produtos</option><option>Aluguel</option><option>Energia</option><option>Salários</option><option>Marketing</option><option>Equipamentos</option><option>Outros</option></select>
           </div>
         </div>
         <div class="fg fg2">
-          <div class="fgr"><label>DATA</label><input type="date" id="dp-dt"></div>
+          <div class="fgr"><label>DATA</label><input type="date" id="dp-dt" onchange="dpRepInfo()"></div>
           <div class="fgr"><label>STATUS</label><select id="dp-st"><option value="pendente">Pendente</option><option value="pago">Pago</option></select></div>
+        </div>
+        <div id="dp-rep-box" style="background:var(--bg3);border-radius:var(--r2);padding:10px">
+          <div class="fg fg2" style="margin:0">
+            <div class="fgr"><label>REPETIR</label><select id="dp-rep" onchange="dpRepInfo()">
+              <option value="">Não repetir (só esta)</option>
+              <option value="rec">🔁 Recorrente — mesmo valor todo mês</option>
+              <option value="parc">🧾 Parcelada — dividir em parcelas mensais</option>
+            </select></div>
+            <div class="fgr" id="dp-n-box" style="display:none"><label id="dp-n-lbl">QUANTOS MESES</label><input type="number" id="dp-n" min="2" max="60" value="12" oninput="dpRepInfo()"></div>
+          </div>
+          <label id="dp-total-box" style="display:none;gap:8px;align-items:center;font-size:12px;margin-top:6px;cursor:pointer"><input type="checkbox" id="dp-total" checked onchange="dpRepInfo()"> O valor acima é o TOTAL (dividir pelas parcelas)</label>
+          <div id="dp-rep-inf" style="font-size:12px;color:var(--text2);margin-top:6px"></div>
         </div>
       </div>
     </div>
@@ -1389,7 +1403,8 @@ thead th{position:sticky;top:0;z-index:1;background:var(--bg3)}
         <div id="fat-saldo-info" style="display:none;font-size:11px;color:var(--green);margin-top:4px"></div>
         <div id="fat-restante-info" style="display:none;font-size:11px;margin-top:4px;font-weight:600"></div>
         <div class="fg fg2" style="margin-bottom:8px">
-          <div class="fgr"><label>VALOR (R$)</label><input type="number" id="pg-vl" placeholder="Sugestão = valor restante" step="0.01"></div>
+          <div class="fgr"><label>VALOR (R$)</label><input type="number" id="pg-vl" placeholder="Sugestão = valor restante" step="0.01" oninput="pgParcInfo()"></div>
+          <div class="fgr" id="pg-parc-box" style="display:none"><label>PARCELAS</label><select id="pg-parc" onchange="pgParcInfo()"></select><div id="pg-parc-inf" style="font-size:10px;color:var(--text3);margin-top:3px"></div></div>
           <div style="display:flex;align-items:flex-end"><button class="btn ol sm" style="width:100%" onclick="addPg()">+ Adicionar</button></div>
         </div>
         <div id="pg-list"></div>
@@ -3549,7 +3564,7 @@ function abrirFat(agId){
   });
   document.getElementById('pg-list').innerHTML=''; document.getElementById('fat-tax').textContent='';
   document.querySelectorAll('.pg-b').forEach(b=>b.classList.remove('sel'));
-  document.getElementById('pg-vl').value='';
+  document.getElementById('pg-vl').value=''; { const pb=document.getElementById('pg-parc-box'); if(pb) pb.style.display='none'; }
   // Mostrar saldo do cliente, se houver
   const cid=cliId(ag);
   const saldoCli=gCliCredito(cid);
@@ -3609,6 +3624,11 @@ function calcFatTotal(){
   }
   if(pgWrap) pgWrap.style.display = isZero?'none':'block';
 }
+// Taxas do crédito parcelado configuradas pelo salão: {2:4.5, 3:5.2, ...}
+function taxasParcelado(){ let t=(D.cfgRow&&D.cfgRow.taxas_parcelado)||{}; if(typeof t==='string'){ try{ t=JSON.parse(t); }catch(_){ t={}; } }
+  const o={}; Object.entries(t||{}).forEach(([k,v])=>{ const n=parseInt(k), x=parseFloat(v); if(n>=2&&n<=24&&Number.isFinite(x)) o[n]=x; }); return o; }
+function taxaDoPg(tipo,parcelas){ if(tipo==='debito') return D.cfg.taxaDeb; if(tipo!=='credito') return 0; const n=parseInt(parcelas)||1; if(n<=1) return D.cfg.taxaCred; const t=taxasParcelado(); return t[n]!=null?t[n]:D.cfg.taxaCred; }
+
 function selPg(el,tipo){
   document.querySelectorAll('.pg-b').forEach(b=>b.classList.remove('sel')); el.classList.add('sel'); S.selPgTipo=tipo;
   // Total real considerando desconto e valor personalizado (mesma lógica do card TOTAL A PAGAR)
@@ -3623,8 +3643,15 @@ function selPg(el,tipo){
     // Sugere o RESTANTE (não o total cheio) — evita lançar valor duplicado ao dividir pagamento
     document.getElementById('pg-vl').value=(restante>0?restante:totReal).toFixed(2);
   }
+  // crédito: escolhe as parcelas (cada uma com a taxa configurada)
+  const pb=document.getElementById('pg-parc-box');
+  if(pb){ if(tipo==='credito'){ const t=taxasParcelado(); const ns=Object.keys(t).map(Number).sort((a,b)=>a-b);
+      document.getElementById('pg-parc').innerHTML=`<option value="1">1x à vista (${D.cfg.taxaCred}%)</option>`+ns.map(n=>`<option value="${n}">${n}x (${t[n]}%)</option>`).join('');
+      pb.style.display=''; pgParcInfo(); } else pb.style.display='none'; }
   atualizarRestanteInfo();
 }
+function pgParcInfo(){ const n=parseInt(document.getElementById('pg-parc')?.value)||1; const v=parseFloat(document.getElementById('pg-vl')?.value)||0; const tx=taxaDoPg('credito',n);
+  const el=document.getElementById('pg-parc-inf'); if(el) el.textContent=v>0?`${n}x de ${Rf(v/n)} · taxa ${tx}% = ${Rf(v*tx/100)}`:`taxa ${tx}%`; }
 // Mostra quanto já foi lançado e quanto falta — atualiza a cada seleção/adição
 function atualizarRestanteInfo(){
   const totReal = S._fatTotal || S.fatIds.reduce((t,id)=>{ const a=D.agendamentos.find(x=>x.id===id); return t+(a?gAgtot(a):0); },0);
@@ -3653,15 +3680,16 @@ function addPg(){
     const saldo=gCliCredito(S._fatCliId||'');
     if(val>saldo){ toast(`Saldo insuficiente (${Rf(saldo)} disponível)`,'e'); return; }
   }
-  const taxa=S.selPgTipo==='credito'?D.cfg.taxaCred:S.selPgTipo==='debito'?D.cfg.taxaDeb:0;
+  const parcelas=S.selPgTipo==='credito'?(parseInt(document.getElementById('pg-parc')?.value)||1):1;
+  const taxa=taxaDoPg(S.selPgTipo,parcelas);
   const liq=val*(1-taxa/100);
   // Chave única e estável — evita bug de remoção por índice desatualizado
   const pgUid = 'pg_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
-  S.pgtos.push({uid:pgUid, tipo:S.selPgTipo, valor:val, taxa, liq});
+  S.pgtos.push({uid:pgUid, tipo:S.selPgTipo, valor:val, taxa, liq, parcelas});
   const list=document.getElementById('pg-list');
   const row=document.createElement('div'); row.className='pg-row'; row.dataset.uid=pgUid;
   const nms={pix:'PIX',dinheiro:'Dinheiro',credito:'Crédito',debito:'Débito',saldo:'💳 Saldo Cliente'};
-  row.innerHTML=`<span style="font-weight:600">${nms[S.selPgTipo]}</span><span style="color:var(--text3)">${taxa>0?'(-'+taxa+'%) ≈ '+Rf(liq):''}</span><span style="font-family:var(--fm);color:var(--gold)">${Rf(val)}</span>`;
+  row.innerHTML=`<span style="font-weight:600">${nms[S.selPgTipo]}${parcelas>1?' '+parcelas+'x':''}</span><span style="color:var(--text3)">${taxa>0?'(-'+taxa+'%) ≈ '+Rf(liq):''}</span><span style="font-family:var(--fm);color:var(--gold)">${Rf(val)}</span>`;
   const rm=document.createElement('button'); rm.className='rm'; rm.textContent='✕';
   rm.onclick=()=>{ S.pgtos=S.pgtos.filter(p=>p.uid!==pgUid); row.remove(); updTax(); atualizarRestanteInfo(); };
   row.appendChild(rm); list.appendChild(row); updTax(); atualizarRestanteInfo(); document.getElementById('pg-vl').value='';
@@ -3884,6 +3912,7 @@ async function executarFat(){
           data: hoje,
           forma_pagamento: pg.tipo,
           agendamento_id: l.ag.id,
+          ...(pg.parcelas>1?{descricao:`Comanda - ${gCNm2(l.ag)} · crédito ${pg.parcelas}x${desc>0?` (desc. ${Rf(desc*l.fatia)})`:''}${usandoCustom?' (valor ajustado)':''}${!pagouTudo?' [PAGAMENTO PARCIAL]':''}`}:{}),
         }).select('id').single(),'Caixa'),'caixa');
       }
     }
@@ -3895,13 +3924,14 @@ async function executarFat(){
         const nms={credito:'Crédito',debito:'Débito'};
         // Taxa vira despesa. Se o banco recusar a categoria, grava em "Outros"; se ainda falhar, só avisa —
         // a despesa da taxa NUNCA pode impedir o recebimento de ser registrado.
-        const dsp={descricao:`Taxa ${nms[pg.tipo]} (${pg.taxa}%) — faturamento`, valor:taxaVal, categoria:'Taxas Financeiras', data:hoje, status:'pago'};
+        const px=pg.parcelas>1?` ${pg.parcelas}x`:'';
+        const dsp={descricao:`Taxa ${nms[pg.tipo]}${px} (${pg.taxa}%) — faturamento`, valor:taxaVal, categoria:'Taxas Financeiras', data:hoje, status:'pago'};
         let rd=await sb.from('despesas').insert(dsp).select('id').single();
         if(rd.error) rd=await sb.from('despesas').insert({...dsp, categoria:'Outros'}).select('id').single();
         if(!rd.error) anota(rd,'desp');
         if(rd.error) avisoTaxa=`Pagamento registrado, mas a taxa (${Rf(taxaVal)}) não entrou em Despesas: ${rd.error.message}`;
         const rcx=await sb.from('caixa').insert({
-          tipo:'saida', descricao:`Taxa cartão ${nms[pg.tipo]} (${pg.taxa}%)`,
+          tipo:'saida', descricao:`Taxa cartão ${nms[pg.tipo]}${px} (${pg.taxa}%)`,
           valor:taxaVal, data:hoje, forma_pagamento:pg.tipo
         }).select('id').single();
         if(!rcx.error) anota(rcx,'caixa');
@@ -3977,6 +4007,8 @@ function abrirDp(id){
     document.getElementById('dp-dc').value=''; document.getElementById('dp-vl').value='';
     document.getElementById('dp-dt').value=TODAY; document.getElementById('dp-st').value='pendente';
   }
+  // repetir só ao criar (cada mês vira uma despesa própria, editável sozinha)
+  document.getElementById('dp-rep-box').style.display=id?'none':''; document.getElementById('dp-rep').value=''; document.getElementById('dp-n').value='12'; document.getElementById('dp-total').checked=true; dpRepInfo();
   openModal('m-dp');
 }
 function renderDesp(){
@@ -4003,6 +4035,29 @@ function renderDesp(){
     </td>
   </tr>`).join('');
 }
+// ── Despesa recorrente / parcelada: gera uma despesa por mês ──
+function dpMaisMeses(ds,k){ const [y,m,d]=ds.split('-').map(Number); const alvo=new Date(y,m-1+k,1); const ult=new Date(alvo.getFullYear(),alvo.getMonth()+1,0).getDate();
+  return `${alvo.getFullYear()}-${String(alvo.getMonth()+1).padStart(2,'0')}-${String(Math.min(d,ult)).padStart(2,'0')}`; }
+function dpPlano(){
+  const tipo=document.getElementById('dp-rep').value; const n=Math.max(2,Math.min(60,parseInt(document.getElementById('dp-n').value)||0));
+  const val=parseFloat(document.getElementById('dp-vl').value)||0; const dt=document.getElementById('dp-dt').value||TODAY; const desc=document.getElementById('dp-dc').value.trim();
+  if(!tipo||!val) return null;
+  let valores;
+  if(tipo==='parc' && document.getElementById('dp-total').checked){ const c=Math.round(val*100), base=Math.floor(c/n); valores=Array(n).fill(base/100); valores[n-1]=(c-base*(n-1))/100; } // centavos que sobram vão na última
+  else valores=Array(n).fill(Math.round(val*100)/100);
+  return valores.map((v,i)=>({data:dpMaisMeses(dt,i), valor:v, descricao:tipo==='parc'?`${desc} (parcela ${i+1}/${n})`:`${desc} (recorrente ${i+1}/${n})`}));
+}
+function dpRepInfo(){
+  const tipo=document.getElementById('dp-rep').value;
+  document.getElementById('dp-n-box').style.display=tipo?'':'none';
+  document.getElementById('dp-total-box').style.display=tipo==='parc'?'flex':'none';
+  document.getElementById('dp-n-lbl').textContent=tipo==='parc'?'Nº DE PARCELAS':'QUANTOS MESES';
+  const el=document.getElementById('dp-rep-inf'); const pl=dpPlano();
+  if(!pl){ el.textContent=tipo?'Preencha o valor.':''; return; }
+  const tot=pl.reduce((t,x)=>t+x.valor,0);
+  el.innerHTML=`Vai criar <b>${pl.length}</b> despesas: ${fBR(pl[0].data)} até ${fBR(pl[pl.length-1].data)} · ${pl[0].valor===pl[pl.length-1].valor?`${Rf(pl[0].valor)} cada`:`${Rf(pl[0].valor)} (última ${Rf(pl[pl.length-1].valor)})`} · total ${Rf(tot)}<br><span style="color:var(--text3)">Só a 1ª fica com o status escolhido; as outras ficam pendentes até você pagar.</span>`;
+}
+
 async function salvarDp(){
   const desc=document.getElementById('dp-dc').value.trim();
   const val=parseFloat(document.getElementById('dp-vl').value);
@@ -4030,6 +4085,16 @@ async function salvarDp(){
       await sb.from('caixa').delete().eq('despesa_id',eid).eq('tipo','saida');
     }
     toast('Despesa atualizada!');
+  } else if(dpPlano()){
+    // NOVA despesa recorrente/parcelada: uma por mês
+    const pl=dpPlano(); let erro=null;
+    for(let i=0;i<pl.length;i++){
+      const it=pl[i]; const st=i===0?payload.status:'pendente';
+      const {data:ins,error}=await sb.from('despesas').insert({...payload, descricao:it.descricao, valor:it.valor, data:it.data, status:st}).select().single();
+      if(error){ erro=error; break; }
+      if(st==='pago' && ins?.id) await sb.from('caixa').insert({tipo:'saida', descricao:it.descricao, valor:it.valor, data:it.data, forma_pagamento:'pix', despesa_id:ins.id});
+    }
+    if(erro) toast('Parou no meio: '+erro.message,'e'); else toast(`${pl.length} despesas criadas (${fBR(pl[0].data)} a ${fBR(pl[pl.length-1].data)})`);
   } else {
     // NOVA despesa
     const {data:ins}=await sb.from('despesas').insert(payload).select().single();
@@ -5154,6 +5219,7 @@ async function salvarClassif(){
 function renderConfig(){
   document.getElementById('cfg-cr').value=D.cfg.taxaCred; document.getElementById('cfg-db').value=D.cfg.taxaDeb;
   document.getElementById('cfg-ab').value=D.cfg.abertura; document.getElementById('cfg-fe').value=D.cfg.fechamento;
+  { const t=taxasParcelado(); document.getElementById('cfg-parc').innerHTML=[2,3,4,5,6,7,8,9,10,11,12].map(n=>`<div><div style="font-size:10px;color:var(--text3)">${n}x (%)</div><input type="number" step="0.01" id="cfg-parc-${n}" value="${t[n]??''}" placeholder="—"></div>`).join(''); }
   renderConfigWA();
   try{ renderSeries(); renderAutos(); }catch(e){ console.error(e); }
   renderCatConfig();
@@ -5167,6 +5233,11 @@ function renderConfig(){
 }
 async function saveConfig(){
   showLoad();
+  // taxas do crédito parcelado (2x..12x)
+  const parc={}; [2,3,4,5,6,7,8,9,10,11,12].forEach(n=>{ const v=document.getElementById('cfg-parc-'+n)?.value; if(v!==''&&v!=null&&Number.isFinite(parseFloat(v))) parc[n]=parseFloat(v); });
+  if(D.cfgRow&&D.cfgRow.id){ const r=await sb.from('configuracoes').update({taxas_parcelado:parc}).eq('id',D.cfgRow.id);
+    if(r.error){ if(/taxas_parcelado/.test(r.error.message)) toast('Rode o parcelamento.sql para guardar as taxas do parcelado','w'); else toast('Erro nas taxas do parcelado: '+r.error.message,'e'); }
+    else D.cfgRow.taxas_parcelado=parc; }
   await sb.from('configuracoes').update({taxa_credito:numOu(document.getElementById('cfg-cr').value,3.5), taxa_debito:numOu(document.getElementById('cfg-db').value,1.5), horario_abertura:document.getElementById('cfg-ab').value||'08:00', horario_fechamento:document.getElementById('cfg-fe').value||'20:00'}).neq('id','00000000-0000-0000-0000-000000000000');
   D.cfg.taxaCred=numOu(document.getElementById('cfg-cr').value,3.5); D.cfg.taxaDeb=numOu(document.getElementById('cfg-db').value,1.5); D.cfg.abertura=document.getElementById('cfg-ab').value; D.cfg.fechamento=document.getElementById('cfg-fe').value;
   hideLoad(); toast('Configurações salvas!');
