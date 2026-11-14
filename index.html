@@ -3551,7 +3551,7 @@ function abrirFat(agId){
   pendentes.forEach(a=>{
     const item=document.createElement('div'); item.className='cc-item'+(a.id===agId?' sel':'');
     const chk=document.createElement('input'); chk.type='checkbox'; chk.checked=a.id===agId;
-    chk.onchange=()=>{ if(chk.checked){ if(!S.fatIds.includes(a.id))S.fatIds.push(a.id); item.classList.add('sel'); } else { S.fatIds=S.fatIds.filter(x=>x!==a.id); item.classList.remove('sel'); } calcFatTotal(); };
+    chk.onchange=()=>{ if(chk.checked){ if(!S.fatIds.includes(a.id))S.fatIds.push(a.id); item.classList.add('sel'); } else { S.fatIds=S.fatIds.filter(x=>x!==a.id); item.classList.remove('sel'); } fatDescPreencher(); calcFatTotal(); };
     item.innerHTML=''; item.appendChild(chk);
     const info=document.createElement('div'); info.style.flex='1';
     const temSaldo=gAgSaldo(a)>0.01;
@@ -3577,7 +3577,7 @@ function abrirFat(agId){
     saldoBtn.style.display='none'; saldoInfo.style.display='none';
   }
   S._fatCliId=cid;
-  const descEl=document.getElementById('fat-desc'); if(descEl)descEl.value='';
+  fatDescPreencher();
   const dtEl=document.getElementById('fat-dt'); if(dtEl)dtEl.value=TODAY;
   // Reset valor personalizado
   const chk=document.getElementById('fat-custom-chk'); if(chk)chk.checked=false;
@@ -3596,12 +3596,19 @@ function toggleCustomVal(){
   }
   calcFatTotal();
 }
+// Desconto JÁ gravado nas comandas selecionadas — aparece no campo "Desconto" ao reabrir/faturar de novo,
+// para não sumir. O campo passa a ser o desconto TOTAL da(s) comanda(s); só a diferença é aplicada agora.
+function fatDescJa(){ return Math.round(S.fatIds.reduce((t,id)=>{ const a=D.agendamentos.find(x=>x.id===id); return t+(a?(Number(a.desconto)||0):0); },0)*100)/100; }
+function fatDescPreencher(){ const el=document.getElementById('fat-desc'); if(!el) return; const dj=fatDescJa(); el.value=dj>0?dj.toFixed(2):''; }
+
 function calcFatTotal(){
   // Soma o que REALMENTE falta pagar de cada comanda selecionada (não o total cheio de novo)
   const sub=S.fatIds.reduce((t,id)=>{ const a=D.agendamentos.find(x=>x.id===id); return t+(a?gAgSaldo(a):0); },0);
   const desc=parseFloat(document.getElementById('fat-desc')?.value)||0;
-  const subComDesc=Math.max(0,sub-desc);
-  const subEl=document.getElementById('fat-sub'); if(subEl)subEl.textContent=Rf(sub);
+  const dj=fatDescJa();                       // desconto que já estava na comanda (o saldo já vem com ele)
+  const bruto=Math.round((sub+dj)*100)/100;   // subtotal ANTES do desconto
+  const subComDesc=Math.max(0,bruto-desc);
+  const subEl=document.getElementById('fat-sub'); if(subEl)subEl.textContent=Rf(bruto);
   const customChk=document.getElementById('fat-custom-chk');
   const customValRaw=document.getElementById('fat-custom-val')?.value;
   const usandoCustom = customChk?.checked && customValRaw!=='' && customValRaw!=null;
@@ -3812,6 +3819,7 @@ function planFat(){
   const ids=S.fatIds.slice();
   const ags=ids.map(id=>D.agendamentos.find(a=>a.id===id)).filter(Boolean);
   const desc=parseFloat(document.getElementById('fat-desc')?.value)||0;
+  const dDesc=Math.round((desc-fatDescJa())*100)/100;   // só a MUDANÇA no desconto mexe no preço
   const customChk=document.getElementById('fat-custom-chk');
   const customValRaw=document.getElementById('fat-custom-val')?.value;
   const usandoCustom = !!(customChk?.checked && customValRaw!=='' && customValRaw!=null);
@@ -3824,13 +3832,13 @@ function planFat(){
     const prior=gAgPago(ag);
     const pagoAgora=Math.round(pgRat.reduce((t,r)=>t+r[i],0)*100)/100;
     let novoTotal;
-    if(!usandoCustom && !(desc>0)) novoTotal=gAgtot(ag);          // nada mudou: preço continua o mesmo
+    if(!usandoCustom && Math.abs(dDesc)<0.005) novoTotal=gAgtot(ag);   // nada mudou: preço continua o mesmo
     else if(pesos[i]<0.01 && alvo[i]===0) novoTotal=gAgtot(ag);
     else novoTotal=Math.round((prior+alvo[i])*100)/100;           // renegociado: já pago antes + o que cobra agora
     const saldoNovo=Math.max(0,Math.round((novoTotal-prior-pagoAgora)*100)/100);
     return {ag, prior, alvo:alvo[i], pagoAgora, novoTotal, saldoNovo, base:gAgBase(ag), peso:pesos[i], fatia:(pesos.reduce((t,w)=>t+w,0)>0?pesos[i]/pesos.reduce((t,w)=>t+w,0):1/ags.length)};
   });
-  return {ags, linhas, desc, usandoCustom, totalFinal, totalPago, pgRat, pesos};
+  return {ags, linhas, desc, dDesc, usandoCustom, totalFinal, totalPago, pgRat, pesos};
 }
 function nomePacoteOuSvc(ag){
   const pks=agPkgIds(ag).map(id=>(D.pacotes.find(x=>x.id===id)||{}).nome).filter(Boolean);
@@ -3881,7 +3889,7 @@ async function executarFat(){
     showLoad('Faturando...');
     const hoje=document.getElementById('fat-dt')?.value || TODAY;
     const pl=planFat();
-    const {linhas, desc, usandoCustom, totalFinal, totalPago}=pl;
+    const {linhas, desc, dDesc, usandoCustom, totalFinal, totalPago}=pl;
     const saldoDevedorTotal = Math.max(0, Math.round((totalFinal - totalPago)*100)/100);
     const pagouTudo = saldoDevedorTotal < 0.01; // tolerância de arredondamento
     const ok=(r,msg)=>{ if(r&&r.error) throw new Error(msg+': '+r.error.message); return r; };
@@ -3943,7 +3951,7 @@ async function executarFat(){
     for(const l of linhas){
       const ag=l.ag;
       const upd={ saldo_devedor: l.saldoNovo, valor_cobrado: l.novoTotal };
-      if(desc>0 && (ag.desconto===null||ag.desconto===undefined||Number(ag.desconto)===0)) upd.desconto = Math.round(desc*l.fatia*100)/100;
+      if(!usandoCustom && Math.abs(dDesc)>=0.005) upd.desconto = Math.max(0,Math.round(((Number(ag.desconto)||0)+dDesc*l.fatia)*100)/100); // guarda o desconto total da comanda
       if(l.saldoNovo<0.01) upd.status='concluido'; // só fecha quando realmente quitou
       ok(await sb.from('agendamentos').update(upd).eq('id',ag.id),'Comanda');
     }
